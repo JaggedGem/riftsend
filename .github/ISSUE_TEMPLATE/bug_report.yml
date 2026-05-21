@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug]: "
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include transfer secrets, URL fragments, private file names, or sensitive file contents.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps needed to reproduce the issue.
+      placeholder: |
+        1. Open sender page
+        2. Select file
+        3. Open receiver link
+        4. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 126, Firefox 127, Safari 17, etc.
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows, macOS, Linux, Android, iOS
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection mode
+      options:
+        - Unknown
+        - Direct P2P
+        - Relayed/TURN
+        - Both tested
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Remove secrets, URL fragments, and private file details before posting.

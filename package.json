@@ -1,13 +1,18 @@
 {
-  "name": "riftsend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "riftsend-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Browser-based end-to-end encrypted peer-to-peer file transfer.",
+  "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm --recursive --parallel dev",
+    "build": "pnpm --recursive build",
+    "typecheck": "pnpm --recursive typecheck",
+    "lint": "pnpm --recursive lint",
+    "test": "pnpm --recursive test",
+    "format": "pnpm --recursive format"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.33.4"
+  "engines": {
+    "node": ">=22"
+  }
 }

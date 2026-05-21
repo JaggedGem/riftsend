@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a feature or improvement
+title: "[Feature]: "
+labels: ["feature", "needs triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or behavior you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - WebRTC/networking
+        - Encryption/security
+        - Resume/storage
+        - Compression/performance
+        - UI/UX
+        - Signaling server
+        - TURN relay
+        - Documentation
+        - Other
+  - type: textarea
+    id: security
+    attributes:
+      label: Security/privacy considerations
+      description: Could this change affect what the server sees, key handling, metadata, or user privacy?

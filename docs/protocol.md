@@ -124,9 +124,9 @@ or be wrapped by a versioned envelope:
 
 ```json
 {
-    "v": 1,
-    "type": "hello",
-    "payload": {}
+  "v": 1,
+  "type": "hello",
+  "payload": {}
 }
 ```
 
@@ -134,12 +134,12 @@ Recommended MVP envelope:
 
 ```ts
 export type ControlEnvelope<TPayload = unknown> = {
-    v: 1;
-    type: string;
-    transferId?: string;
-    messageId: string;
-    sentAt: number;
-    payload: TPayload;
+  v: 1;
+  type: string;
+  transferId?: string;
+  messageId: string;
+  sentAt: number;
+  payload: TPayload;
 };
 ```
 
@@ -256,13 +256,13 @@ Rationale:
 
 ```ts
 export type SignalingEnvelope<TPayload = unknown> = {
-    v: 1;
-    type: string;
-    roomId?: string;
-    clientId?: string;
-    messageId: string;
-    sentAt: number;
-    payload: TPayload;
+  v: 1;
+  type: string;
+  roomId?: string;
+  clientId?: string;
+  messageId: string;
+  sentAt: number;
+  payload: TPayload;
 };
 ```
 
@@ -272,14 +272,14 @@ Client → Server
 
 ```json
 {
-    "v": 1,
-    "type": "join-room",
-    "roomId": "blue-river-91",
-    "messageId": "msg_001",
-    "sentAt": 1770000000000,
-    "payload": {
-        "role": "sender"
-    }
+  "v": 1,
+  "type": "join-room",
+  "roomId": "blue-river-91",
+  "messageId": "msg_001",
+  "sentAt": 1770000000000,
+  "payload": {
+    "role": "sender"
+  }
 }
 ```
 
@@ -287,7 +287,7 @@ Payload:
 
 ```ts
 type JoinRoomPayload = {
-    role: "sender" | "receiver";
+  role: "sender" | "receiver";
 };
 ```
 
@@ -305,17 +305,17 @@ Server → Client
 
 ```json
 {
-    "v": 1,
-    "type": "room-joined",
-    "roomId": "blue-river-91",
-    "messageId": "msg_002",
-    "sentAt": 1770000000001,
-    "payload": {
-        "clientId": "client_sender_1",
-        "role": "sender",
-        "peerPresent": false,
-        "expiresAt": 1770000900000
-    }
+  "v": 1,
+  "type": "room-joined",
+  "roomId": "blue-river-91",
+  "messageId": "msg_002",
+  "sentAt": 1770000000001,
+  "payload": {
+    "clientId": "client_sender_1",
+    "role": "sender",
+    "peerPresent": false,
+    "expiresAt": 1770000900000
+  }
 }
 ```
 
@@ -325,14 +325,14 @@ Server → Client
 
 ```json
 {
-    "v": 1,
-    "type": "peer-joined",
-    "roomId": "blue-river-91",
-    "messageId": "msg_003",
-    "sentAt": 1770000000100,
-    "payload": {
-        "role": "receiver"
-    }
+  "v": 1,
+  "type": "peer-joined",
+  "roomId": "blue-river-91",
+  "messageId": "msg_003",
+  "sentAt": 1770000000100,
+  "payload": {
+    "role": "receiver"
+  }
 }
 ```
 
@@ -344,18 +344,18 @@ Used to forward WebRTC payloads.
 
 ```json
 {
-    "v": 1,
-    "type": "signal",
-    "roomId": "blue-river-91",
-    "messageId": "msg_004",
-    "sentAt": 1770000000200,
-    "payload": {
-        "kind": "offer",
-        "data": {
-            "type": "offer",
-            "sdp": "..."
-        }
+  "v": 1,
+  "type": "signal",
+  "roomId": "blue-river-91",
+  "messageId": "msg_004",
+  "sentAt": 1770000000200,
+  "payload": {
+    "kind": "offer",
+    "data": {
+      "type": "offer",
+      "sdp": "..."
     }
+  }
 }
 ```
 
@@ -371,14 +371,14 @@ Server → Client
 
 ```json
 {
-    "v": 1,
-    "type": "peer-left",
-    "roomId": "blue-river-91",
-    "messageId": "msg_005",
-    "sentAt": 1770000000300,
-    "payload": {
-        "reason": "disconnect"
-    }
+  "v": 1,
+  "type": "peer-left",
+  "roomId": "blue-river-91",
+  "messageId": "msg_005",
+  "sentAt": 1770000000300,
+  "payload": {
+    "reason": "disconnect"
+  }
 }
 ```
 
@@ -388,14 +388,14 @@ Server → Client
 
 ```json
 {
-    "v": 1,
-    "type": "signaling-error",
-    "messageId": "msg_006",
-    "sentAt": 1770000000400,
-    "payload": {
-        "code": "ROOM_FULL",
-        "message": "Room already has sender and receiver."
-    }
+  "v": 1,
+  "type": "signaling-error",
+  "messageId": "msg_006",
+  "sentAt": 1770000000400,
+  "payload": {
+    "code": "ROOM_FULL",
+    "message": "Room already has sender and receiver."
+  }
 }
 ```
 
@@ -407,12 +407,12 @@ Server → Client
 
 ```ts
 export type ControlEnvelope<TPayload = unknown> = {
-    v: 1;
-    type: ControlMessageType;
-    transferId?: string;
-    messageId: string;
-    sentAt: number;
-    payload: TPayload;
+  v: 1;
+  type: ControlMessageType;
+  transferId?: string;
+  messageId: string;
+  sentAt: number;
+  payload: TPayload;
 };
 ```
 
@@ -420,21 +420,21 @@ Message types:
 
 ```ts
 type ControlMessageType =
-    | "hello"
-    | "manifest"
-    | "accept"
-    | "reject"
-    | "have"
-    | "request"
-    | "ack"
-    | "pause"
-    | "resume"
-    | "cancel"
-    | "complete"
-    | "ping"
-    | "pong"
-    | "stats"
-    | "error";
+  | "hello"
+  | "manifest"
+  | "accept"
+  | "reject"
+  | "have"
+  | "request"
+  | "ack"
+  | "pause"
+  | "resume"
+  | "cancel"
+  | "complete"
+  | "ping"
+  | "pong"
+  | "stats"
+  | "error";
 ```
 
 ---
@@ -445,31 +445,31 @@ Exchanged after control channel opens.
 
 ```json
 {
-    "v": 1,
-    "type": "hello",
-    "messageId": "ctrl_001",
-    "sentAt": 1770000001000,
-    "payload": {
-        "role": "sender",
-        "protocolVersion": 1,
-        "client": {
-            "name": "riftsend-web",
-            "version": "0.1.0"
-        },
-        "features": [
-            "aes-gcm",
-            "hkdf-sha-256",
-            "block-frame-v1",
-            "resume-v1",
-            "compression-none",
-            "compression-gzip"
-        ],
-        "limits": {
-            "maxControlMessageBytes": 65536,
-            "preferredBlockSize": 4194304,
-            "preferredFrameSize": 262144
-        }
+  "v": 1,
+  "type": "hello",
+  "messageId": "ctrl_001",
+  "sentAt": 1770000001000,
+  "payload": {
+    "role": "sender",
+    "protocolVersion": 1,
+    "client": {
+      "name": "riftsend-web",
+      "version": "0.1.0"
+    },
+    "features": [
+      "aes-gcm",
+      "hkdf-sha-256",
+      "block-frame-v1",
+      "resume-v1",
+      "compression-none",
+      "compression-gzip"
+    ],
+    "limits": {
+      "maxControlMessageBytes": 65536,
+      "preferredBlockSize": 4194304,
+      "preferredFrameSize": 262144
     }
+  }
 }
 ```
 
@@ -487,39 +487,39 @@ Sender → Receiver
 
 ```json
 {
-    "v": 1,
-    "type": "manifest",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_002",
-    "sentAt": 1770000002000,
-    "payload": {
-        "manifest": {
-            "version": 1,
-            "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-            "createdAt": 1770000000000,
-            "blockSize": 4194304,
-            "frameSize": 262144,
-            "encryption": {
-                "algorithm": "AES-GCM",
-                "kdf": "HKDF-SHA-256",
-                "nonceMode": "fileNonce-blockIndex"
-            },
-            "compression": {
-                "mode": "none",
-                "algorithms": ["none"]
-            },
-            "files": [
-                {
-                    "fileId": 0,
-                    "name": "movie.mp4",
-                    "size": 7340032000,
-                    "mime": "video/mp4",
-                    "lastModified": 1770000000000,
-                    "blockCount": 1751
-                }
-            ]
+  "v": 1,
+  "type": "manifest",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_002",
+  "sentAt": 1770000002000,
+  "payload": {
+    "manifest": {
+      "version": 1,
+      "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+      "createdAt": 1770000000000,
+      "blockSize": 4194304,
+      "frameSize": 262144,
+      "encryption": {
+        "algorithm": "AES-GCM",
+        "kdf": "HKDF-SHA-256",
+        "nonceMode": "fileNonce-blockIndex"
+      },
+      "compression": {
+        "mode": "none",
+        "algorithms": ["none"]
+      },
+      "files": [
+        {
+          "fileId": 0,
+          "name": "movie.mp4",
+          "size": 7340032000,
+          "mime": "video/mp4",
+          "lastModified": 1770000000000,
+          "blockCount": 1751
         }
+      ]
     }
+  }
 }
 ```
 
@@ -537,18 +537,18 @@ Receiver → Sender
 
 ```json
 {
-    "v": 1,
-    "type": "accept",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_003",
-    "sentAt": 1770000003000,
-    "payload": {
-        "acceptedFiles": [0],
-        "storage": {
-            "mode": "opfs",
-            "resumeSupported": true
-        }
+  "v": 1,
+  "type": "accept",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_003",
+  "sentAt": 1770000003000,
+  "payload": {
+    "acceptedFiles": [0],
+    "storage": {
+      "mode": "opfs",
+      "resumeSupported": true
     }
+  }
 }
 ```
 
@@ -560,14 +560,14 @@ Receiver → Sender
 
 ```json
 {
-    "v": 1,
-    "type": "reject",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_004",
-    "sentAt": 1770000003000,
-    "payload": {
-        "reason": "user-rejected"
-    }
+  "v": 1,
+  "type": "reject",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_004",
+  "sentAt": 1770000003000,
+  "payload": {
+    "reason": "user-rejected"
+  }
 }
 ```
 
@@ -581,22 +581,22 @@ Used for resume.
 
 ```json
 {
-    "v": 1,
-    "type": "have",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_005",
-    "sentAt": 1770000010000,
-    "payload": {
-        "files": [
-            {
-                "fileId": 0,
-                "verifiedBlocks": [
-                    [0, 120],
-                    [122, 300]
-                ]
-            }
+  "v": 1,
+  "type": "have",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_005",
+  "sentAt": 1770000010000,
+  "payload": {
+    "files": [
+      {
+        "fileId": 0,
+        "verifiedBlocks": [
+          [0, 120],
+          [122, 300]
         ]
-    }
+      }
+    ]
+  }
 }
 ```
 
@@ -622,19 +622,19 @@ Used to request missing blocks explicitly.
 
 ```json
 {
-    "v": 1,
-    "type": "request",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_006",
-    "sentAt": 1770000011000,
-    "payload": {
-        "files": [
-            {
-                "fileId": 0,
-                "blocks": [[301, 400]]
-            }
-        ]
-    }
+  "v": 1,
+  "type": "request",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_006",
+  "sentAt": 1770000011000,
+  "payload": {
+    "files": [
+      {
+        "fileId": 0,
+        "blocks": [[301, 400]]
+      }
+    ]
+  }
 }
 ```
 
@@ -646,20 +646,20 @@ Receiver → Sender
 
 ```json
 {
-    "v": 1,
-    "type": "ack",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_007",
-    "sentAt": 1770000012000,
-    "payload": {
-        "files": [
-            {
-                "fileId": 0,
-                "verifiedBlocks": [[0, 320]]
-            }
-        ],
-        "receivedBytes": 1346371584
-    }
+  "v": 1,
+  "type": "ack",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_007",
+  "sentAt": 1770000012000,
+  "payload": {
+    "files": [
+      {
+        "fileId": 0,
+        "verifiedBlocks": [[0, 320]]
+      }
+    ],
+    "receivedBytes": 1346371584
+  }
 }
 ```
 
@@ -677,25 +677,25 @@ Either peer may pause.
 
 ```json
 {
-    "v": 1,
-    "type": "pause",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_008",
-    "sentAt": 1770000013000,
-    "payload": {
-        "reason": "user"
-    }
+  "v": 1,
+  "type": "pause",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_008",
+  "sentAt": 1770000013000,
+  "payload": {
+    "reason": "user"
+  }
 }
 ```
 
 ```json
 {
-    "v": 1,
-    "type": "resume",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_009",
-    "sentAt": 1770000014000,
-    "payload": {}
+  "v": 1,
+  "type": "resume",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_009",
+  "sentAt": 1770000014000,
+  "payload": {}
 }
 ```
 
@@ -713,14 +713,14 @@ Either peer may cancel.
 
 ```json
 {
-    "v": 1,
-    "type": "cancel",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_010",
-    "sentAt": 1770000015000,
-    "payload": {
-        "reason": "user-cancelled"
-    }
+  "v": 1,
+  "type": "cancel",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_010",
+  "sentAt": 1770000015000,
+  "payload": {
+    "reason": "user-cancelled"
+  }
 }
 ```
 
@@ -738,20 +738,20 @@ Receiver → Sender
 
 ```json
 {
-    "v": 1,
-    "type": "complete",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_011",
-    "sentAt": 1770000020000,
-    "payload": {
-        "files": [
-            {
-                "fileId": 0,
-                "verified": true,
-                "size": 7340032000
-            }
-        ]
-    }
+  "v": 1,
+  "type": "complete",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_011",
+  "sentAt": 1770000020000,
+  "payload": {
+    "files": [
+      {
+        "fileId": 0,
+        "verified": true,
+        "size": 7340032000
+      }
+    ]
+  }
 }
 ```
 
@@ -763,16 +763,16 @@ Either peer → Other peer
 
 ```json
 {
-    "v": 1,
-    "type": "error",
-    "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
-    "messageId": "ctrl_012",
-    "sentAt": 1770000021000,
-    "payload": {
-        "code": "DECRYPT_FAILED",
-        "message": "Could not decrypt block 42.",
-        "fatal": true
-    }
+  "v": 1,
+  "type": "error",
+  "transferId": "01HR4J6G3YZQK12X4H6N6A1MBB",
+  "messageId": "ctrl_012",
+  "sentAt": 1770000021000,
+  "payload": {
+    "code": "DECRYPT_FAILED",
+    "message": "Could not decrypt block 42.",
+    "fatal": true
+  }
 }
 ```
 
@@ -953,12 +953,12 @@ Compression decision metadata:
 
 ```json
 {
-    "compression": {
-        "mode": "per-block",
-        "algorithm": "gzip",
-        "minSavingsPercent": 5,
-        "blockSize": 4194304
-    }
+  "compression": {
+    "mode": "per-block",
+    "algorithm": "gzip",
+    "minSavingsPercent": 5,
+    "blockSize": 4194304
+  }
 }
 ```
 
@@ -972,18 +972,18 @@ Receiver stores:
 
 ```json
 {
-    "transferId": "...",
-    "manifestHash": "...",
-    "createdAt": 1770000000000,
-    "updatedAt": 1770000010000,
-    "files": {
-        "0": {
-            "size": 7340032000,
-            "blockSize": 4194304,
-            "verifiedBlocks": [[0, 120]],
-            "opfsPath": "transfers/<transferId>/0.part"
-        }
+  "transferId": "...",
+  "manifestHash": "...",
+  "createdAt": 1770000000000,
+  "updatedAt": 1770000010000,
+  "files": {
+    "0": {
+      "size": 7340032000,
+      "blockSize": 4194304,
+      "verifiedBlocks": [[0, 120]],
+      "opfsPath": "transfers/<transferId>/0.part"
     }
+  }
 }
 ```
 

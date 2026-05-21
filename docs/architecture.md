@@ -1,5 +1,7 @@
 # Riftsend Architecture
 
+> Working name: **Riftsend**. Replace this name everywhere if the final product name changes.
+
 Riftsend is a browser-based, end-to-end encrypted file transfer platform designed for direct peer-to-peer transfer across the internet. The app should transfer file bytes directly between two browsers whenever possible, fall back to an encrypted TURN relay when direct peer-to-peer connectivity fails, support very large files, and eventually support resumable transfers and optional compression.
 
 This document explains the overall system architecture: components, responsibilities, data flow, browser APIs, network paths, storage model, and development constraints.
@@ -527,17 +529,17 @@ Receiver stores:
 
 ```json
 {
-    "transferId": "...",
-    "manifestHash": "...",
-    "files": {
-        "0": {
-            "verifiedBlocks": [
-                [0, 120],
-                [122, 300]
-            ],
-            "opfsPath": "transfers/<transferId>/file-0.part"
-        }
+  "transferId": "...",
+  "manifestHash": "...",
+  "files": {
+    "0": {
+      "verifiedBlocks": [
+        [0, 120],
+        [122, 300]
+      ],
+      "opfsPath": "transfers/<transferId>/file-0.part"
     }
+  }
 }
 ```
 
