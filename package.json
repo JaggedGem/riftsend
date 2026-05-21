@@ -14,5 +14,10 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "autoprefixer": "^10.5.0",
+    "tailwindcss": "^4.3.0"
   }
 }
