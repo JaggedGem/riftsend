@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   DiscoveryPeersOverlay,
   type DiscoveryPeer,
 } from "@/app/components/DiscoveryPeersOverlay";
+import { AppTopBar } from "@/app/components/AppTopBar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,15 +18,11 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight,
   Download,
-  Moon,
   SendHorizontal,
-  Sun,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { Link } from "react-router";
-
-type ThemeMode = "light" | "dark";
 
 type RoleOption = {
   id: string;
@@ -38,7 +35,6 @@ type RoleOption = {
   cardClassName: string;
 };
 
-const THEME_STORAGE_KEY = "riftsend-theme";
 const EDGE_SPAWN_LIMIT = 8;
 const EMPTY_DISCOVERY_PEERS: DiscoveryPeer[] = [];
 
@@ -87,45 +83,16 @@ const ROLE_OPTIONS: RoleOption[] = [
 ];
 
 /**
- * Resolves the initial theme from persisted preference or system preference.
- *
- * @returns The initial theme mode for first render.
- */
-function getInitialTheme(): ThemeMode {
-  if (typeof window === "undefined") {
-    return "light";
-  }
-
-  const persistedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-
-  if (persistedTheme === "light" || persistedTheme === "dark") {
-    return persistedTheme;
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
-
-/**
  * Landing page entry with role selection and ambient discovery overlay.
  */
 export function LandingPage() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
-    getInitialTheme(),
-  );
   const [isLocalDiscoverable, setIsLocalDiscoverable] = useState(true);
   const nearbyPeers = EMPTY_DISCOVERY_PEERS;
   const [placementSeed] = useState(() => createPlacementSeed());
   const roleCardRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", themeMode === "dark");
-    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
-  }, [themeMode]);
-
   return (
-    <div className="relative h-dvh overflow-hidden bg-background text-foreground">
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-70 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
@@ -143,36 +110,11 @@ export function LandingPage() {
         }}
       />
 
-      <header className="absolute inset-x-0 top-0 z-20">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
-          <Link
-            to="/"
-            className="rounded-md text-sm font-semibold tracking-[0.14em] text-foreground transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none"
-          >
-            RIFTSEND
-          </Link>
-
-          <Button
-            onClick={() =>
-              setThemeMode((current) => (current === "dark" ? "light" : "dark"))
-            }
-            aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full border-border/70 bg-card/80 backdrop-blur-sm"
-          >
-            {themeMode === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </header>
+      <AppTopBar className="bg-background/86 backdrop-blur-md" />
 
       <main
         id="main-content"
-        className="relative z-10 mx-auto flex h-full w-full max-w-6xl items-center justify-center overflow-hidden px-4 py-20 sm:px-6 sm:py-24 lg:px-8"
+        className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-10 lg:px-8"
       >
         <DiscoveryPeersOverlay
           peers={nearbyPeers}

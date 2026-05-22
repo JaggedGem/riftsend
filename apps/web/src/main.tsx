@@ -12,11 +12,14 @@ import "@fontsource/geist-mono/500.css";
 import "@fontsource/geist-mono/600.css";
 
 import { router } from "./app/router";
+import { ThemeProvider } from "./app/theme";
 
 import "./styles/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </React.StrictMode>,
 );
