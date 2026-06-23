@@ -20,19 +20,32 @@ const MAX_MESSAGES_PER_SEC = parseInt(
   10,
 );
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: {
+    transport: {
+      target: "pino-pretty",
+      options: {
+        colorize: true,
+        translateTime: "HH:MM:ss",
+        ignore: "pid,hostname",
+        singleLine: false,
+        minimumLevel: "trace",
+      },
+    },
+  },
+});
 
 await app.register(cors, { origin: true });
 
 function safeSend(ws: AuthedWebSocket, data: unknown): void {
   if (ws.readyState !== ws.OPEN) {
-    app.log.warn({ peerId: ws.peerId }, "Attempted send on non-open socket");
+    app.log.warn({ peerId: ws.peerId }, "⚠ Attempted send on non-open socket");
     return;
   }
   try {
     ws.send(JSON.stringify(data));
   } catch (err) {
-    app.log.error({ err, peerId: ws.peerId }, "Send failed");
+    app.log.error({ err, peerId: ws.peerId }, "✘ Send failed");
   }
 }
 
@@ -69,17 +82,17 @@ const wss = new WebSocketServer({
 
 wss.on("connection", (ws: AuthedWebSocket) => {
   if (wss.clients.size > MAX_CONNECTIONS) {
-    app.log.warn("Connection limit reached, rejecting");
+    app.log.warn("✘ Connection limit reached, rejecting");
     ws.close(1013, "Too many connections");
     return;
   }
 
-  app.log.info({ remoteAddress: ws.url }, "New WebSocket connection");
+  app.log.info({ remoteAddress: ws.url }, "⊕ New WebSocket connection");
 
   ws.on("message", (raw) => {
     try {
       if (!checkRateLimit(ws)) {
-        app.log.warn({ peerId: ws.peerId }, "Rate limit exceeded");
+        app.log.warn({ peerId: ws.peerId }, "⊘ Rate limit exceeded");
         ws.close(1008, "Rate limit exceeded");
         return;
       }
@@ -88,7 +101,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
       try {
         parsed = JSON.parse(raw.toString());
       } catch {
-        app.log.warn({ peerId: ws.peerId }, "Invalid JSON received");
+        app.log.warn({ peerId: ws.peerId }, "⚠ Invalid JSON received");
         ws.close(1008, "Invalid JSON");
         return;
       }
@@ -97,7 +110,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
       if (!result.success) {
         app.log.warn(
           { err: result.error, peerId: ws.peerId },
-          "Schema validation failed",
+          "◎ Schema validation failed",
         );
         return;
       }
@@ -107,10 +120,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
       switch (msg.type) {
         case "hello": {
           if (ws.peerId) {
-            app.log.warn(
-              { peerId: ws.peerId },
-              "Duplicate hello message",
-            );
+            app.log.warn({ peerId: ws.peerId }, "⚠ Duplicate hello message");
             return;
           }
 
@@ -128,7 +138,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
             if (existingClient) {
               app.log.info(
                 { peerId: fromValid.data },
-                "Client reconnected with valid session token",
+                "↻ Client reconnected with valid session token",
               );
 
               existingClient.close(1000, "Reconnected elsewhere");
@@ -179,7 +189,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
           };
 
           safeSend(ws, peerIdMsg);
-          app.log.info({ peerId, role: ws.role }, "Client assigned peerId");
+          app.log.info({ peerId, role: ws.role }, "✓ Client assigned peerId");
           break;
         }
 
@@ -187,7 +197,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
         case "answer":
         case "ice-candidate": {
           if (!ws.peerId) {
-            app.log.warn("Unauthenticated client sent message");
+            app.log.warn("⚠ Unauthenticated client sent message");
             ws.close(1008, "Not authenticated");
             return;
           }
@@ -196,7 +206,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
           if (!target) {
             app.log.warn(
               { from: msg.from, to: msg.to, type: msg.type },
-              "Target peer not found",
+              "∅ Target peer not found",
             );
             return;
           }
@@ -208,11 +218,14 @@ wss.on("connection", (ws: AuthedWebSocket) => {
         default:
           app.log.warn(
             { type: (msg as { type: string }).type, peerId: ws.peerId },
-            "Unknown message type",
+            "¿ Unknown message type",
           );
       }
     } catch (err) {
-      app.log.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
+      app.log.error(
+        { err, peerId: ws.peerId },
+        "✘ Unhandled error in message handler",
+      );
       ws.close(1011, "Internal server error");
     }
   });
@@ -220,12 +233,12 @@ wss.on("connection", (ws: AuthedWebSocket) => {
   ws.on("close", (code, reason) => {
     app.log.info(
       { peerId: ws.peerId, code, reason: reason.toString() },
-      "Client disconnected",
+      "⊣ Client disconnected",
     );
   });
 
   ws.on("error", (err) => {
-    app.log.error({ err, peerId: ws.peerId }, "WebSocket error");
+    app.log.error({ err, peerId: ws.peerId }, "✘ WebSocket error");
   });
 });
 
@@ -238,20 +251,20 @@ app.get("/health", async () => {
 
 try {
   await app.listen({ port: HTTP_PORT, host: BIND_HOST });
-  app.log.info(`HTTP server listening at http://${BIND_HOST}:${HTTP_PORT}`);
-  app.log.info(`WebSocket server listening on ws://${BIND_HOST}:${WS_PORT}`);
+  app.log.info(`◇ HTTP server listening at http://${BIND_HOST}:${HTTP_PORT}`);
+  app.log.info(`◇ WebSocket server listening on ws://${BIND_HOST}:${WS_PORT}`);
 } catch (err) {
-  app.log.fatal(err, "Failed to start server");
+  app.log.fatal(err, "✘ Failed to start server");
   process.exit(1);
 }
 
 function shutdown(signal: string) {
-  app.log.info({ signal }, "Shutting down gracefully");
+  app.log.info({ signal }, "■ Shutting down gracefully");
   wss.close(() => {
-    app.log.info("WebSocket server closed");
+    app.log.info("■ WebSocket server closed");
   });
   app.close().then(() => {
-    app.log.info("HTTP server closed");
+    app.log.info("■ HTTP server closed");
     process.exit(0);
   });
 }
