@@ -1,43 +1,66 @@
+import "dotenv/config";
 import Fastify from "fastify";
-import {
+import cors from "@fastify/cors";
+import type {
   AuthedWebSocket,
   PeerIdMessage,
-  SignalingMessageSchema,
   SignalingMessage,
-  PeerIdZod,
-  SessionTokenZod,
-} from "./types";
+} from "./types.js";
+import { SignalingMessageSchema, PeerIdZod, SessionTokenZod } from "./types.js";
 import { WebSocketServer } from "ws";
-import { generatePeerId } from "@riftsend/shared";
-import { generateSessionToken } from "@riftsend/shared";
-import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const envPath = resolve(__dirname, "../.env");
-if (existsSync(envPath)) {
-  for (const line of readFileSync(envPath, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith("#")) {
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx !== -1) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        const value = trimmed.slice(eqIdx + 1).trim();
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-  }
-}
+import { generatePeerId, generateSessionToken } from "@riftsend/shared";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8080", 10);
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000", 10);
 const BIND_HOST = process.env.BIND_HOST || "0.0.0.0";
-const MAX_PAYLOAD = 1024 * 128; // 128KB
+const MAX_PAYLOAD = 1024 * 128;
+const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS || "1000", 10);
+const MAX_MESSAGES_PER_SEC = parseInt(
+  process.env.MAX_MESSAGES_PER_SEC || "60",
+  10,
+);
 
-const app = Fastify();
+const app = Fastify({ logger: true });
+
+await app.register(cors, { origin: true });
+
+function safeSend(ws: AuthedWebSocket, data: unknown): void {
+  if (ws.readyState !== ws.OPEN) {
+    app.log.warn({ peerId: ws.peerId }, "Attempted send on non-open socket");
+    return;
+  }
+  try {
+    ws.send(JSON.stringify(data));
+  } catch (err) {
+    app.log.error({ err, peerId: ws.peerId }, "Send failed");
+  }
+}
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+const rateLimitMap = new WeakMap<AuthedWebSocket, RateLimitEntry>();
+
+function checkRateLimit(ws: AuthedWebSocket): boolean {
+  const now = Date.now();
+  let entry = rateLimitMap.get(ws);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + 1000 };
+    rateLimitMap.set(ws, entry);
+  }
+  entry.count++;
+  return entry.count <= MAX_MESSAGES_PER_SEC;
+}
+
+function findClientByPeerId(peerId: string): AuthedWebSocket | undefined {
+  for (const client of wss.clients) {
+    const authed = client as AuthedWebSocket;
+    if (authed.peerId === peerId && authed.readyState === authed.OPEN) {
+      return authed;
+    }
+  }
+}
 
 const wss = new WebSocketServer({
   port: WS_PORT,
@@ -45,131 +68,193 @@ const wss = new WebSocketServer({
 });
 
 wss.on("connection", (ws: AuthedWebSocket) => {
-  console.log("New client connected");
+  if (wss.clients.size > MAX_CONNECTIONS) {
+    app.log.warn("Connection limit reached, rejecting");
+    ws.close(1013, "Too many connections");
+    return;
+  }
 
-  ws.on("message", (message) => {
-    let parsedMessage: unknown;
+  app.log.info({ remoteAddress: ws.url }, "New WebSocket connection");
+
+  ws.on("message", (raw) => {
     try {
-      parsedMessage = JSON.parse(message.toString());
-    } catch {
-      console.error("Invalid JSON received");
-      ws.close(1008, "Invalid JSON");
-      return;
-    }
-
-    const result = SignalingMessageSchema.safeParse(parsedMessage);
-
-    if (!result.success) {
-      console.error("Invalid message received:", result.error);
-      return;
-    }
-
-    const signalingMessage: SignalingMessage = result.data;
-
-    switch (signalingMessage.type) {
-      case "hello": {
-        if (ws.peerId) {
-          console.warn(
-            `Client ${ws.peerId} sent hello message after already being assigned a peerId`,
-          );
-          return;
-        }
-
-        const fromValid = PeerIdZod.safeParse(signalingMessage.from);
-        const tokenValid = SessionTokenZod.safeParse(
-          signalingMessage.sessionToken,
-        );
-
-        if (fromValid.success && tokenValid.success) {
-          const existingClient = [...wss.clients].find(
-            (client) =>
-              client !== ws &&
-              (client as AuthedWebSocket).peerId === fromValid.data &&
-              (client as AuthedWebSocket).sessionToken === tokenValid.data,
-          ) as AuthedWebSocket | undefined;
-
-          if (existingClient) {
-            console.log(
-              `Client ${fromValid.data} reconnected with valid session token`,
-            );
-
-            existingClient.close(1000, "Reconnected with valid session token");
-
-            const newSessionToken = generateSessionToken();
-
-            const peerIdMessage: PeerIdMessage = {
-              type: "peer-id",
-              from: "server",
-              payload: {
-                peerId: fromValid.data,
-                sessionToken: newSessionToken,
-              },
-            };
-
-            ws.send(JSON.stringify(peerIdMessage));
-
-            ws.peerId = fromValid.data;
-            ws.sessionToken = newSessionToken;
-            ws.name = signalingMessage.payload.name;
-            ws.protocolVersion = signalingMessage.protocolVersion;
-            ws.clientVersion = signalingMessage.clientVersion;
-            ws.role = signalingMessage.payload.role;
-            ws.platform = signalingMessage.payload.platform;
-            ws.supportResume = signalingMessage.payload.supportResume;
-            ws.supportChunkAck = signalingMessage.payload.supportChunkAck;
-
-            return;
-          }
-        }
-
-        const peerIdMessage: PeerIdMessage = {
-          type: "peer-id",
-          from: "server",
-          payload: {
-            peerId: generatePeerId(),
-            sessionToken: generateSessionToken(),
-          },
-        };
-
-        ws.peerId = peerIdMessage.payload.peerId;
-        ws.name = signalingMessage.payload.name;
-        ws.protocolVersion = signalingMessage.protocolVersion;
-        ws.clientVersion = signalingMessage.clientVersion;
-        ws.sessionToken = peerIdMessage.payload.sessionToken;
-        ws.role = signalingMessage.payload.role;
-        ws.platform = signalingMessage.payload.platform;
-        ws.supportResume = signalingMessage.payload.supportResume;
-        ws.supportChunkAck = signalingMessage.payload.supportChunkAck;
-
-        ws.send(JSON.stringify(peerIdMessage));
-        break;
+      if (!checkRateLimit(ws)) {
+        app.log.warn({ peerId: ws.peerId }, "Rate limit exceeded");
+        ws.close(1008, "Rate limit exceeded");
+        return;
       }
 
-      default:
-        console.warn(
-          `Received unknown message type: ${signalingMessage.type} from ${signalingMessage.from}`,
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw.toString());
+      } catch {
+        app.log.warn({ peerId: ws.peerId }, "Invalid JSON received");
+        ws.close(1008, "Invalid JSON");
+        return;
+      }
+
+      const result = SignalingMessageSchema.safeParse(parsed);
+      if (!result.success) {
+        app.log.warn(
+          { err: result.error, peerId: ws.peerId },
+          "Schema validation failed",
         );
+        return;
+      }
+
+      const msg: SignalingMessage = result.data;
+
+      switch (msg.type) {
+        case "hello": {
+          if (ws.peerId) {
+            app.log.warn(
+              { peerId: ws.peerId },
+              "Duplicate hello message",
+            );
+            return;
+          }
+
+          const fromValid = PeerIdZod.safeParse(msg.from);
+          const tokenValid = SessionTokenZod.safeParse(msg.sessionToken);
+
+          if (fromValid.success && tokenValid.success) {
+            const existingClient = [...wss.clients].find(
+              (client) =>
+                client !== ws &&
+                (client as AuthedWebSocket).peerId === fromValid.data &&
+                (client as AuthedWebSocket).sessionToken === tokenValid.data,
+            ) as AuthedWebSocket | undefined;
+
+            if (existingClient) {
+              app.log.info(
+                { peerId: fromValid.data },
+                "Client reconnected with valid session token",
+              );
+
+              existingClient.close(1000, "Reconnected elsewhere");
+
+              const newSessionToken = generateSessionToken();
+              const peerIdMsg: PeerIdMessage = {
+                type: "peer-id",
+                from: "server",
+                payload: {
+                  peerId: fromValid.data,
+                  sessionToken: newSessionToken,
+                },
+              };
+
+              safeSend(ws, peerIdMsg);
+
+              ws.peerId = fromValid.data;
+              ws.sessionToken = newSessionToken;
+              ws.name = msg.payload.name;
+              ws.protocolVersion = msg.protocolVersion;
+              ws.clientVersion = msg.clientVersion;
+              ws.role = msg.payload.role;
+              ws.platform = msg.payload.platform;
+              ws.supportResume = msg.payload.supportResume;
+              ws.supportChunkAck = msg.payload.supportChunkAck;
+
+              return;
+            }
+          }
+
+          const peerId = generatePeerId();
+          const sessionToken = generateSessionToken();
+
+          ws.peerId = peerId;
+          ws.name = msg.payload.name;
+          ws.protocolVersion = msg.protocolVersion;
+          ws.clientVersion = msg.clientVersion;
+          ws.sessionToken = sessionToken;
+          ws.role = msg.payload.role;
+          ws.platform = msg.payload.platform;
+          ws.supportResume = msg.payload.supportResume;
+          ws.supportChunkAck = msg.payload.supportChunkAck;
+
+          const peerIdMsg: PeerIdMessage = {
+            type: "peer-id",
+            from: "server",
+            payload: { peerId, sessionToken },
+          };
+
+          safeSend(ws, peerIdMsg);
+          app.log.info({ peerId, role: ws.role }, "Client assigned peerId");
+          break;
+        }
+
+        case "offer":
+        case "answer":
+        case "ice-candidate": {
+          if (!ws.peerId) {
+            app.log.warn("Unauthenticated client sent message");
+            ws.close(1008, "Not authenticated");
+            return;
+          }
+
+          const target = findClientByPeerId(msg.to);
+          if (!target) {
+            app.log.warn(
+              { from: msg.from, to: msg.to, type: msg.type },
+              "Target peer not found",
+            );
+            return;
+          }
+
+          safeSend(target, msg);
+          break;
+        }
+
+        default:
+          app.log.warn(
+            { type: (msg as { type: string }).type, peerId: ws.peerId },
+            "Unknown message type",
+          );
+      }
+    } catch (err) {
+      app.log.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
+      ws.close(1011, "Internal server error");
     }
   });
 
-  ws.on("close", () => {
-    console.log("Client disconnected");
+  ws.on("close", (code, reason) => {
+    app.log.info(
+      { peerId: ws.peerId, code, reason: reason.toString() },
+      "Client disconnected",
+    );
   });
 
   ws.on("error", (err) => {
-    console.error("WebSocket error:", err.message);
+    app.log.error({ err, peerId: ws.peerId }, "WebSocket error");
   });
 });
 
-app.get("/health", async (_request, reply) => {
-  return { status: "healthy" };
+app.get("/health", async () => {
+  return {
+    status: "healthy",
+    connections: wss.clients.size,
+  };
 });
 
-app.listen({ port: HTTP_PORT, host: BIND_HOST }, (err, address) => {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-  }
-  console.log(`HTTP health server listening at ${address}`);
-  console.log(`WebSocket server listening on port ${WS_PORT}`);
-});
+try {
+  await app.listen({ port: HTTP_PORT, host: BIND_HOST });
+  app.log.info(`HTTP server listening at http://${BIND_HOST}:${HTTP_PORT}`);
+  app.log.info(`WebSocket server listening on ws://${BIND_HOST}:${WS_PORT}`);
+} catch (err) {
+  app.log.fatal(err, "Failed to start server");
+  process.exit(1);
+}
+
+function shutdown(signal: string) {
+  app.log.info({ signal }, "Shutting down gracefully");
+  wss.close(() => {
+    app.log.info("WebSocket server closed");
+  });
+  app.close().then(() => {
+    app.log.info("HTTP server closed");
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

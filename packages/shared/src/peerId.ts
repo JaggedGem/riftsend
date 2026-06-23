@@ -1,6 +1,6 @@
-import { NR_RANDOM_BYTES, PEER_ID_PREFIX } from "./constants";
+import { NR_RANDOM_BYTES, PEER_ID_PREFIX } from "./constants.js";
 import { randomBytes } from "crypto";
-import type { PeerId } from "./types";
+import type { PeerId } from "./types.js";
 
 export function generatePeerId(): PeerId {
   const bytes = randomBytes(NR_RANDOM_BYTES);
