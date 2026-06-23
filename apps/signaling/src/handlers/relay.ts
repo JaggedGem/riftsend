@@ -7,6 +7,7 @@ import type {
 import { findClientByPeerId } from "../peer.js";
 import { safeSend } from "../utils.js";
 import { logger } from "../logger.js";
+import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
 
 type RelayMessage = OfferMessage | AnswerMessage | IceCandidateMessage;
 
@@ -16,7 +17,10 @@ export const handleRelayMessage = (
 ): void => {
   if (!ws.peerId) {
     logger.warn("Unauthenticated client sent relay message");
-    ws.close(1008, "Not authenticated");
+    ws.close(
+      SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+      SignalingErrorCode.NOT_AUTHENTICATED,
+    );
     return;
   }
 

@@ -19,4 +19,10 @@ export type {
   JoinCode,
   RoomCredentials,
 } from "./types.js";
+export {
+  SignalingErrorCode,
+  SignalingErrorMessages,
+  SignalingCloseCodes,
+  formatSignalingError,
+} from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";

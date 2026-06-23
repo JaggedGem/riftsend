@@ -8,6 +8,7 @@ export const SESSION_TOKEN_ENCODED_LENGTH = Math.ceil(
 );
 
 export const SIGNALING_MESSAGE_TYPES = [
+  "error",
   "peer-id",
   "hello",
   "offer",
@@ -15,14 +16,9 @@ export const SIGNALING_MESSAGE_TYPES = [
   "ice-candidate",
 
   // Room signaling messages
-  "create-room",
-  "room-created",
   "join-room",
   "room-joined",
-  "leave-room",
-  "room-left",
   "room-peer-joined",
-  "room-info",
   "room-peer-left",
   "room-expired",
 ] as const;

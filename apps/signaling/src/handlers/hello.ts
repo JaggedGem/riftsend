@@ -1,10 +1,21 @@
-import { generatePeerId, generateSessionToken } from "@riftsend/shared";
+import {
+  generatePeerId,
+  generateSessionToken,
+  SignalingErrorCode,
+  SignalingCloseCodes,
+} from "@riftsend/shared";
 import type { AuthedWebSocket, HelloMessage, PeerIdMessage } from "../types.js";
 import { PeerIdZod, SessionTokenZod } from "../types.js";
 import { safeSend } from "../utils.js";
 import { peerMap, sessionMap } from "../peer.js";
 import type { WebSocketServer } from "ws";
 import { logger } from "../logger.js";
+
+const isAuthedWebSocket = (
+  ws: WebSocketServer["clients"] extends Set<infer T> ? T : never,
+): ws is AuthedWebSocket => {
+  return "peerId" in ws;
+};
 
 export const handleHelloMessage = (
   ws: AuthedWebSocket,
@@ -21,11 +32,12 @@ export const handleHelloMessage = (
 
   if (fromValid.success && tokenValid.success) {
     const existingClient = [...wss.clients].find(
-      (client) =>
+      (client): client is AuthedWebSocket =>
         client !== ws &&
-        (client as AuthedWebSocket).peerId === fromValid.data &&
-        (client as AuthedWebSocket).sessionToken === tokenValid.data,
-    ) as AuthedWebSocket | undefined;
+        isAuthedWebSocket(client) &&
+        client.peerId === fromValid.data &&
+        client.sessionToken === tokenValid.data,
+    );
 
     if (existingClient) {
       logger.info(
@@ -33,7 +45,22 @@ export const handleHelloMessage = (
         "Client reconnected with valid session token",
       );
 
-      existingClient.close(1000, "Reconnected elsewhere");
+      try {
+        existingClient.close(
+          SignalingCloseCodes[SignalingErrorCode.RECONNECTED_ELSEWHERE]!,
+          SignalingErrorCode.RECONNECTED_ELSEWHERE,
+        );
+      } catch (err) {
+        logger.error(
+          { err, peerId: fromValid.data },
+          "Failed to close existing connection during reconnect",
+        );
+      }
+
+      peerMap.delete(existingClient.peerId);
+      if (existingClient.sessionToken) {
+        sessionMap.delete(existingClient.sessionToken);
+      }
 
       const newSessionToken = generateSessionToken();
       const peerIdMsg: PeerIdMessage = {

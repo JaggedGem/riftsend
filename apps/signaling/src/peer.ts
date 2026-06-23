@@ -1,11 +1,11 @@
-import { PeerId, SessionToken } from "@riftsend/shared";
-import { AuthedWebSocket } from "./types.js";
+import type { PeerId, SessionToken } from "@riftsend/shared";
+import type { AuthedWebSocket } from "./types.js";
 
 export const peerMap = new Map<PeerId, AuthedWebSocket>();
 export const sessionMap = new Map<SessionToken, AuthedWebSocket>();
 
 export const findClientByPeerId = (
-  peerId: string,
+  peerId: PeerId,
 ): AuthedWebSocket | undefined => {
-  return peerMap.get(peerId as PeerId);
+  return peerMap.get(peerId);
 };

@@ -5,9 +5,16 @@ import {
   PEER_ID_ENCODED_LENGTH,
   ROOM_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
+  ROOM_JOIN_CODE_LENGTH,
   RoomId,
+  SignalingErrorCode,
 } from "@riftsend/shared";
-import type { PeerId, RoomCredentials, SessionToken } from "@riftsend/shared";
+import type {
+  PeerId,
+  RoomCredentials,
+  SessionToken,
+  JoinCode,
+} from "@riftsend/shared";
 import { WebSocket } from "ws";
 import { z } from "zod";
 
@@ -42,6 +49,15 @@ export const RoomIdZod = z
   .string()
   .regex(ROOM_ID_REGEX, "Invalid RoomId")
   .transform((v) => v as RoomId);
+
+const JOIN_CODE_REGEX = new RegExp(
+  `^[A-HJ-NP-Z2-9]{${ROOM_JOIN_CODE_LENGTH}}$`,
+);
+
+export const JoinCodeZod = z
+  .string()
+  .regex(JOIN_CODE_REGEX, "Invalid JoinCode")
+  .transform((v) => v as JoinCode);
 
 export const PeerIdMessageSchema = z.object({
   type: z.literal("peer-id"),
@@ -100,6 +116,7 @@ export interface AuthedWebSocket extends WebSocket {
   supportResume: boolean;
   supportChunkAck: boolean;
   roomId: RoomId | null;
+  isAlive: boolean;
 }
 
 export const HelloMessageSchema = z.object({
@@ -129,6 +146,84 @@ export const RoomExpiredMessageSchema = z.object({
 
 export type RoomExpiredMessage = z.infer<typeof RoomExpiredMessageSchema>;
 
+export const RoomPeerJoinedMessageSchema = z.object({
+  type: z.literal("room-peer-joined"),
+  from: z.literal("server"),
+  payload: z.object({
+    roomId: RoomIdZod,
+    peerId: PeerIdZod,
+  }),
+});
+
+export type RoomPeerJoinedMessage = z.infer<typeof RoomPeerJoinedMessageSchema>;
+
+export const RoomPeerLeftMessageSchema = z.object({
+  type: z.literal("room-peer-left"),
+  from: z.literal("server"),
+  payload: z.object({
+    roomId: RoomIdZod,
+    peerId: PeerIdZod,
+  }),
+});
+
+export type RoomPeerLeftMessage = z.infer<typeof RoomPeerLeftMessageSchema>;
+
+export type RoomPeerEventMessage = RoomPeerJoinedMessage | RoomPeerLeftMessage;
+
+export const JoinRoomPayloadSchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("id"), roomId: RoomIdZod }).strict(),
+  z.object({ method: z.literal("code"), joinCode: JoinCodeZod }).strict(),
+  z.object({ method: z.literal("create") }).strict(),
+]);
+
+export type JoinRoomPayload = z.infer<typeof JoinRoomPayloadSchema>;
+
+export const JoinRoomMessageSchema = z
+  .object({
+    type: z.literal("join-room"),
+    from: PeerIdZod,
+    payload: JoinRoomPayloadSchema,
+  })
+  .strict();
+
+export type JoinRoomMessage = z.infer<typeof JoinRoomMessageSchema>;
+
+export const SignalingErrorCodeSchema = z.nativeEnum(SignalingErrorCode);
+
+export const ErrorMessageSchema = z
+  .object({
+    type: z.literal("error"),
+    from: z.literal("server"),
+    payload: z.object({
+      code: SignalingErrorCodeSchema,
+    }),
+  })
+  .strict();
+
+export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
+
+export const RoomMemberSchema = z.object({
+  peerId: PeerIdZod,
+  name: z.string().max(256).optional(),
+  joinedAt: z.number(),
+});
+
+export type RoomMember = z.infer<typeof RoomMemberSchema>;
+
+export const RoomJoinedMessageSchema = z
+  .object({
+    type: z.literal("room-joined"),
+    from: z.literal("server"),
+    payload: JoinRoomPayloadSchema.and(
+      z.object({
+        members: z.array(RoomMemberSchema),
+      }),
+    ),
+  })
+  .strict();
+
+export type RoomJoinedMessage = z.infer<typeof RoomJoinedMessageSchema>;
+
 export const SignalingMessageSchema = z.discriminatedUnion("type", [
   PeerIdMessageSchema,
   HelloMessageSchema,
@@ -136,6 +231,11 @@ export const SignalingMessageSchema = z.discriminatedUnion("type", [
   AnswerMessageSchema,
   IceCandidateMessageSchema,
   RoomExpiredMessageSchema,
+  RoomPeerJoinedMessageSchema,
+  RoomPeerLeftMessageSchema,
+  JoinRoomMessageSchema,
+  ErrorMessageSchema,
+  RoomJoinedMessageSchema,
 ]);
 
 export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;
@@ -143,7 +243,7 @@ export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;
 export interface Room {
   roomCredentials: RoomCredentials;
   hostPeerId: PeerId;
-  members: Set<PeerId>;
+  members: Map<PeerId, RoomMember>;
   createdAt: number;
   expiresAt: number;
   metadata: {

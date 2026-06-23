@@ -8,7 +8,8 @@ export const safeSend = (ws: AuthedWebSocket, data: unknown): void => {
     return;
   }
   try {
-    ws.send(JSON.stringify(data));
+    const payload = typeof data === "string" ? data : JSON.stringify(data);
+    ws.send(payload);
   } catch (err) {
     logger.error({ err, peerId: ws.peerId }, "Send failed");
   }
