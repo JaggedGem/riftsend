@@ -89,6 +89,7 @@ export interface AuthedWebSocket extends WebSocket {
   platform: string;
   supportResume: boolean;
   supportChunkAck: boolean;
+  roomId: RoomId | null;
 }
 
 export const HelloMessageSchema = z.object({

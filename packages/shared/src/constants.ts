@@ -13,8 +13,20 @@ export const SIGNALING_MESSAGE_TYPES = [
   "offer",
   "answer",
   "ice-candidate",
+
+  // Room signaling messages
+  "create-room",
+  "room-created",
+  "join-room",
+  "room-joined",
+  "leave-room",
+  "room-left",
+  "room-peer-joined",
+  "room-info",
 ] as const;
 
 export const ROOM_JOIN_CODE_LENGTH = 6;
 
 export const ROOM_ID_PREFIX = "room_";
+
+export const ROOM_EXPIRE_TIME = 1000 * 60 * 60; // 1 hour

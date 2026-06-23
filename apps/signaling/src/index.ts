@@ -4,7 +4,7 @@ import cors from "@fastify/cors";
 import type { AuthedWebSocket, SignalingMessage } from "./types.js";
 import { SignalingMessageSchema } from "./types.js";
 import { WebSocketServer } from "ws";
-import { findClientByPeerId, peerMap, sessionMap } from "./peer.js";
+import { peerMap, sessionMap } from "./peer.js";
 import { checkRateLimit, safeSend } from "./utils.js";
 import { handleHelloMessage } from "./handlers/hello.js";
 import { handleRelayMessage } from "./handlers/relay.js";
