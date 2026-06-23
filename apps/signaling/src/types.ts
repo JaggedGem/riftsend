@@ -1,7 +1,9 @@
 import {
   PEER_ID_PREFIX,
+  ROOM_ID_PREFIX,
   SIGNALING_MESSAGE_TYPES,
   PEER_ID_ENCODED_LENGTH,
+  ROOM_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
   RoomId,
 } from "@riftsend/shared";
@@ -19,6 +21,9 @@ export type SignalingMessageType = (typeof SIGNALING_MESSAGE_TYPES)[number];
 const PEER_ID_REGEX = new RegExp(
   `^${PEER_ID_PREFIX}[A-Za-z0-9_-]{${PEER_ID_ENCODED_LENGTH}}$`,
 );
+const ROOM_ID_REGEX = new RegExp(
+  `^${ROOM_ID_PREFIX}[A-Za-z0-9_-]{${ROOM_ID_ENCODED_LENGTH}}$`,
+);
 const SESSION_TOKEN_REGEX = new RegExp(
   `^[A-Za-z0-9_-]{${SESSION_TOKEN_ENCODED_LENGTH}}$`,
 );
@@ -32,6 +37,11 @@ export const SessionTokenZod = z
   .string()
   .regex(SESSION_TOKEN_REGEX, "Invalid SessionToken")
   .transform((v) => v as SessionToken);
+
+export const RoomIdZod = z
+  .string()
+  .regex(ROOM_ID_REGEX, "Invalid RoomId")
+  .transform((v) => v as RoomId);
 
 export const PeerIdMessageSchema = z.object({
   type: z.literal("peer-id"),
@@ -109,12 +119,23 @@ export const HelloMessageSchema = z.object({
 
 export type HelloMessage = z.infer<typeof HelloMessageSchema>;
 
+export const RoomExpiredMessageSchema = z.object({
+  type: z.literal("room-expired"),
+  from: z.literal("server"),
+  payload: z.object({
+    roomId: RoomIdZod,
+  }),
+});
+
+export type RoomExpiredMessage = z.infer<typeof RoomExpiredMessageSchema>;
+
 export const SignalingMessageSchema = z.discriminatedUnion("type", [
   PeerIdMessageSchema,
   HelloMessageSchema,
   OfferMessageSchema,
   AnswerMessageSchema,
   IceCandidateMessageSchema,
+  RoomExpiredMessageSchema,
 ]);
 
 export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;

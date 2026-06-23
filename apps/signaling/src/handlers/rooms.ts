@@ -5,9 +5,10 @@ import {
   RoomCredentials,
   RoomId,
 } from "@riftsend/shared";
-import { AuthedWebSocket, Room } from "../types.js";
+import { AuthedWebSocket, Room, RoomExpiredMessage } from "../types.js";
 import { ROOM_EXPIRE_TIME } from "@riftsend/shared";
 import { logger } from "../logger.js";
+import { peerMap } from "../peer.js";
 
 const rooms = new Map<RoomId, Room>();
 
@@ -80,4 +81,43 @@ export const removePeerFromRoom = (
     );
     return false;
   }
+};
+
+const cleanupExpiredRooms = () => {
+  const now = Date.now();
+  for (const [roomId, room] of rooms.entries()) {
+    if (room.expiresAt <= now) {
+      logger.info({ roomId }, "Cleaning up expired room");
+      handleRoomExpiration(roomId);
+    }
+  }
+};
+
+// Run cleanup every 15 minutes
+setInterval(cleanupExpiredRooms, 15 * 60 * 1000);
+
+const handleRoomExpiration = (roomId: RoomId) => {
+  const room = rooms.get(roomId);
+  if (!room) {
+    return;
+  }
+
+  for (const peerId of room.members) {
+    const ws = peerMap.get(peerId);
+    if (ws) {
+      ws.roomId = null;
+
+      const roomExpiredMsg: RoomExpiredMessage = {
+        type: "room-expired",
+        from: "server",
+        payload: { roomId },
+      };
+
+      ws.send(JSON.stringify(roomExpiredMsg));
+    }
+
+    logger.info({ roomId, peerId }, "Notified peer of room expiration");
+  }
+
+  rooms.delete(roomId);
 };

@@ -23,7 +23,11 @@ export const SIGNALING_MESSAGE_TYPES = [
   "room-left",
   "room-peer-joined",
   "room-info",
+  "room-peer-left",
+  "room-expired",
 ] as const;
+
+export const ROOM_ID_ENCODED_LENGTH = Math.ceil((NR_RANDOM_BYTES * 4) / 3);
 
 export const ROOM_JOIN_CODE_LENGTH = 6;
 
