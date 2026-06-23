@@ -8,7 +8,12 @@ import type {
 } from "./types.js";
 import { SignalingMessageSchema, PeerIdZod, SessionTokenZod } from "./types.js";
 import { WebSocketServer } from "ws";
-import { generatePeerId, generateSessionToken } from "@riftsend/shared";
+import {
+  generatePeerId,
+  generateSessionToken,
+  PeerId,
+  SessionToken,
+} from "@riftsend/shared";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8080", 10);
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "3000", 10);
@@ -67,18 +72,16 @@ function checkRateLimit(ws: AuthedWebSocket): boolean {
 }
 
 function findClientByPeerId(peerId: string): AuthedWebSocket | undefined {
-  for (const client of wss.clients) {
-    const authed = client as AuthedWebSocket;
-    if (authed.peerId === peerId && authed.readyState === authed.OPEN) {
-      return authed;
-    }
-  }
+  return peerMap.get(peerId as PeerId);
 }
 
 const wss = new WebSocketServer({
   port: WS_PORT,
   maxPayload: MAX_PAYLOAD,
 });
+
+const peerMap = new Map<PeerId, AuthedWebSocket>();
+const sessionMap = new Map<SessionToken, AuthedWebSocket>();
 
 wss.on("connection", (ws: AuthedWebSocket) => {
   if (wss.clients.size > MAX_CONNECTIONS) {
@@ -165,6 +168,9 @@ wss.on("connection", (ws: AuthedWebSocket) => {
               ws.supportResume = msg.payload.supportResume;
               ws.supportChunkAck = msg.payload.supportChunkAck;
 
+              peerMap.set(ws.peerId, ws);
+              sessionMap.set(ws.sessionToken, ws);
+
               return;
             }
           }
@@ -181,6 +187,9 @@ wss.on("connection", (ws: AuthedWebSocket) => {
           ws.platform = msg.payload.platform;
           ws.supportResume = msg.payload.supportResume;
           ws.supportChunkAck = msg.payload.supportChunkAck;
+
+          peerMap.set(peerId, ws);
+          sessionMap.set(sessionToken, ws);
 
           const peerIdMsg: PeerIdMessage = {
             type: "peer-id",
@@ -235,6 +244,11 @@ wss.on("connection", (ws: AuthedWebSocket) => {
       { peerId: ws.peerId, code, reason: reason.toString() },
       "⊣ Client disconnected",
     );
+    peerMap.delete(ws.peerId);
+
+    if (ws.sessionToken) {
+      sessionMap.delete(ws.sessionToken);
+    }
   });
 
   ws.on("error", (err) => {
