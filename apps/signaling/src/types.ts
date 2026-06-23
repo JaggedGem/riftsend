@@ -3,8 +3,9 @@ import {
   SIGNALING_MESSAGE_TYPES,
   PEER_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
+  RoomId,
 } from "@riftsend/shared";
-import type { PeerId, SessionToken } from "@riftsend/shared";
+import type { PeerId, RoomCredentials, SessionToken } from "@riftsend/shared";
 import { WebSocket } from "ws";
 import { z } from "zod";
 
@@ -116,3 +117,15 @@ export const SignalingMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;
+
+export interface Room {
+  roomCredentials: RoomCredentials;
+  hostPeerId: PeerId;
+  members: Set<PeerId>;
+  createdAt: number;
+  expiresAt: number;
+  metadata: {
+    name?: string;
+    maxPeers: number;
+  };
+}

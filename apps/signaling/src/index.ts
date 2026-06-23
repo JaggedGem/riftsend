@@ -13,6 +13,7 @@ import {
   generateSessionToken,
   PeerId,
   SessionToken,
+  RoomId,
 } from "@riftsend/shared";
 
 const WS_PORT = parseInt(process.env.WS_PORT || "8080", 10);
