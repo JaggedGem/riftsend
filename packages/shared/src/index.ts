@@ -11,6 +11,9 @@ export {
   ROOM_JOIN_CODE_LENGTH,
   ROOM_ID_PREFIX,
   SIGNALING_MESSAGE_TYPES,
+  SignalingErrorMessages,
+  SignalingCloseCodes,
+  formatSignalingError,
 } from "./constants.js";
 export type {
   PeerId,
@@ -20,10 +23,9 @@ export type {
   RoomCredentials,
   SignalingMessageTypes,
 } from "./types.js";
-export {
-  SignalingErrorCode,
-  SignalingErrorMessages,
-  SignalingCloseCodes,
-  formatSignalingError,
-} from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
+
+import { SignalingErrorCode as _SEC } from "./constants.js";
+export const SignalingErrorCode = _SEC;
+export type SignalingErrorCode =
+  (typeof _SEC)[keyof typeof _SEC];

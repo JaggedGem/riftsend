@@ -24,6 +24,18 @@ export const handleRelayMessage = (
     return;
   }
 
+  if (message.from !== ws.peerId) {
+    logger.warn(
+      { from: message.from, peerId: ws.peerId, type: message.type },
+      "Peer attempted to spoof message.from",
+    );
+    ws.close(
+      SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+      SignalingErrorCode.NOT_AUTHENTICATED,
+    );
+    return;
+  }
+
   const target = findClientByPeerId(message.to);
   if (!target) {
     logger.warn(

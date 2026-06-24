@@ -6,13 +6,13 @@ import {
   SESSION_TOKEN_ENCODED_LENGTH,
   ROOM_JOIN_CODE_LENGTH,
   RoomId,
+  SessionToken,
   SignalingErrorCode,
   SIGNALING_MESSAGE_TYPES,
 } from "@riftsend/shared";
 import type {
   PeerId,
   RoomCredentials,
-  SessionToken,
   JoinCode,
 } from "@riftsend/shared";
 import { WebSocket } from "ws";
@@ -122,7 +122,7 @@ export const HelloMessageSchema = z.object({
   from: z.union([PeerIdZod, z.null()]),
   protocolVersion: z.number(),
   clientVersion: z.string().max(64),
-  sessionToken: z.union([z.string().max(64), z.null()]),
+  sessionToken: z.union([SessionTokenZod, z.null()]),
   payload: z.object({
     role: z.union([z.literal("sender"), z.literal("receiver")]),
     name: z.string().max(256),
@@ -225,10 +225,7 @@ export type RoomJoinedMessage = z.infer<typeof RoomJoinedMessageSchema>;
 export const LeaveRoomMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.leaveRoom),
   from: PeerIdZod,
-  payload: z.object({
-    roomId: RoomIdZod,
-    peerId: PeerIdZod,
-  }),
+  payload: z.null(),
 });
 
 export type LeaveRoomMessage = z.infer<typeof LeaveRoomMessageSchema>;
@@ -256,6 +253,8 @@ export const SignalingMessageSchema = z.discriminatedUnion("type", [
   JoinRoomMessageSchema,
   ErrorMessageSchema,
   RoomJoinedMessageSchema,
+  LeaveRoomMessageSchema,
+  RoomLeftMessageSchema,
 ]);
 
 export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;

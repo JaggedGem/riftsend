@@ -12,9 +12,11 @@ import {
   AuthedWebSocket,
   ErrorMessage,
   JoinRoomMessage,
+  LeaveRoomMessage,
   Room,
   RoomExpiredMessage,
   RoomJoinedMessage,
+  RoomLeftMessage,
   RoomMember,
   RoomPeerEventMessage,
 } from "../types.js";
@@ -24,6 +26,7 @@ import { peerMap } from "../peer.js";
 import { safeSend } from "../utils.js";
 
 const rooms = new Map<RoomId, Room>();
+const joinCodeToRoomId = new Map<JoinCode, RoomId>();
 const roomTimers = new Map<RoomId, ReturnType<typeof setTimeout>>();
 
 const scheduleRoomExpiration = (roomId: RoomId): void => {
@@ -74,6 +77,7 @@ export const createRoom = (
   };
 
   rooms.set(roomId, room);
+  joinCodeToRoomId.set(roomJoinCode, roomId);
   scheduleRoomExpiration(roomId);
 
   return room;
@@ -84,6 +88,10 @@ export const getRoom = (roomId: RoomId): Room | undefined => {
 };
 
 export const deleteRoom = (roomId: RoomId): boolean => {
+  const room = rooms.get(roomId);
+  if (room) {
+    joinCodeToRoomId.delete(room.roomCredentials.joinCode);
+  }
   clearRoomTimer(roomId);
   return rooms.delete(roomId);
 };
@@ -220,6 +228,10 @@ const handleRoomExpiration = (roomId: RoomId): void => {
 };
 
 const cleanupRoom = (roomId: RoomId): void => {
+  const room = rooms.get(roomId);
+  if (room) {
+    joinCodeToRoomId.delete(room.roomCredentials.joinCode);
+  }
   clearRoomTimer(roomId);
   rooms.delete(roomId);
 };
@@ -234,14 +246,13 @@ export const stopCleanupTimers = (): void => {
 
 const handleJoinRoom = (
   ws: AuthedWebSocket,
+  method: "id" | "code" | "create",
   roomId?: RoomId,
   joinCode?: JoinCode,
 ): void => {
-  if (joinCode && !roomId) {
-    const room = Array.from(rooms.values()).find(
-      (r) => r.roomCredentials.joinCode === joinCode,
-    );
-    if (!room) {
+  if (method === "code" && joinCode && !roomId) {
+    const foundRoomId = joinCodeToRoomId.get(joinCode);
+    if (!foundRoomId) {
       logger.warn(
         { joinCode, peerId: ws.peerId },
         "Join code not found, cannot join room",
@@ -256,7 +267,7 @@ const handleJoinRoom = (
       safeSend(ws, JSON.stringify(errorMsg));
       return;
     }
-    roomId = room.roomCredentials.roomId;
+    roomId = foundRoomId;
   }
 
   if (!roomId) {
@@ -298,15 +309,28 @@ const handleJoinRoom = (
     return;
   }
 
-  const roomJoinedMsg: RoomJoinedMessage = {
-    type: "room-joined",
-    from: "server",
-    payload: {
-      method: "id",
-      roomId,
-      members: Array.from(room.members.values()),
-    },
-  };
+  const members = Array.from(room.members.values());
+
+  let roomJoinedMsg: RoomJoinedMessage;
+  if (method === "code") {
+    roomJoinedMsg = {
+      type: "room-joined",
+      from: "server",
+      payload: { method: "code", joinCode: joinCode!, members },
+    };
+  } else if (method === "create") {
+    roomJoinedMsg = {
+      type: "room-joined",
+      from: "server",
+      payload: { method: "create", members },
+    };
+  } else {
+    roomJoinedMsg = {
+      type: "room-joined",
+      from: "server",
+      payload: { method: "id", roomId: roomId!, members },
+    };
+  }
 
   safeSend(ws, JSON.stringify(roomJoinedMsg));
   logger.info({ roomId, peerId: ws.peerId }, "Peer joined room");
@@ -321,14 +345,12 @@ export const handleJoinRoomMessage = (
   switch (method) {
     case "id": {
       const { roomId } = msg.payload;
-
-      handleJoinRoom(ws, roomId);
+      handleJoinRoom(ws, "id", roomId);
       break;
     }
     case "code": {
       const { joinCode } = msg.payload;
-
-      handleJoinRoom(ws, undefined, joinCode);
+      handleJoinRoom(ws, "code", undefined, joinCode);
       break;
     }
     case "create": {
@@ -349,7 +371,7 @@ export const handleJoinRoomMessage = (
         return;
       }
 
-      handleJoinRoom(ws, room.roomCredentials.roomId);
+      handleJoinRoom(ws, "create", room.roomCredentials.roomId);
       break;
     }
     default: {
@@ -365,4 +387,52 @@ export const handleJoinRoomMessage = (
       break;
     }
   }
+};
+
+export const handleLeaveRoomMessage = (
+  ws: AuthedWebSocket,
+  msg: LeaveRoomMessage,
+) => {
+  if (!ws.roomId) {
+    const errorMsg: ErrorMessage = {
+      type: "error",
+      from: "server",
+      payload: {
+        code: SignalingErrorCode.NOT_IN_A_ROOM,
+      },
+    };
+
+    safeSend(ws, JSON.stringify(errorMsg));
+
+    return;
+  }
+
+  if (!removePeerFromRoom(ws.roomId, ws)) {
+    logger.error(
+      { roomId: ws.roomId, peerId: ws.peerId },
+      "Failed to remove peer from room",
+    );
+
+    const errorMsg: ErrorMessage = {
+      type: "error",
+      from: "server",
+      payload: {
+        code: SignalingErrorCode.FAILED_TO_REMOVE_PEER_FROM_ROOM,
+      },
+    };
+
+    safeSend(ws, JSON.stringify(errorMsg));
+    return;
+  }
+
+  const roomLeftMsg: RoomLeftMessage = {
+    type: "room-left",
+    from: "server",
+    payload: {
+      roomId: ws.roomId,
+      peerId: ws.peerId,
+    },
+  };
+
+  safeSend(ws, JSON.stringify(roomLeftMsg));
 };

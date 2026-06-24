@@ -20,6 +20,7 @@ import {
 } from "./config.js";
 import {
   handleJoinRoomMessage,
+  handleLeaveRoomMessage,
   removePeerFromRoom,
   stopCleanupTimers,
 } from "./handlers/rooms.js";
@@ -123,6 +124,20 @@ wss.on("connection", (ws: AuthedWebSocket) => {
           }
 
           handleJoinRoomMessage(ws, msg);
+          break;
+        }
+
+        case "leave-room": {
+          if (!ws.peerId) {
+            logger.warn("Unauthenticated client sent leave-room message");
+            ws.close(
+              SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+              SignalingErrorCode.NOT_AUTHENTICATED,
+            );
+            return;
+          }
+
+          handleLeaveRoomMessage(ws, msg);
           break;
         }
 

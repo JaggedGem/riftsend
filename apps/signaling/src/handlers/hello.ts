@@ -31,13 +31,18 @@ export const handleHelloMessage = (
   const tokenValid = SessionTokenZod.safeParse(message.sessionToken);
 
   if (fromValid.success && tokenValid.success) {
-    const existingClient = [...wss.clients].find(
-      (client): client is AuthedWebSocket =>
+    let existingClient: AuthedWebSocket | undefined;
+    for (const client of wss.clients) {
+      if (
         client !== ws &&
         isAuthedWebSocket(client) &&
         client.peerId === fromValid.data &&
-        client.sessionToken === tokenValid.data,
-    );
+        client.sessionToken === tokenValid.data
+      ) {
+        existingClient = client;
+        break;
+      }
+    }
 
     if (existingClient) {
       logger.info(
