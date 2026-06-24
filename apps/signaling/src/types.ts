@@ -1,13 +1,13 @@
 import {
   PEER_ID_PREFIX,
   ROOM_ID_PREFIX,
-  SIGNALING_MESSAGE_TYPES,
   PEER_ID_ENCODED_LENGTH,
   ROOM_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
   ROOM_JOIN_CODE_LENGTH,
   RoomId,
   SignalingErrorCode,
+  SIGNALING_MESSAGE_TYPES,
 } from "@riftsend/shared";
 import type {
   PeerId,
@@ -22,8 +22,6 @@ export interface PeerInfo {
   id: PeerId;
   name: string;
 }
-
-export type SignalingMessageType = (typeof SIGNALING_MESSAGE_TYPES)[number];
 
 const PEER_ID_REGEX = new RegExp(
   `^${PEER_ID_PREFIX}[A-Za-z0-9_-]{${PEER_ID_ENCODED_LENGTH}}$`,
@@ -60,7 +58,7 @@ export const JoinCodeZod = z
   .transform((v) => v as JoinCode);
 
 export const PeerIdMessageSchema = z.object({
-  type: z.literal("peer-id"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.peerId),
   from: z.literal("server"),
   payload: z.object({
     peerId: PeerIdZod,
@@ -71,7 +69,7 @@ export const PeerIdMessageSchema = z.object({
 export type PeerIdMessage = z.infer<typeof PeerIdMessageSchema>;
 
 export const OfferMessageSchema = z.object({
-  type: z.literal("offer"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.offer),
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
@@ -82,7 +80,7 @@ export const OfferMessageSchema = z.object({
 export type OfferMessage = z.infer<typeof OfferMessageSchema>;
 
 export const AnswerMessageSchema = z.object({
-  type: z.literal("answer"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.answer),
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
@@ -93,7 +91,7 @@ export const AnswerMessageSchema = z.object({
 export type AnswerMessage = z.infer<typeof AnswerMessageSchema>;
 
 export const IceCandidateMessageSchema = z.object({
-  type: z.literal("ice-candidate"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.iceCandidate),
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
@@ -120,7 +118,7 @@ export interface AuthedWebSocket extends WebSocket {
 }
 
 export const HelloMessageSchema = z.object({
-  type: z.literal("hello"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.hello),
   from: z.union([PeerIdZod, z.null()]),
   protocolVersion: z.number(),
   clientVersion: z.string().max(64),
@@ -137,7 +135,7 @@ export const HelloMessageSchema = z.object({
 export type HelloMessage = z.infer<typeof HelloMessageSchema>;
 
 export const RoomExpiredMessageSchema = z.object({
-  type: z.literal("room-expired"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.roomExpired),
   from: z.literal("server"),
   payload: z.object({
     roomId: RoomIdZod,
@@ -147,7 +145,7 @@ export const RoomExpiredMessageSchema = z.object({
 export type RoomExpiredMessage = z.infer<typeof RoomExpiredMessageSchema>;
 
 export const RoomPeerJoinedMessageSchema = z.object({
-  type: z.literal("room-peer-joined"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerJoined),
   from: z.literal("server"),
   payload: z.object({
     roomId: RoomIdZod,
@@ -158,7 +156,7 @@ export const RoomPeerJoinedMessageSchema = z.object({
 export type RoomPeerJoinedMessage = z.infer<typeof RoomPeerJoinedMessageSchema>;
 
 export const RoomPeerLeftMessageSchema = z.object({
-  type: z.literal("room-peer-left"),
+  type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerLeft),
   from: z.literal("server"),
   payload: z.object({
     roomId: RoomIdZod,
@@ -180,7 +178,7 @@ export type JoinRoomPayload = z.infer<typeof JoinRoomPayloadSchema>;
 
 export const JoinRoomMessageSchema = z
   .object({
-    type: z.literal("join-room"),
+    type: z.literal(SIGNALING_MESSAGE_TYPES.joinRoom),
     from: PeerIdZod,
     payload: JoinRoomPayloadSchema,
   })
@@ -188,11 +186,11 @@ export const JoinRoomMessageSchema = z
 
 export type JoinRoomMessage = z.infer<typeof JoinRoomMessageSchema>;
 
-export const SignalingErrorCodeSchema = z.nativeEnum(SignalingErrorCode);
+export const SignalingErrorCodeSchema = z.enum(SignalingErrorCode);
 
 export const ErrorMessageSchema = z
   .object({
-    type: z.literal("error"),
+    type: z.literal(SIGNALING_MESSAGE_TYPES.error),
     from: z.literal("server"),
     payload: z.object({
       code: SignalingErrorCodeSchema,
@@ -212,7 +210,7 @@ export type RoomMember = z.infer<typeof RoomMemberSchema>;
 
 export const RoomJoinedMessageSchema = z
   .object({
-    type: z.literal("room-joined"),
+    type: z.literal(SIGNALING_MESSAGE_TYPES.roomJoined),
     from: z.literal("server"),
     payload: JoinRoomPayloadSchema.and(
       z.object({
@@ -223,6 +221,28 @@ export const RoomJoinedMessageSchema = z
   .strict();
 
 export type RoomJoinedMessage = z.infer<typeof RoomJoinedMessageSchema>;
+
+export const LeaveRoomMessageSchema = z.object({
+  type: z.literal(SIGNALING_MESSAGE_TYPES.leaveRoom),
+  from: PeerIdZod,
+  payload: z.object({
+    roomId: RoomIdZod,
+    peerId: PeerIdZod,
+  }),
+});
+
+export type LeaveRoomMessage = z.infer<typeof LeaveRoomMessageSchema>;
+
+export const RoomLeftMessageSchema = z.object({
+  type: z.literal(SIGNALING_MESSAGE_TYPES.roomLeft),
+  from: z.literal("server"),
+  payload: z.object({
+    roomId: RoomIdZod,
+    peerId: PeerIdZod,
+  }),
+});
+
+export type RoomLeftMessage = z.infer<typeof RoomLeftMessageSchema>;
 
 export const SignalingMessageSchema = z.discriminatedUnion("type", [
   PeerIdMessageSchema,

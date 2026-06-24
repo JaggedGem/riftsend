@@ -1,3 +1,5 @@
+import { SIGNALING_MESSAGE_TYPES } from "./constants.js";
+
 export type PeerId = string & { readonly __brand: unique symbol };
 export type SessionToken = string & { readonly __brand: unique symbol };
 export type RoomId = string & { readonly __brand: unique symbol };
@@ -62,3 +64,6 @@ export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
 export const formatSignalingError = (code: SignalingErrorCode): string => {
   return SignalingErrorMessages[code];
 };
+
+export type SignalingMessageTypes =
+  (typeof SIGNALING_MESSAGE_TYPES)[keyof typeof SIGNALING_MESSAGE_TYPES];

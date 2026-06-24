@@ -6,11 +6,11 @@ export {
   SESSION_TOKEN_BYTES,
   PEER_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
-  SIGNALING_MESSAGE_TYPES,
   ROOM_EXPIRE_TIME,
   ROOM_ID_ENCODED_LENGTH,
   ROOM_JOIN_CODE_LENGTH,
   ROOM_ID_PREFIX,
+  SIGNALING_MESSAGE_TYPES,
 } from "./constants.js";
 export type {
   PeerId,
@@ -18,6 +18,7 @@ export type {
   RoomId,
   JoinCode,
   RoomCredentials,
+  SignalingMessageTypes,
 } from "./types.js";
 export {
   SignalingErrorCode,
