@@ -223,6 +223,12 @@ const cleanupRoom = (roomId: RoomId): void => {
   rooms.delete(roomId);
 };
 
+export const resetRoomState = (): void => {
+  stopCleanupTimers();
+  rooms.clear();
+  joinCodeToRoomId.clear();
+};
+
 export const stopCleanupTimers = (): void => {
   for (const [roomId, timer] of roomTimers) {
     clearTimeout(timer);
@@ -292,26 +298,18 @@ const handleJoinRoom = (
 
   const members = Array.from(room.members.values());
 
-  let roomJoinedMsg: RoomJoinedMessage;
-  if (method === "code") {
-    roomJoinedMsg = {
-      type: "room-joined",
-      from: "server",
-      payload: { method: "code", joinCode: joinCode!, members },
-    };
-  } else if (method === "create") {
-    roomJoinedMsg = {
-      type: "room-joined",
-      from: "server",
-      payload: { method: "create", members },
-    };
-  } else {
-    roomJoinedMsg = {
-      type: "room-joined",
-      from: "server",
-      payload: { method: "id", roomId: roomId!, members },
-    };
-  }
+  const roomJoinedPayload = {
+    method,
+    roomId: method !== "code" ? room.roomCredentials.roomId : undefined,
+    joinCode: method !== "id" ? room.roomCredentials.joinCode : undefined,
+    members,
+  };
+
+  const roomJoinedMsg: RoomJoinedMessage = {
+    type: "room-joined",
+    from: "server",
+    payload: roomJoinedPayload as RoomJoinedMessage["payload"],
+  };
 
   safeSend(ws, JSON.stringify(roomJoinedMsg));
   logger.info({ roomId, peerId: ws.peerId }, "Peer joined room");

@@ -8,10 +8,8 @@ import { peerMap, sessionMap } from "./peer.js";
 import { checkRateLimit } from "./utils.js";
 import { handleHelloMessage } from "./handlers/hello.js";
 import { handleRelayMessage } from "./handlers/relay.js";
-import { logger, loggerOptions } from "./logger.js";
+import { logger } from "./logger.js";
 import {
-  WS_PORT,
-  HTTP_PORT,
   BIND_HOST,
   MAX_PAYLOAD,
   MAX_CONNECTIONS,
@@ -25,209 +23,251 @@ import {
   stopCleanupTimers,
 } from "./handlers/rooms.js";
 import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
+import type { FastifyInstance } from "fastify";
 
-export const app = Fastify({ logger: loggerOptions });
+export async function createServer(override?: {
+  httpPort?: number;
+  wsPort?: number;
+  heartbeatMs?: number;
+  connectionTimeoutMs?: number;
+  maxConnections?: number;
+}): Promise<{
+  app: FastifyInstance;
+  wss: WebSocketServer;
+  httpPort: number;
+  wsPort: number;
+  stop: () => Promise<void>;
+}> {
+  const app = Fastify({ logger: false });
+  await app.register(cors, { origin: true });
 
-await app.register(cors, { origin: true });
-
-const wss = new WebSocketServer({
-  port: WS_PORT,
-  maxPayload: MAX_PAYLOAD,
-});
-
-wss.on("connection", (ws: AuthedWebSocket) => {
-  if (wss.clients.size > MAX_CONNECTIONS) {
-    logger.warn("Connection limit reached, rejecting");
-    ws.close(
-      SignalingCloseCodes[SignalingErrorCode.TOO_MANY_CONNECTIONS]!,
-      SignalingErrorCode.TOO_MANY_CONNECTIONS,
-    );
-    return;
-  }
-
-  const remoteAddress =
-    (ws as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ?? "unknown";
-  logger.info({ remoteAddress }, "New WebSocket connection");
-
-  ws.isAlive = true;
-  ws.on("pong", () => {
-    ws.isAlive = true;
+  const wss = new WebSocketServer({
+    port: override?.wsPort ?? 0,
+    maxPayload: MAX_PAYLOAD,
   });
 
-  let authenticated = false;
+  const heartbeatMs = override?.heartbeatMs ?? HEARTBEAT_INTERVAL_MS;
+  const connTimeoutMs = override?.connectionTimeoutMs ?? CONNECTION_TIMEOUT_MS;
+  const maxConn = override?.maxConnections ?? MAX_CONNECTIONS;
 
-  const connectionTimeout = setTimeout(() => {
-    if (!authenticated) {
-      logger.warn({ remoteAddress }, "Connection timeout, closing unauthenticated socket");
+  app.get("/health", async () => {
+    return {
+      status: "healthy",
+      connections: wss.clients.size,
+    };
+  });
+
+  await app.listen({ port: override?.httpPort ?? 0, host: BIND_HOST });
+
+  const httpAddr = app.addresses()[0];
+  const httpPort =
+    httpAddr && typeof httpAddr === "object" ? (httpAddr as { port: number }).port : 0;
+  const wsAddr = wss.address();
+  const wsPort = wsAddr && typeof wsAddr === "object" ? wsAddr.port : 0;
+
+  wss.on("connection", (ws: AuthedWebSocket) => {
+    if (wss.clients.size > maxConn) {
+      logger.warn("Connection limit reached, rejecting");
       ws.close(
-        SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
-        SignalingErrorCode.NOT_AUTHENTICATED,
+        SignalingCloseCodes[SignalingErrorCode.TOO_MANY_CONNECTIONS]!,
+        SignalingErrorCode.TOO_MANY_CONNECTIONS,
       );
+      return;
     }
-  }, CONNECTION_TIMEOUT_MS);
-  connectionTimeout.unref();
 
-  ws.on("message", (raw) => {
-    try {
-      if (!checkRateLimit(ws)) {
-        logger.warn({ peerId: ws.peerId }, "Rate limit exceeded");
+    const remoteAddress =
+      (ws as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ?? "unknown";
+    logger.info({ remoteAddress }, "New WebSocket connection");
+
+    ws.isAlive = true;
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
+    let authenticated = false;
+
+    const connectionTimeout = setTimeout(() => {
+      if (!authenticated) {
+        logger.warn({ remoteAddress }, "Connection timeout, closing unauthenticated socket");
         ws.close(
-          SignalingCloseCodes[SignalingErrorCode.RATE_LIMIT_EXCEEDED]!,
-          SignalingErrorCode.RATE_LIMIT_EXCEEDED,
+          SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+          SignalingErrorCode.NOT_AUTHENTICATED,
         );
-        return;
       }
+    }, connTimeoutMs);
+    connectionTimeout.unref();
 
-      let parsed: unknown;
+    ws.on("message", (raw) => {
       try {
-        parsed = JSON.parse(raw.toString());
-      } catch {
-        logger.warn({ peerId: ws.peerId }, "Invalid JSON received");
-        ws.close(
-          SignalingCloseCodes[SignalingErrorCode.INVALID_JSON]!,
-          SignalingErrorCode.INVALID_JSON,
-        );
-        return;
-      }
-
-      const result = SignalingMessageSchema.safeParse(parsed);
-      if (!result.success) {
-        logger.warn({ err: result.error, peerId: ws.peerId }, "Schema validation failed");
-        return;
-      }
-
-      const msg: SignalingMessage = result.data;
-
-      switch (msg.type) {
-        case "hello": {
-          clearTimeout(connectionTimeout);
-          authenticated = true;
-          handleHelloMessage(ws, msg, wss);
-          break;
-        }
-
-        case "join-room": {
-          if (!ws.peerId) {
-            logger.warn("Unauthenticated client sent join-room message");
-            ws.close(
-              SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
-              SignalingErrorCode.NOT_AUTHENTICATED,
-            );
-            return;
-          }
-
-          handleJoinRoomMessage(ws, msg);
-          break;
-        }
-
-        case "leave-room": {
-          if (!ws.peerId) {
-            logger.warn("Unauthenticated client sent leave-room message");
-            ws.close(
-              SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
-              SignalingErrorCode.NOT_AUTHENTICATED,
-            );
-            return;
-          }
-
-          handleLeaveRoomMessage(ws, msg);
-          break;
-        }
-
-        case "offer":
-        case "answer":
-        case "ice-candidate": {
-          handleRelayMessage(ws, msg);
-          break;
-        }
-
-        default:
-          logger.warn(
-            { type: (msg as { type: string }).type, peerId: ws.peerId },
-            "Unknown message type",
+        if (!checkRateLimit(ws)) {
+          logger.warn({ peerId: ws.peerId }, "Rate limit exceeded");
+          ws.close(
+            SignalingCloseCodes[SignalingErrorCode.RATE_LIMIT_EXCEEDED]!,
+            SignalingErrorCode.RATE_LIMIT_EXCEEDED,
           );
+          return;
+        }
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw.toString());
+        } catch {
+          logger.warn({ peerId: ws.peerId }, "Invalid JSON received");
+          ws.close(
+            SignalingCloseCodes[SignalingErrorCode.INVALID_JSON]!,
+            SignalingErrorCode.INVALID_JSON,
+          );
+          return;
+        }
+
+        const result = SignalingMessageSchema.safeParse(parsed);
+        if (!result.success) {
+          logger.warn({ err: result.error, peerId: ws.peerId }, "Schema validation failed");
+          return;
+        }
+
+        const msg: SignalingMessage = result.data;
+
+        switch (msg.type) {
+          case "hello": {
+            clearTimeout(connectionTimeout);
+            authenticated = true;
+            handleHelloMessage(ws, msg, wss);
+            break;
+          }
+
+          case "join-room": {
+            if (!ws.peerId) {
+              logger.warn("Unauthenticated client sent join-room message");
+              ws.close(
+                SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+                SignalingErrorCode.NOT_AUTHENTICATED,
+              );
+              return;
+            }
+
+            handleJoinRoomMessage(ws, msg);
+            break;
+          }
+
+          case "leave-room": {
+            if (!ws.peerId) {
+              logger.warn("Unauthenticated client sent leave-room message");
+              ws.close(
+                SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
+                SignalingErrorCode.NOT_AUTHENTICATED,
+              );
+              return;
+            }
+
+            handleLeaveRoomMessage(ws, msg);
+            break;
+          }
+
+          case "offer":
+          case "answer":
+          case "ice-candidate": {
+            handleRelayMessage(ws, msg);
+            break;
+          }
+
+          default:
+            logger.warn(
+              { type: (msg as { type: string }).type, peerId: ws.peerId },
+              "Unknown message type",
+            );
+        }
+      } catch (err) {
+        logger.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
+        ws.close(
+          SignalingCloseCodes[SignalingErrorCode.INTERNAL_SERVER_ERROR]!,
+          SignalingErrorCode.INTERNAL_SERVER_ERROR,
+        );
       }
-    } catch (err) {
-      logger.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
+    });
+
+    ws.on("close", (code, reason) => {
+      clearTimeout(connectionTimeout);
+      logger.info({ peerId: ws.peerId, code, reason: reason.toString() }, "Client disconnected");
+      if (ws.peerId) {
+        peerMap.delete(ws.peerId);
+      }
+
+      if (ws.sessionToken) {
+        sessionMap.delete(ws.sessionToken);
+      }
+
+      if (ws.roomId) {
+        removePeerFromRoom(ws.roomId, ws);
+      }
+    });
+
+    ws.on("error", (err) => {
+      logger.error({ err, peerId: ws.peerId }, "WebSocket error");
       ws.close(
         SignalingCloseCodes[SignalingErrorCode.INTERNAL_SERVER_ERROR]!,
         SignalingErrorCode.INTERNAL_SERVER_ERROR,
       );
-    }
+    });
   });
 
-  ws.on("close", (code, reason) => {
-    clearTimeout(connectionTimeout);
-    logger.info({ peerId: ws.peerId, code, reason: reason.toString() }, "Client disconnected");
-    if (ws.peerId) {
-      peerMap.delete(ws.peerId);
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const authed = ws as AuthedWebSocket;
+      if (authed.isAlive === false) {
+        logger.warn({ peerId: authed.peerId }, "Heartbeat timeout, terminating");
+        ws.terminate();
+        return;
+      }
+      authed.isAlive = false;
+      ws.ping();
+    });
+  }, heartbeatMs);
+  heartbeatInterval.unref();
+
+  const stop = async () => {
+    stopCleanupTimers();
+    clearInterval(heartbeatInterval);
+
+    for (const ws of wss.clients) {
+      ws.close(1001, "Server shutting down");
     }
 
-    if (ws.sessionToken) {
-      sessionMap.delete(ws.sessionToken);
-    }
+    await new Promise<void>((resolve) => {
+      wss.close(() => resolve());
+    });
 
-    if (ws.roomId) {
-      removePeerFromRoom(ws.roomId, ws);
-    }
-  });
-
-  ws.on("error", (err) => {
-    logger.error({ err, peerId: ws.peerId }, "WebSocket error");
-    ws.close(
-      SignalingCloseCodes[SignalingErrorCode.INTERNAL_SERVER_ERROR]!,
-      SignalingErrorCode.INTERNAL_SERVER_ERROR,
-    );
-  });
-});
-
-const heartbeatInterval = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    const authed = ws as AuthedWebSocket;
-    if (authed.isAlive === false) {
-      logger.warn({ peerId: authed.peerId }, "Heartbeat timeout, terminating");
-      ws.terminate();
-      return;
-    }
-    authed.isAlive = false;
-    ws.ping();
-  });
-}, HEARTBEAT_INTERVAL_MS);
-heartbeatInterval.unref();
-
-app.get("/health", async () => {
-  return {
-    status: "healthy",
-    connections: wss.clients.size,
+    await app.close();
   };
-});
 
-try {
-  await app.listen({ port: HTTP_PORT, host: BIND_HOST });
-  app.log.info(`HTTP server listening at http://${BIND_HOST}:${HTTP_PORT}`);
-  app.log.info(`WebSocket server listening on ws://${BIND_HOST}:${WS_PORT}`);
-} catch (err) {
-  app.log.fatal(err, "Failed to start server");
-  process.exit(1);
+  return { app, wss, httpPort, wsPort, stop };
 }
 
-function shutdown(signal: string) {
-  logger.info({ signal }, "Shutting down gracefully");
-  stopCleanupTimers();
-  clearInterval(heartbeatInterval);
+async function main() {
+  const { WS_PORT, HTTP_PORT } = await import("./config.js");
+  const server = await createServer({ httpPort: HTTP_PORT, wsPort: WS_PORT });
 
-  for (const ws of wss.clients) {
-    ws.close(1001, "Server shutting down");
-  }
+  server.app.log.info(`HTTP server listening at http://${BIND_HOST}:${server.httpPort}`);
+  server.app.log.info(`WebSocket server listening on ws://${BIND_HOST}:${server.wsPort}`);
 
-  wss.close(() => {
-    logger.info("WebSocket server closed");
+  process.on("SIGTERM", () => {
+    server.app.log.info("SIGTERM received, shutting down");
+    server.stop().catch((err) => server.app.log.error(err, "Error during shutdown"));
   });
-
-  app.close().catch((err) => {
-    logger.error({ err }, "Error closing HTTP server");
+  process.on("SIGINT", () => {
+    server.app.log.info("SIGINT received, shutting down");
+    server.stop().catch((err) => server.app.log.error(err, "Error during shutdown"));
   });
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+import { fileURLToPath } from "url";
+import { resolve } from "path";
+
+const isMain =
+  process.argv[1] != null && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+if (isMain) {
+  main().catch((err) => {
+    logger.fatal(err, "Failed to start server");
+    process.exit(1);
+  });
+}

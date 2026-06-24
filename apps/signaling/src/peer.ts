@@ -7,3 +7,8 @@ export const sessionMap = new Map<SessionToken, AuthedWebSocket>();
 export const findClientByPeerId = (peerId: PeerId): AuthedWebSocket | undefined => {
   return peerMap.get(peerId);
 };
+
+export const resetPeerState = (): void => {
+  peerMap.clear();
+  sessionMap.clear();
+};

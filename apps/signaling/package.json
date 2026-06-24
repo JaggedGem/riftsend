@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "tsx dist/index.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\""
   },
@@ -25,7 +27,8 @@
     "@types/ws": "^8.18.1",
     "prettier": "^3.8.4",
     "tsx": "^4.22.3",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.9"
   },
   "packageManager": "pnpm@10.33.4"
 }

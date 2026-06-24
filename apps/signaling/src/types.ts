@@ -200,11 +200,14 @@ export const RoomJoinedMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomJoined),
     from: z.literal("server"),
-    payload: JoinRoomPayloadSchema.and(
-      z.object({
+    payload: z
+      .object({
+        method: z.union([z.literal("id"), z.literal("code"), z.literal("create")]),
+        roomId: RoomIdZod.optional(),
+        joinCode: JoinCodeZod.optional(),
         members: z.array(RoomMemberSchema),
-      }),
-    ),
+      })
+      .strict(),
   })
   .strict();
 
