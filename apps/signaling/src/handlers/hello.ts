@@ -45,10 +45,7 @@ export const handleHelloMessage = (
     }
 
     if (existingClient) {
-      logger.info(
-        { peerId: fromValid.data },
-        "Client reconnected with valid session token",
-      );
+      logger.info({ peerId: fromValid.data }, "Client reconnected with valid session token");
 
       try {
         existingClient.close(

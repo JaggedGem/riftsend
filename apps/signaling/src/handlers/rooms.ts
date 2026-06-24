@@ -51,10 +51,7 @@ const clearRoomTimer = (roomId: RoomId): void => {
   }
 };
 
-export const createRoom = (
-  hostPeerId: PeerId,
-  roomCredentials?: RoomCredentials,
-): Room | null => {
+export const createRoom = (hostPeerId: PeerId, roomCredentials?: RoomCredentials): Room | null => {
   const roomId = roomCredentials?.roomId ?? generateRoomId();
 
   if (rooms.has(roomId)) {
@@ -105,10 +102,7 @@ type AddPeerToRoomResult =
       code: SignalingErrorCode;
     };
 
-export const addPeerToRoom = (
-  roomId: RoomId,
-  ws: AuthedWebSocket,
-): AddPeerToRoomResult => {
+export const addPeerToRoom = (roomId: RoomId, ws: AuthedWebSocket): AddPeerToRoomResult => {
   const room = rooms.get(roomId);
   if (!room) {
     return { success: false, code: SignalingErrorCode.ROOM_NOT_FOUND };
@@ -137,8 +131,7 @@ const notifyRoomMembersPeerEvent = (
   newPeerId: PeerId,
   event: "joined" | "left",
 ): void => {
-  const messageType =
-    event === "joined" ? "room-peer-joined" : "room-peer-left";
+  const messageType = event === "joined" ? "room-peer-joined" : "room-peer-left";
 
   const roomPeerEventMsg: RoomPeerEventMessage = {
     type: messageType,
@@ -170,10 +163,7 @@ const notifyRoomMembersPeerEvent = (
   );
 };
 
-export const removePeerFromRoom = (
-  roomId: RoomId,
-  ws: AuthedWebSocket,
-): boolean => {
+export const removePeerFromRoom = (roomId: RoomId, ws: AuthedWebSocket): boolean => {
   const room = rooms.get(roomId);
   if (!room) {
     return false;
@@ -217,10 +207,7 @@ const handleRoomExpiration = (roomId: RoomId): void => {
       notifiedCount++;
     }
 
-    logger.info(
-      { roomId, peerId: member.peerId },
-      "Notified peer of room expiration",
-    );
+    logger.info({ roomId, peerId: member.peerId }, "Notified peer of room expiration");
   }
 
   logger.info({ roomId, notifiedCount }, "Room expired, cleaning up");
@@ -253,10 +240,7 @@ const handleJoinRoom = (
   if (method === "code" && joinCode && !roomId) {
     const foundRoomId = joinCodeToRoomId.get(joinCode);
     if (!foundRoomId) {
-      logger.warn(
-        { joinCode, peerId: ws.peerId },
-        "Join code not found, cannot join room",
-      );
+      logger.warn({ joinCode, peerId: ws.peerId }, "Join code not found, cannot join room");
 
       const errorMsg: ErrorMessage = {
         type: "error",
@@ -271,10 +255,7 @@ const handleJoinRoom = (
   }
 
   if (!roomId) {
-    logger.warn(
-      { peerId: ws.peerId },
-      "No room ID or join code provided, cannot join room",
-    );
+    logger.warn({ peerId: ws.peerId }, "No room ID or join code provided, cannot join room");
 
     const errorMsg: ErrorMessage = {
       type: "error",
@@ -336,10 +317,7 @@ const handleJoinRoom = (
   logger.info({ roomId, peerId: ws.peerId }, "Peer joined room");
 };
 
-export const handleJoinRoomMessage = (
-  ws: AuthedWebSocket,
-  msg: JoinRoomMessage,
-): void => {
+export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage): void => {
   const { method } = msg.payload;
 
   switch (method) {
@@ -356,10 +334,7 @@ export const handleJoinRoomMessage = (
     case "create": {
       const room = createRoom(ws.peerId);
       if (!room) {
-        logger.error(
-          { peerId: ws.peerId },
-          "Failed to create room due to ID collision",
-        );
+        logger.error({ peerId: ws.peerId }, "Failed to create room due to ID collision");
 
         const errorMsg: ErrorMessage = {
           type: "error",
@@ -389,10 +364,7 @@ export const handleJoinRoomMessage = (
   }
 };
 
-export const handleLeaveRoomMessage = (
-  ws: AuthedWebSocket,
-  msg: LeaveRoomMessage,
-) => {
+export const handleLeaveRoomMessage = (ws: AuthedWebSocket, msg: LeaveRoomMessage) => {
   if (!ws.roomId) {
     const errorMsg: ErrorMessage = {
       type: "error",
@@ -408,10 +380,7 @@ export const handleLeaveRoomMessage = (
   }
 
   if (!removePeerFromRoom(ws.roomId, ws)) {
-    logger.error(
-      { roomId: ws.roomId, peerId: ws.peerId },
-      "Failed to remove peer from room",
-    );
+    logger.error({ roomId: ws.roomId, peerId: ws.peerId }, "Failed to remove peer from room");
 
     const errorMsg: ErrorMessage = {
       type: "error",

@@ -10,11 +10,7 @@ import {
   SignalingErrorCode,
   SIGNALING_MESSAGE_TYPES,
 } from "@riftsend/shared";
-import type {
-  PeerId,
-  RoomCredentials,
-  JoinCode,
-} from "@riftsend/shared";
+import type { PeerId, RoomCredentials, JoinCode } from "@riftsend/shared";
 import { WebSocket } from "ws";
 import { z } from "zod";
 
@@ -23,15 +19,9 @@ export interface PeerInfo {
   name: string;
 }
 
-const PEER_ID_REGEX = new RegExp(
-  `^${PEER_ID_PREFIX}[A-Za-z0-9_-]{${PEER_ID_ENCODED_LENGTH}}$`,
-);
-const ROOM_ID_REGEX = new RegExp(
-  `^${ROOM_ID_PREFIX}[A-Za-z0-9_-]{${ROOM_ID_ENCODED_LENGTH}}$`,
-);
-const SESSION_TOKEN_REGEX = new RegExp(
-  `^[A-Za-z0-9_-]{${SESSION_TOKEN_ENCODED_LENGTH}}$`,
-);
+const PEER_ID_REGEX = new RegExp(`^${PEER_ID_PREFIX}[A-Za-z0-9_-]{${PEER_ID_ENCODED_LENGTH}}$`);
+const ROOM_ID_REGEX = new RegExp(`^${ROOM_ID_PREFIX}[A-Za-z0-9_-]{${ROOM_ID_ENCODED_LENGTH}}$`);
+const SESSION_TOKEN_REGEX = new RegExp(`^[A-Za-z0-9_-]{${SESSION_TOKEN_ENCODED_LENGTH}}$`);
 
 export const PeerIdZod = z
   .string()
@@ -48,9 +38,7 @@ export const RoomIdZod = z
   .regex(ROOM_ID_REGEX, "Invalid RoomId")
   .transform((v) => v as RoomId);
 
-const JOIN_CODE_REGEX = new RegExp(
-  `^[A-HJ-NP-Z2-9]{${ROOM_JOIN_CODE_LENGTH}}$`,
-);
+const JOIN_CODE_REGEX = new RegExp(`^[A-HJ-NP-Z2-9]{${ROOM_JOIN_CODE_LENGTH}}$`);
 
 export const JoinCodeZod = z
   .string()

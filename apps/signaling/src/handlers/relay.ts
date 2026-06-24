@@ -11,10 +11,7 @@ import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
 
 type RelayMessage = OfferMessage | AnswerMessage | IceCandidateMessage;
 
-export const handleRelayMessage = (
-  ws: AuthedWebSocket,
-  message: RelayMessage,
-): void => {
+export const handleRelayMessage = (ws: AuthedWebSocket, message: RelayMessage): void => {
   if (!ws.peerId) {
     logger.warn("Unauthenticated client sent relay message");
     ws.close(

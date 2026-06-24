@@ -46,8 +46,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
   }
 
   const remoteAddress =
-    (ws as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ??
-    "unknown";
+    (ws as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ?? "unknown";
   logger.info({ remoteAddress }, "New WebSocket connection");
 
   ws.isAlive = true;
@@ -59,10 +58,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
 
   const connectionTimeout = setTimeout(() => {
     if (!authenticated) {
-      logger.warn(
-        { remoteAddress },
-        "Connection timeout, closing unauthenticated socket",
-      );
+      logger.warn({ remoteAddress }, "Connection timeout, closing unauthenticated socket");
       ws.close(
         SignalingCloseCodes[SignalingErrorCode.NOT_AUTHENTICATED]!,
         SignalingErrorCode.NOT_AUTHENTICATED,
@@ -96,10 +92,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
 
       const result = SignalingMessageSchema.safeParse(parsed);
       if (!result.success) {
-        logger.warn(
-          { err: result.error, peerId: ws.peerId },
-          "Schema validation failed",
-        );
+        logger.warn({ err: result.error, peerId: ws.peerId }, "Schema validation failed");
         return;
       }
 
@@ -155,10 +148,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
           );
       }
     } catch (err) {
-      logger.error(
-        { err, peerId: ws.peerId },
-        "Unhandled error in message handler",
-      );
+      logger.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
       ws.close(
         SignalingCloseCodes[SignalingErrorCode.INTERNAL_SERVER_ERROR]!,
         SignalingErrorCode.INTERNAL_SERVER_ERROR,
@@ -168,10 +158,7 @@ wss.on("connection", (ws: AuthedWebSocket) => {
 
   ws.on("close", (code, reason) => {
     clearTimeout(connectionTimeout);
-    logger.info(
-      { peerId: ws.peerId, code, reason: reason.toString() },
-      "Client disconnected",
-    );
+    logger.info({ peerId: ws.peerId, code, reason: reason.toString() }, "Client disconnected");
     if (ws.peerId) {
       peerMap.delete(ws.peerId);
     }
