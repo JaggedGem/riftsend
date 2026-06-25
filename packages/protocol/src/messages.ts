@@ -5,8 +5,8 @@ import {
   ROOM_ID_ENCODED_LENGTH,
   SESSION_TOKEN_ENCODED_LENGTH,
   ROOM_JOIN_CODE_LENGTH,
-  RoomId,
-  SessionToken,
+  type RoomId,
+  type SessionToken,
   SignalingErrorCode,
   SIGNALING_MESSAGE_TYPES,
 } from "@riftsend/shared";
@@ -102,7 +102,6 @@ export const HelloMessageSchema = z.object({
   clientVersion: z.string().max(64),
   sessionToken: z.union([SessionTokenZod, z.null()]),
   payload: z.object({
-    role: z.union([z.literal("sender"), z.literal("receiver")]),
     name: z.string().max(256),
     platform: z.string().max(64),
     supportResume: z.boolean(),
@@ -147,9 +146,26 @@ export type RoomPeerLeftMessage = z.infer<typeof RoomPeerLeftMessageSchema>;
 export type RoomPeerEventMessage = RoomPeerJoinedMessage | RoomPeerLeftMessage;
 
 export const JoinRoomPayloadSchema = z.discriminatedUnion("method", [
-  z.object({ method: z.literal("id"), roomId: RoomIdZod }).strict(),
-  z.object({ method: z.literal("code"), joinCode: JoinCodeZod }).strict(),
-  z.object({ method: z.literal("create") }).strict(),
+  z
+    .object({
+      method: z.literal("id"),
+      roomId: RoomIdZod,
+      role: z.union([z.literal("sender"), z.literal("receiver")]),
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal("code"),
+      joinCode: JoinCodeZod,
+      role: z.union([z.literal("sender"), z.literal("receiver")]),
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal("create"),
+      role: z.union([z.literal("sender"), z.literal("receiver")]),
+    })
+    .strict(),
 ]);
 
 export type JoinRoomPayload = z.infer<typeof JoinRoomPayloadSchema>;
@@ -197,8 +213,8 @@ export const RoomJoinedMessageSchema = z
           z.literal("code"),
           z.literal("create"),
         ]),
-        roomId: RoomIdZod.optional(),
-        joinCode: JoinCodeZod.optional(),
+        roomId: RoomIdZod,
+        joinCode: JoinCodeZod,
         members: z.array(RoomMemberSchema),
       })
       .strict(),

@@ -14,7 +14,7 @@ export interface AuthedWebSocket extends WebSocket {
   protocolVersion: number;
   clientVersion: string;
   sessionToken: SessionToken | null;
-  role: "sender" | "receiver";
+  role?: "sender" | "receiver";
   platform: string;
   supportResume: boolean;
   supportChunkAck: boolean;

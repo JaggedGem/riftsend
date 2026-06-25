@@ -1,8 +1,8 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import type { AuthedWebSocket, SignalingMessage } from "./types.js";
-import { SignalingMessageSchema } from "./types.js";
+import type { AuthedWebSocket } from "./types.js";
+import { SignalingMessageSchema, SignalingMessage } from "@riftsend/protocol";
 import { WebSocketServer } from "ws";
 import { peerMap, sessionMap } from "./peer.js";
 import { checkRateLimit } from "./utils.js";

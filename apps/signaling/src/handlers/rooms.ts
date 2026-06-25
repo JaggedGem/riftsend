@@ -238,6 +238,7 @@ export const stopCleanupTimers = (): void => {
 const handleJoinRoom = (
   ws: AuthedWebSocket,
   method: "id" | "code" | "create",
+  role: "sender" | "receiver",
   roomId?: RoomId,
   joinCode?: JoinCode,
 ): void => {
@@ -288,6 +289,8 @@ const handleJoinRoom = (
     return;
   }
 
+  ws.role = role;
+
   const room = getRoom(roomId);
   if (!room) {
     logger.error({ roomId }, "Room disappeared between peer add and response");
@@ -298,8 +301,8 @@ const handleJoinRoom = (
 
   const roomJoinedPayload = {
     method,
-    roomId: method !== "code" ? room.roomCredentials.roomId : undefined,
-    joinCode: method !== "id" ? room.roomCredentials.joinCode : undefined,
+    roomId: room.roomCredentials.roomId,
+    joinCode: room.roomCredentials.joinCode,
     members,
   };
 
@@ -314,17 +317,17 @@ const handleJoinRoom = (
 };
 
 export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage): void => {
-  const { method } = msg.payload;
+  const { method, role } = msg.payload;
 
   switch (method) {
     case "id": {
       const { roomId } = msg.payload;
-      handleJoinRoom(ws, "id", roomId);
+      handleJoinRoom(ws, "id", role, roomId);
       break;
     }
     case "code": {
       const { joinCode } = msg.payload;
-      handleJoinRoom(ws, "code", undefined, joinCode);
+      handleJoinRoom(ws, "code", role, undefined, joinCode);
       break;
     }
     case "create": {
@@ -342,7 +345,7 @@ export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage)
         return;
       }
 
-      handleJoinRoom(ws, "create", room.roomCredentials.roomId);
+      handleJoinRoom(ws, "create", role, room.roomCredentials.roomId);
       break;
     }
     default: {
@@ -375,8 +378,10 @@ export const handleLeaveRoomMessage = (ws: AuthedWebSocket, msg: LeaveRoomMessag
     return;
   }
 
-  if (!removePeerFromRoom(ws.roomId, ws)) {
-    logger.error({ roomId: ws.roomId, peerId: ws.peerId }, "Failed to remove peer from room");
+  const currentRoomId = ws.roomId;
+
+  if (!removePeerFromRoom(currentRoomId, ws)) {
+    logger.error({ roomId: currentRoomId, peerId: ws.peerId }, "Failed to remove peer from room");
 
     const errorMsg: ErrorMessage = {
       type: "error",
@@ -394,7 +399,7 @@ export const handleLeaveRoomMessage = (ws: AuthedWebSocket, msg: LeaveRoomMessag
     type: "room-left",
     from: "server",
     payload: {
-      roomId: ws.roomId,
+      roomId: currentRoomId,
       peerId: ws.peerId,
     },
   };

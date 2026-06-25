@@ -1,9 +1,5 @@
-import type {
-  AuthedWebSocket,
-  OfferMessage,
-  AnswerMessage,
-  IceCandidateMessage,
-} from "../types.js";
+import type { AuthedWebSocket } from "../types.js";
+import type { OfferMessage, AnswerMessage, IceCandidateMessage } from "@riftsend/protocol";
 import { findClientByPeerId } from "../peer.js";
 import { safeSend } from "../utils.js";
 import { logger } from "../logger.js";
