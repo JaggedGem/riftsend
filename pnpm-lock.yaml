@@ -26,6 +26,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.2.0
         version: 11.2.0
+      '@riftsend/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@riftsend/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -151,6 +154,15 @@ importers:
       vite:
         specifier: ^8.0.12
         version: 8.0.14(@types/node@24.12.4)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)
+
+  packages/protocol:
+    dependencies:
+      '@riftsend/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/shared: {}
 

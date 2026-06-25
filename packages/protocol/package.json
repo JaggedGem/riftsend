@@ -1,0 +1,14 @@
+{
+  "name": "@riftsend/protocol",
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@riftsend/shared": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}

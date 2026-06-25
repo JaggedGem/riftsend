@@ -8,22 +8,20 @@ import {
   SignalingErrorCode,
   formatSignalingError,
 } from "@riftsend/shared";
-import {
-  AuthedWebSocket,
-  ErrorMessage,
-  JoinRoomMessage,
-  LeaveRoomMessage,
-  Room,
-  RoomExpiredMessage,
-  RoomJoinedMessage,
-  RoomLeftMessage,
-  RoomMember,
-  RoomPeerEventMessage,
-} from "../types.js";
+import { AuthedWebSocket, Room } from "../types.js";
 import { ROOM_EXPIRE_TIME } from "@riftsend/shared";
 import { logger } from "../logger.js";
 import { peerMap } from "../peer.js";
 import { safeSend } from "../utils.js";
+import {
+  RoomExpiredMessage,
+  RoomJoinedMessage,
+  RoomLeftMessage,
+  RoomPeerEventMessage,
+  ErrorMessage,
+  JoinRoomMessage,
+  LeaveRoomMessage,
+} from "@riftsend/protocol";
 
 const rooms = new Map<RoomId, Room>();
 const joinCodeToRoomId = new Map<JoinCode, RoomId>();
