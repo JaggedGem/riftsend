@@ -22,10 +22,11 @@ export type {
   JoinCode,
   RoomCredentials,
   SignalingMessageTypes,
+  RoomMember,
+  Room,
 } from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
 
 import { SignalingErrorCode as _SEC } from "./constants.js";
 export const SignalingErrorCode = _SEC;
-export type SignalingErrorCode =
-  (typeof _SEC)[keyof typeof _SEC];
+export type SignalingErrorCode = (typeof _SEC)[keyof typeof _SEC];

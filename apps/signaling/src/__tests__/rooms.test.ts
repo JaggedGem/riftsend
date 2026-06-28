@@ -16,12 +16,14 @@ describe("rooms", () => {
   it("client creates a room and receives room-joined", async () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const msg = await alice.receive("room-joined");
 
-    expect(msg.payload.method).toBe("create");
-    expect(msg.payload.members).toHaveLength(1);
-    expect((msg.payload.members as Array<{ peerId: string }>)[0].peerId).toBe(alice.peerId);
+    expect(msg.payload.roomId).toBeTruthy();
+    expect(msg.payload.joinCode).toBeTruthy();
+    const members = msg.payload.members as Record<string, { peerId: string }>;
+    expect(Object.keys(members)).toHaveLength(1);
+    expect(Object.values(members)[0].peerId).toBe(alice.peerId);
 
     alice.close();
   });
@@ -30,13 +32,13 @@ describe("rooms", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     const bobRoom = await bob.receive("room-joined");
-    expect(bobRoom.payload.members).toHaveLength(2);
+    expect(Object.keys(bobRoom.payload.members as Record<string, unknown>)).toHaveLength(2);
 
     alice.close();
     bob.close();
@@ -46,11 +48,11 @@ describe("rooms", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
 
     const peerJoined = await alice.receive("room-peer-joined");
     expect(peerJoined.payload.peerId).toBe(bob.peerId);
@@ -65,11 +67,11 @@ describe("rooms", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     await alice.receive("room-peer-joined");
     await bob.receive("room-joined");
 
@@ -89,14 +91,14 @@ describe("rooms", () => {
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
     const charlie = await h.createClient({ name: "Charlie", role: "sender" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     await bob.receive("room-joined");
 
-    charlie.send("join-room", { method: "code", joinCode });
+    charlie.send("join-room", { method: "code", joinCode, role: "sender" });
     const error = await charlie.receive("error");
     expect(error.payload.code).toBe(SignalingErrorCode.ROOM_IS_FULL);
 
@@ -108,7 +110,7 @@ describe("rooms", () => {
   it("returns error for invalid join code", async () => {
     const client = await h.createClient({ name: "Alice", role: "sender" });
 
-    client.send("join-room", { method: "code", joinCode: "XXXXXX" });
+    client.send("join-room", { method: "code", joinCode: "XXXXXX", role: "sender" });
     const error = await client.receive("error");
     expect(error.payload.code).toBe(SignalingErrorCode.JOIN_CODE_NOT_FOUND);
 
@@ -128,12 +130,12 @@ describe("rooms", () => {
   it("two peers can join by room ID", async () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const roomId = aliceRoom.payload.roomId as string;
 
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
-    bob.send("join-room", { method: "id", roomId });
+    bob.send("join-room", { method: "id", roomId, role: "receiver" });
 
     await bob.receive("room-joined");
     const peerJoined = await alice.receive("room-peer-joined");

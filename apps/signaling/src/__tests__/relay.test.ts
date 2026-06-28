@@ -17,11 +17,11 @@ describe("relay messages (offer/answer/ice-candidate)", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     await alice.receive("room-peer-joined");
     await bob.receive("room-joined");
 
@@ -40,11 +40,11 @@ describe("relay messages (offer/answer/ice-candidate)", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     await alice.receive("room-peer-joined");
     await bob.receive("room-joined");
 
@@ -62,11 +62,11 @@ describe("relay messages (offer/answer/ice-candidate)", () => {
     const alice = await h.createClient({ name: "Alice", role: "sender" });
     const bob = await h.createClient({ name: "Bob", role: "receiver" });
 
-    alice.send("join-room", { method: "create" });
+    alice.send("join-room", { method: "create", role: "sender" });
     const aliceRoom = await alice.receive("room-joined");
     const joinCode = aliceRoom.payload.joinCode as string;
 
-    bob.send("join-room", { method: "code", joinCode });
+    bob.send("join-room", { method: "code", joinCode, role: "receiver" });
     await alice.receive("room-peer-joined");
     await bob.receive("room-joined");
 

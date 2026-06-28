@@ -210,14 +210,15 @@ export const RoomJoinedMessageSchema = z
     from: z.literal("server"),
     payload: z
       .object({
-        method: z.union([
-          z.literal("id"),
-          z.literal("code"),
-          z.literal("create"),
-        ]),
         roomId: RoomIdZod,
         joinCode: JoinCodeZod,
-        members: z.array(RoomMemberSchema),
+        members: z.record(PeerIdZod, RoomMemberSchema),
+        hostPeerId: PeerIdZod,
+        maxPeers: z.number(),
+        roomName: z.string().max(256).optional(),
+        joinedAt: z.number(),
+        createdAt: z.number(),
+        expiresAt: z.number(),
       })
       .strict(),
   })

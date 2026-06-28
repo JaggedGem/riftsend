@@ -12,3 +12,21 @@ export interface RoomCredentials {
 
 export type SignalingMessageTypes =
   (typeof SIGNALING_MESSAGE_TYPES)[keyof typeof SIGNALING_MESSAGE_TYPES];
+
+export interface RoomMember {
+  peerId: PeerId;
+  name?: string;
+  joinedAt: number;
+}
+
+export interface Room {
+  roomCredentials: RoomCredentials;
+  hostPeerId: PeerId;
+  members: Record<PeerId, RoomMember>;
+  createdAt: number;
+  expiresAt: number;
+  metadata: {
+    name?: string;
+    maxPeers: number;
+  };
+}

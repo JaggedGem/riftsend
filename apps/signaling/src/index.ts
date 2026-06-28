@@ -189,11 +189,11 @@ export async function createServer(override?: {
     ws.on("close", (code, reason) => {
       clearTimeout(connectionTimeout);
       logger.info({ peerId: ws.peerId, code, reason: reason.toString() }, "Client disconnected");
-      if (ws.peerId) {
+      if (ws.peerId && peerMap.get(ws.peerId) === ws) {
         peerMap.delete(ws.peerId);
       }
 
-      if (ws.sessionToken) {
+      if (ws.sessionToken && sessionMap.get(ws.sessionToken) === ws) {
         sessionMap.delete(ws.sessionToken);
       }
 

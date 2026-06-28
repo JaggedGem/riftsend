@@ -8,8 +8,8 @@ import {
   SignalingErrorCode,
   formatSignalingError,
 } from "@riftsend/shared";
-import { AuthedWebSocket, Room } from "../types.js";
-import { ROOM_EXPIRE_TIME } from "@riftsend/shared";
+import { AuthedWebSocket } from "../types.js";
+import { ROOM_EXPIRE_TIME, type Room } from "@riftsend/shared";
 import { logger } from "../logger.js";
 import { peerMap } from "../peer.js";
 import { safeSend } from "../utils.js";
@@ -63,7 +63,7 @@ export const createRoom = (hostPeerId: PeerId, roomCredentials?: RoomCredentials
   const room: Room = {
     roomCredentials: roomCredentials ?? { roomId, joinCode: roomJoinCode },
     hostPeerId,
-    members: new Map(),
+    members: Object.create(null),
     createdAt: now,
     expiresAt: now + ROOM_EXPIRE_TIME,
     metadata: {
@@ -107,18 +107,18 @@ export const addPeerToRoom = (roomId: RoomId, ws: AuthedWebSocket): AddPeerToRoo
     return { success: false, code: SignalingErrorCode.ROOM_NOT_FOUND };
   }
 
-  if (room.members.size >= room.metadata.maxPeers) {
+  if (Object.keys(room.members).length >= room.metadata.maxPeers) {
     logger.warn({ roomId, maxPeers: room.metadata.maxPeers }, "Room is full");
     return { success: false, code: SignalingErrorCode.ROOM_IS_FULL };
   }
 
-  if (room.members.has(ws.peerId)) {
+  if (ws.peerId in room.members) {
     logger.warn({ roomId, peerId: ws.peerId }, "Peer already in room");
     return { success: false, code: SignalingErrorCode.PEER_ALREADY_IN_ROOM };
   }
 
   const joinedAt = Date.now();
-  room.members.set(ws.peerId, { peerId: ws.peerId, joinedAt });
+  room.members[ws.peerId] = { peerId: ws.peerId, joinedAt };
   ws.roomId = roomId;
 
   notifyRoomMembersPeerEvent(room, ws.peerId, "joined", joinedAt);
@@ -156,7 +156,7 @@ const notifyRoomMembersPeerEvent = (
   const serialized = JSON.stringify(roomPeerEventMsg);
 
   let notifiedCount = 0;
-  for (const member of room.members.values()) {
+  for (const member of Object.values(room.members)) {
     if (member.peerId === newPeerId) {
       continue;
     }
@@ -180,14 +180,15 @@ export const removePeerFromRoom = (roomId: RoomId, ws: AuthedWebSocket): boolean
     return false;
   }
 
-  if (!room.members.delete(ws.peerId)) {
+  if (!(ws.peerId in room.members)) {
     return false;
   }
   ws.roomId = null;
+  delete room.members[ws.peerId];
 
   notifyRoomMembersPeerEvent(room, ws.peerId, "left", Date.now());
 
-  if (room.members.size === 0) {
+  if (Object.keys(room.members).length === 0) {
     logger.info({ roomId }, "Room is empty, cleaning up");
     cleanupRoom(roomId);
   }
@@ -210,7 +211,7 @@ const handleRoomExpiration = (roomId: RoomId): void => {
   const serialized = JSON.stringify(roomExpiredMsg);
 
   let notifiedCount = 0;
-  for (const member of room.members.values()) {
+  for (const member of Object.values(room.members)) {
     const ws = peerMap.get(member.peerId);
     if (ws) {
       ws.roomId = null;
@@ -310,20 +311,22 @@ const handleJoinRoom = (
     return;
   }
 
-  const members = Array.from(room.members.values());
-
   const roomJoinedPayload = {
-    method,
     roomId: room.roomCredentials.roomId,
     joinCode: room.roomCredentials.joinCode,
     joinedAt: result.joinedAt,
-    members,
-  };
+    hostPeerId: room.hostPeerId,
+    maxPeers: room.metadata.maxPeers,
+    roomName: room.metadata.name,
+    createdAt: room.createdAt,
+    expiresAt: room.expiresAt,
+    members: room.members,
+  } satisfies RoomJoinedMessage["payload"];
 
   const roomJoinedMsg: RoomJoinedMessage = {
     type: "room-joined",
     from: "server",
-    payload: roomJoinedPayload as RoomJoinedMessage["payload"],
+    payload: roomJoinedPayload,
   };
 
   safeSend(ws, JSON.stringify(roomJoinedMsg));

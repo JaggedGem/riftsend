@@ -112,7 +112,7 @@ describe("hello / authentication", () => {
   it("room-joined response includes roomId and joinCode for create method", async () => {
     const client = await h.createClient({ name: "Alice", role: "sender" });
 
-    client.send("join-room", { method: "create" });
+    client.send("join-room", { method: "create", role: "sender" });
     const msg = await client.receive("room-joined");
 
     expect(msg.payload.roomId).toBeTruthy();

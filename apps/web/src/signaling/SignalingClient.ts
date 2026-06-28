@@ -8,21 +8,22 @@ import {
   type JoinRoomPayload,
   RoomIdZod,
   JoinCodeZod,
-  type RoomMember,
+  type LeaveRoomMessage,
+  type RoomLeftMessage,
+  type RoomExpiredMessage,
+  type RoomPeerLeftMessage,
+  type RoomPeerJoinedMessage,
+  type PeerIdMessage,
 } from "@riftsend/protocol";
-
-interface Room {
-  roomId: string;
-  joinCode: string;
-  members: RoomMember[];
-}
+import { type Room } from "@riftsend/shared";
 
 type EventMap = {
-  connected: { peerId: PeerId; sessionToken: SessionToken };
+  connected: PeerIdMessage["payload"];
   "room-joined": Room;
-  "room-peer-joined": { peerId: string; roomId: string; joinedAt: number };
-  "room-peer-left": { peerId: string; roomId: string; leftAt: number };
-  "room-expired": { roomId: string };
+  "room-peer-joined": RoomPeerJoinedMessage["payload"];
+  "room-peer-left": RoomPeerLeftMessage["payload"];
+  "room-expired": RoomExpiredMessage["payload"];
+  "room-left": RoomLeftMessage["payload"];
   disconnected: { code: number; reason: string };
   error: { message: string };
 };
@@ -43,6 +44,15 @@ export class SignalingClient {
     peerId?: PeerId,
     sessionToken?: SessionToken,
   ): void {
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
+      this.ws.onopen = null;
+      this.ws.close();
+      this.ws = null;
+    }
+
     this.ws = new WebSocket(getConfig().signalingUrl);
 
     this.ws.onopen = () => {
@@ -80,6 +90,7 @@ export class SignalingClient {
         reason: sanitizedReason,
       });
       this.listeners.clear();
+      this.ws = null;
     };
 
     this.ws.onerror = () => {
@@ -109,21 +120,37 @@ export class SignalingClient {
       }
 
       case "room-joined": {
-        this.room = {
-          roomId: msg.payload.roomId,
-          joinCode: msg.payload.joinCode,
+        const roomJoined: Room = {
+          roomCredentials: {
+            roomId: msg.payload.roomId,
+            joinCode: msg.payload.joinCode,
+          },
+          hostPeerId: msg.payload.hostPeerId,
+          metadata: {
+            name: msg.payload.roomName,
+            maxPeers: msg.payload.maxPeers,
+          },
+          createdAt: msg.payload.createdAt,
+          expiresAt: msg.payload.expiresAt,
           members: msg.payload.members,
         };
 
-        this.emit("room-joined", this.room);
+        this.room = roomJoined;
+
+        this.emit("room-joined", roomJoined);
         break;
       }
 
       case "room-peer-joined": {
-        this.room!.members.push({
+        if (!this.room) {
+          console.warn("Received room-peer-joined but not in a room");
+          break;
+        }
+
+        this.room.members[msg.payload.peerId] = {
           peerId: msg.payload.peerId,
           joinedAt: msg.payload.joinedAt,
-        });
+        };
 
         this.emit("room-peer-joined", {
           peerId: msg.payload.peerId,
@@ -134,9 +161,12 @@ export class SignalingClient {
       }
 
       case "room-peer-left": {
-        this.room!.members = this.room!.members.filter(
-          (member) => member.peerId !== msg.payload.peerId,
-        );
+        if (!this.room) {
+          console.warn("Received room-peer-left but not in a room");
+          break;
+        }
+
+        delete this.room.members[msg.payload.peerId];
 
         this.emit("room-peer-left", {
           peerId: msg.payload.peerId,
@@ -150,6 +180,11 @@ export class SignalingClient {
         this.room = null;
 
         this.emit("room-expired", { roomId: msg.payload.roomId });
+        break;
+      }
+
+      case "room-left": {
+        this.room = null;
         break;
       }
 
@@ -208,6 +243,24 @@ export class SignalingClient {
     };
 
     this.send(joinRoomMessage);
+  }
+
+  sendLeaveRoom(): void {
+    if (!this.peerId) {
+      throw new Error("Cannot leave room: peerId is not set");
+    }
+
+    if (!this.room) {
+      console.warn("Cannot leave room: not currently in a room");
+      return;
+    }
+
+    const leaveRoomMessage: LeaveRoomMessage = {
+      type: "leave-room",
+      from: this.peerId,
+      payload: null,
+    };
+    this.send(leaveRoomMessage);
   }
 
   on<K extends keyof EventMap>(
