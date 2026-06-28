@@ -127,6 +127,7 @@ export const RoomPeerJoinedMessageSchema = z.object({
   payload: z.object({
     roomId: RoomIdZod,
     peerId: PeerIdZod,
+    joinedAt: z.number(),
   }),
 });
 
@@ -138,6 +139,7 @@ export const RoomPeerLeftMessageSchema = z.object({
   payload: z.object({
     roomId: RoomIdZod,
     peerId: PeerIdZod,
+    leftAt: z.number(),
   }),
 });
 

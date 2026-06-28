@@ -94,6 +94,7 @@ export const deleteRoom = (roomId: RoomId): boolean => {
 type AddPeerToRoomResult =
   | {
       success: true;
+      joinedAt: number;
     }
   | {
       success: false;
@@ -116,29 +117,41 @@ export const addPeerToRoom = (roomId: RoomId, ws: AuthedWebSocket): AddPeerToRoo
     return { success: false, code: SignalingErrorCode.PEER_ALREADY_IN_ROOM };
   }
 
-  room.members.set(ws.peerId, { peerId: ws.peerId, joinedAt: Date.now() });
+  const joinedAt = Date.now();
+  room.members.set(ws.peerId, { peerId: ws.peerId, joinedAt });
   ws.roomId = roomId;
 
-  notifyRoomMembersPeerEvent(room, ws.peerId, "joined");
+  notifyRoomMembersPeerEvent(room, ws.peerId, "joined", joinedAt);
 
-  return { success: true };
+  return { success: true, joinedAt };
 };
 
 const notifyRoomMembersPeerEvent = (
   room: Room,
   newPeerId: PeerId,
   event: "joined" | "left",
+  timestamp: number,
 ): void => {
-  const messageType = event === "joined" ? "room-peer-joined" : "room-peer-left";
-
-  const roomPeerEventMsg: RoomPeerEventMessage = {
-    type: messageType,
-    from: "server",
-    payload: {
-      roomId: room.roomCredentials.roomId,
-      peerId: newPeerId,
-    },
-  };
+  const roomPeerEventMsg: RoomPeerEventMessage =
+    event === "joined"
+      ? {
+          type: "room-peer-joined",
+          from: "server",
+          payload: {
+            roomId: room.roomCredentials.roomId,
+            peerId: newPeerId,
+            joinedAt: timestamp,
+          },
+        }
+      : {
+          type: "room-peer-left",
+          from: "server",
+          payload: {
+            roomId: room.roomCredentials.roomId,
+            peerId: newPeerId,
+            leftAt: timestamp,
+          },
+        };
 
   const serialized = JSON.stringify(roomPeerEventMsg);
 
@@ -172,7 +185,7 @@ export const removePeerFromRoom = (roomId: RoomId, ws: AuthedWebSocket): boolean
   }
   ws.roomId = null;
 
-  notifyRoomMembersPeerEvent(room, ws.peerId, "left");
+  notifyRoomMembersPeerEvent(room, ws.peerId, "left", Date.now());
 
   if (room.members.size === 0) {
     logger.info({ roomId }, "Room is empty, cleaning up");
@@ -303,6 +316,7 @@ const handleJoinRoom = (
     method,
     roomId: room.roomCredentials.roomId,
     joinCode: room.roomCredentials.joinCode,
+    joinedAt: result.joinedAt,
     members,
   };
 

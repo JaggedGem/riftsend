@@ -20,8 +20,8 @@ interface Room {
 type EventMap = {
   connected: { peerId: PeerId; sessionToken: SessionToken };
   "room-joined": Room;
-  "room-peer-joined": { peerId: string; roomId: string };
-  "room-peer-left": { peerId: string; roomId: string };
+  "room-peer-joined": { peerId: string; roomId: string; joinedAt: number };
+  "room-peer-left": { peerId: string; roomId: string; leftAt: number };
   "room-expired": { roomId: string };
   disconnected: { code: number; reason: string };
   error: { message: string };
@@ -120,22 +120,35 @@ export class SignalingClient {
       }
 
       case "room-peer-joined": {
+        this.room!.members.push({
+          peerId: msg.payload.peerId,
+          joinedAt: msg.payload.joinedAt,
+        });
+
         this.emit("room-peer-joined", {
           peerId: msg.payload.peerId,
           roomId: msg.payload.roomId,
+          joinedAt: msg.payload.joinedAt,
         });
         break;
       }
 
       case "room-peer-left": {
+        this.room!.members = this.room!.members.filter(
+          (member) => member.peerId !== msg.payload.peerId,
+        );
+
         this.emit("room-peer-left", {
           peerId: msg.payload.peerId,
           roomId: msg.payload.roomId,
+          leftAt: msg.payload.leftAt,
         });
         break;
       }
 
       case "room-expired": {
+        this.room = null;
+
         this.emit("room-expired", { roomId: msg.payload.roomId });
         break;
       }
