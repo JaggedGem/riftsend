@@ -1,4 +1,4 @@
-import { type PeerId } from "@riftsend/shared";
+import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "../signaling/SignalingClient.js";
 
 const iceServers: RTCIceServer[] = [
@@ -47,31 +47,73 @@ export class WebRTCConnection {
   }
 
   async handleOffer(offer: RTCSessionDescriptionInit): Promise<void> {
-    if (this.pc.signalingState !== "stable") {
-      console.warn(
-        "Received offer while signaling state is not stable. Current state:",
-        this.pc.signalingState,
-      );
+    if (offer.type !== "offer" || !offer.sdp) {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Invalid offer: missing or malformed SDP",
+        code: WebRTCPeerErrorCode.INVALID_OFFER,
+      });
+      return;
     }
 
-    await this.pc.setRemoteDescription(offer);
+    const currentState = this.pc.signalingState;
 
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
+    if (currentState === "have-local-offer") {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Glare: simultaneous offer detected",
+        code: WebRTCPeerErrorCode.GLARE_CONFLICT,
+      });
+      return;
+    }
 
-    this.signaling.sendAnswer(this.remotePeer, answer);
+    if (currentState !== "stable") {
+      try {
+        await this.pc.setLocalDescription({ type: "rollback" });
+      } catch {
+        this.signaling.sendError(this.remotePeer, {
+          message: "Cannot accept offer: signaling state conflict",
+          code: WebRTCPeerErrorCode.SIGNALING_STATE_CONFLICT,
+        });
+        return;
+      }
+    }
+
+    try {
+      await this.pc.setRemoteDescription(offer);
+    } catch (error) {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Failed to accept remote offer",
+        code: WebRTCPeerErrorCode.INVALID_OFFER,
+      });
+      console.error("Error setting remote description:", error);
+      return;
+    }
+
+    try {
+      const answer = await this.pc.createAnswer();
+      await this.pc.setLocalDescription(answer);
+
+      this.signaling.sendAnswer(this.remotePeer, answer);
+    } catch (error) {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Failed to create or send answer",
+        code: WebRTCPeerErrorCode.NEGOTIATION_FAILED,
+      });
+      console.error("Error creating or sending answer:", error);
+    }
   }
 
   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(answer);
   }
 
-  async handleIceCandidate(
-    candidate: RTCIceCandidateInit,
-  ): Promise<void> {
+  async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     try {
       await this.pc.addIceCandidate(candidate);
     } catch (error) {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Failed to process ICE candidate",
+        code: WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED,
+      });
       console.error("Error adding ICE candidate:", error);
     }
   }
@@ -117,9 +159,7 @@ export class WebRTCConnection {
 
   // Event handlers
 
-  private onIceCandidate(
-    event: RTCPeerConnectionIceEvent,
-  ): void {
+  private onIceCandidate(event: RTCPeerConnectionIceEvent): void {
     if (!event.candidate) {
       return;
     }
@@ -127,9 +167,32 @@ export class WebRTCConnection {
     this.signaling.sendIceCandidate(this.remotePeer, event.candidate.toJSON());
   }
 
-  private onConnectionStateChange(): void {}
+  private onConnectionStateChange(): void {
+    if (this.pc.connectionState === "failed") {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Peer connection failed",
+        code: WebRTCPeerErrorCode.CONNECTION_FAILED,
+      });
+    }
+  }
 
-  private onIceConnectionStateChange(): void {}
+  private onIceConnectionStateChange(): void {
+    if (this.pc.iceConnectionState === "failed") {
+      this.signaling.sendError(this.remotePeer, {
+        message: "ICE connection failed",
+        code: WebRTCPeerErrorCode.ICE_CONNECTION_FAILED,
+      });
+    }
+  }
 
-  private onDataChannel(event: RTCDataChannelEvent): void {}
+  private onDataChannel(event: RTCDataChannelEvent): void {
+    const channel = event.channel;
+
+    channel.onerror = () => {
+      this.signaling.sendError(this.remotePeer, {
+        message: "Data channel error",
+        code: WebRTCPeerErrorCode.CONNECTION_FAILED,
+      });
+    };
+  }
 }

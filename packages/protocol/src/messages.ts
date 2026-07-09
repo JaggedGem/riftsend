@@ -8,6 +8,7 @@ import {
   type RoomId,
   type SessionToken,
   SignalingErrorCode,
+  WebRTCPeerErrorCode,
   SIGNALING_MESSAGE_TYPES,
 } from "@riftsend/shared";
 import type { PeerId, JoinCode } from "@riftsend/shared";
@@ -254,13 +255,15 @@ export const RoomLeftMessageSchema = z.object({
 
 export type RoomLeftMessage = z.infer<typeof RoomLeftMessageSchema>;
 
+export const PeerErrorCodeSchema = z.enum(WebRTCPeerErrorCode);
+
 export const PeerErrorMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
     message: z.string().max(1024),
-    code: z.string().max(64).optional(),
+    code: PeerErrorCodeSchema.optional(),
   }),
 });
 
