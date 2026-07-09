@@ -402,10 +402,10 @@ export class SignalingClient {
       to,
       payload: {
         candidate: {
-          candidate: candidate.candidate,
+          candidate: candidate.candidate ?? "",
           sdpMid: candidate.sdpMid ?? null,
           sdpMLineIndex: candidate.sdpMLineIndex ?? null,
-          usernameFragment: candidate.usernameFragment,
+          usernameFragment: candidate.usernameFragment ?? undefined,
         },
       },
     };
