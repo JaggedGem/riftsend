@@ -19,11 +19,38 @@ const iceServers: RTCIceServer[] = [
   },
 ];
 
+const DATA_CHANNEL_LABEL = "riftsend-data";
+const CONTROL_CHANNEL_LABEL = "riftsend-control";
+
+type EventMap = {
+  dataChannelOpen: RTCDataChannel;
+  dataChannelMessage: unknown;
+  dataChannelClose: void;
+  controlChannelOpen: RTCDataChannel;
+  controlChannelMessage: unknown;
+  controlChannelClose: void;
+  connectionStateChange: RTCIceConnectionState;
+  iceConnectionStateChange: RTCIceConnectionState;
+};
+
+type EventHandler<T> = (payload: T) => void;
+
 export class WebRTCConnection {
   private readonly pc: RTCPeerConnection;
   private readonly signaling: SignalingClient;
   private readonly remotePeer: PeerId;
   private readonly cleanupFns: (() => void)[] = [];
+
+  private controlChannel?: RTCDataChannel;
+  private dataChannel?: RTCDataChannel;
+
+  private dataReady = false;
+  private controlReady = false;
+
+  private pendingIceCandidates: RTCIceCandidateInit[] = [];
+  private remoteDescriptionSet = false;
+
+  private listeners = new Map<string, Set<(payload: unknown) => void>>();
 
   constructor(signaling: SignalingClient, remotePeer: PeerId) {
     this.pc = new RTCPeerConnection({
@@ -40,6 +67,16 @@ export class WebRTCConnection {
   // Public API
 
   async initiateConnection(): Promise<void> {
+    this.dataChannel = this.pc.createDataChannel(DATA_CHANNEL_LABEL, {
+      ordered: false,
+    });
+    this.setupDataChannel(this.dataChannel, "data");
+
+    this.controlChannel = this.pc.createDataChannel(CONTROL_CHANNEL_LABEL, {
+      ordered: true,
+    });
+    this.setupDataChannel(this.controlChannel, "control");
+
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
 
@@ -79,6 +116,8 @@ export class WebRTCConnection {
 
     try {
       await this.pc.setRemoteDescription(offer);
+      this.remoteDescriptionSet = true;
+      this.flushPendingIceCandidates();
     } catch (error) {
       this.signaling.sendError(this.remotePeer, {
         message: "Failed to accept remote offer",
@@ -104,9 +143,16 @@ export class WebRTCConnection {
 
   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(answer);
+    this.remoteDescriptionSet = true;
+    this.flushPendingIceCandidates();
   }
 
   async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    if (!this.remoteDescriptionSet) {
+      this.pendingIceCandidates.push(candidate);
+      return;
+    }
+
     try {
       await this.pc.addIceCandidate(candidate);
     } catch (error) {
@@ -118,7 +164,30 @@ export class WebRTCConnection {
     }
   }
 
+  sendData(data: ArrayBuffer): void {
+    if (!this.dataChannel || this.dataChannel.readyState !== "open") {
+      console.warn("Data channel not open, cannot send data");
+      return;
+    }
+    this.dataChannel.send(data);
+  }
+
+  sendControl(data: string): void {
+    if (!this.controlChannel || this.controlChannel.readyState !== "open") {
+      console.warn("Control channel not open, cannot send control message");
+      return;
+    }
+    this.controlChannel.send(data);
+  }
+
+  isReady(): boolean {
+    return this.dataReady && this.controlReady;
+  }
+
   close(): void {
+    this.dataReady = false;
+    this.controlReady = false;
+
     for (const cleanup of this.cleanupFns) {
       cleanup();
     }
@@ -134,7 +203,24 @@ export class WebRTCConnection {
     this.pc.onconnectionstatechange = () => this.onConnectionStateChange();
     this.pc.oniceconnectionstatechange = () =>
       this.onIceConnectionStateChange();
-    this.pc.ondatachannel = (event) => this.onDataChannel(event);
+    this.pc.ondatachannel = (event) => {
+      if (event.channel.label === CONTROL_CHANNEL_LABEL) {
+        this.controlChannel = event.channel;
+        this.setupDataChannel(this.controlChannel, "control");
+      } else if (event.channel.label === DATA_CHANNEL_LABEL) {
+        this.dataChannel = event.channel;
+        this.setupDataChannel(this.dataChannel, "data");
+      } else {
+        console.warn(
+          `Received unexpected data channel with label: ${event.channel.label}`,
+        );
+
+        this.signaling.sendError(this.remotePeer, {
+          message: `Unexpected data channel label: ${event.channel.label}`,
+          code: WebRTCPeerErrorCode.CONNECTION_FAILED,
+        });
+      }
+    };
   }
 
   private setupSignalingListeners(): void {
@@ -174,6 +260,11 @@ export class WebRTCConnection {
         code: WebRTCPeerErrorCode.CONNECTION_FAILED,
       });
     }
+
+    if (this.pc.connectionState === "disconnected") {
+      this.dataReady = false;
+      this.controlReady = false;
+    }
   }
 
   private onIceConnectionStateChange(): void {
@@ -185,14 +276,105 @@ export class WebRTCConnection {
     }
   }
 
-  private onDataChannel(event: RTCDataChannelEvent): void {
-    const channel = event.channel;
+  private setupDataChannel(
+    channel: RTCDataChannel,
+    type: "data" | "control",
+  ): void {
+    if (type === "data") {
+      channel.binaryType = "arraybuffer";
+    }
 
-    channel.onerror = () => {
+    channel.onerror = (error) => {
+      console.error(
+        `${type === "control" ? "Control" : "Data"} channel error:`,
+        error,
+      );
+
       this.signaling.sendError(this.remotePeer, {
-        message: "Data channel error",
+        message: `${type === "control" ? "Control" : "Data"} channel error`,
         code: WebRTCPeerErrorCode.CONNECTION_FAILED,
       });
     };
+
+    channel.onclose = () => {
+      if (type === "data") {
+        this.dataReady = false;
+      } else {
+        this.controlReady = false;
+      }
+
+      this.emit(`${type}ChannelClose`, undefined);
+    };
+
+    channel.onmessage = (event) => {
+      if (type === "control") {
+        this.handleControlChannelMessage(event.data);
+      } else {
+        this.handleDataChannelMessage(event.data);
+      }
+
+      this.emit(`${type}ChannelMessage`, event.data);
+    };
+
+    channel.onopen = () => {
+      if (type === "data") {
+        this.dataReady = true;
+      } else {
+        this.controlReady = true;
+      }
+
+      this.emit(`${type}ChannelOpen`, channel);
+    };
+  }
+
+  private flushPendingIceCandidates(): void {
+    const candidates = this.pendingIceCandidates;
+    this.pendingIceCandidates = [];
+
+    for (const candidate of candidates) {
+      this.pc.addIceCandidate(candidate).catch((error) => {
+        console.error("Error adding queued ICE candidate:", error);
+      });
+    }
+  }
+
+  private handleDataChannelMessage(data: ArrayBuffer): void {
+    console.log("Received data channel message:", data.byteLength, "bytes");
+  }
+
+  private handleControlChannelMessage(data: string): void {
+    console.log("Received control channel message:", data);
+  }
+
+  getDataChannel(): RTCDataChannel | undefined {
+    return this.dataChannel;
+  }
+
+  getControlChannel(): RTCDataChannel | undefined {
+    return this.controlChannel;
+  }
+
+  on<K extends keyof EventMap>(
+    type: K,
+    handler: EventHandler<EventMap[K]>,
+  ): () => void {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
+    }
+    this.listeners.get(type)!.add(handler as (payload: unknown) => void);
+    return () => this.off(type, handler);
+  }
+
+  off<K extends keyof EventMap>(
+    type: K,
+    handler: EventHandler<EventMap[K]>,
+  ): void {
+    this.listeners.get(type)?.delete(handler as (payload: unknown) => void);
+  }
+
+  private emit<K extends keyof EventMap>(type: K, payload: EventMap[K]): void {
+    this.listeners.get(type)?.forEach((handler) => {
+      (handler as EventHandler<EventMap[K]>)(payload);
+    });
   }
 }
