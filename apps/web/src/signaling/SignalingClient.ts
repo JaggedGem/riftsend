@@ -185,6 +185,21 @@ export class SignalingClient {
 
       case "room-left": {
         this.room = null;
+
+        this.emit("room-left", {
+          roomId: msg.payload.roomId,
+          peerId: msg.payload.peerId,
+        });
+        break;
+      }
+
+      case "error": {
+        console.error(
+          "Received error message from signaling server:",
+          msg.payload.code,
+        );
+
+        this.emit("error", { message: `Signaling error: ${msg.payload.code}` });
         break;
       }
 
@@ -285,5 +300,12 @@ export class SignalingClient {
     this.listeners.get(type)?.forEach((handler) => {
       (handler as EventHandler<EventMap[K]>)(payload);
     });
+  }
+
+  disconnect(): void {
+    if (this.ws) {
+      this.ws.close(1000, "Client disconnect");
+      this.ws = null;
+    }
   }
 }
