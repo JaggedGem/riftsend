@@ -14,6 +14,10 @@ import {
   type RoomPeerLeftMessage,
   type RoomPeerJoinedMessage,
   type PeerIdMessage,
+  type OfferMessage,
+  type AnswerMessage,
+  type IceCandidateMessage,
+  type PeerErrorMessage,
 } from "@riftsend/protocol";
 import { type Room } from "@riftsend/shared";
 
@@ -26,6 +30,9 @@ type EventMap = {
   "room-left": RoomLeftMessage["payload"];
   disconnected: { code: number; reason: string };
   error: { message: string };
+  offer: OfferMessage["payload"];
+  answer: AnswerMessage["payload"];
+  iceCandidate: IceCandidateMessage["payload"];
 };
 
 type EventHandler<T> = (payload: T) => void;
@@ -203,6 +210,21 @@ export class SignalingClient {
         break;
       }
 
+      case "offer": {
+        this.emit("offer", msg.payload);
+        break;
+      }
+
+      case "answer": {
+        this.emit("answer", msg.payload);
+        break;
+      }
+
+      case "ice-candidate": {
+        this.emit("iceCandidate", msg.payload);
+        break;
+      }
+
       default:
         console.warn("Unhandled signaling message type:", msg.type);
     }
@@ -302,10 +324,111 @@ export class SignalingClient {
     });
   }
 
-  disconnect(): void {
+  disconnect(code: number = 1000, reason: string = "Client disconnect"): void {
     if (this.ws) {
-      this.ws.close(1000, "Client disconnect");
+      this.ws.close(code, reason);
       this.ws = null;
     }
+  }
+
+  sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Cannot send offer: WebSocket is not open");
+    }
+
+    if (!this.peerId) {
+      throw new Error("Cannot send offer: peerId is not set");
+    }
+
+    if (!description.sdp) {
+      throw new Error("Cannot send offer: description.sdp is not set");
+    }
+
+    const offerMessage: OfferMessage = {
+      type: "offer",
+      from: this.peerId,
+      to,
+      payload: {
+        description: {
+          type: "offer",
+          sdp: description.sdp,
+        },
+      },
+    };
+
+    this.send(offerMessage);
+  }
+
+  sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Cannot send answer: WebSocket is not open");
+    }
+
+    if (!this.peerId) {
+      throw new Error("Cannot send answer: peerId is not set");
+    }
+
+    if (!description.sdp) {
+      throw new Error("Cannot send answer: description.sdp is not set");
+    }
+
+    const answerMessage: AnswerMessage = {
+      type: "answer",
+      from: this.peerId,
+      to,
+      payload: {
+        description: {
+          type: "answer",
+          sdp: description.sdp,
+        },
+      },
+    };
+
+    this.send(answerMessage);
+  }
+
+  sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Cannot send ICE candidate: WebSocket is not open");
+    }
+
+    if (!this.peerId) {
+      throw new Error("Cannot send ICE candidate: peerId is not set");
+    }
+
+    const iceCandidateMessage: IceCandidateMessage = {
+      type: "ice-candidate",
+      from: this.peerId,
+      to,
+      payload: {
+        candidate: {
+          candidate: candidate.candidate,
+          sdpMid: candidate.sdpMid ?? null,
+          sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+          usernameFragment: candidate.usernameFragment,
+        },
+      },
+    };
+
+    this.send(iceCandidateMessage);
+  }
+
+  sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Cannot send error: WebSocket is not open");
+    }
+
+    if (!this.peerId) {
+      throw new Error("Cannot send error: peerId is not set");
+    }
+
+    const errorMessage: PeerErrorMessage = {
+      type: "peer-error",
+      from: this.peerId,
+      to,
+      payload: error,
+    };
+
+    this.send(errorMessage);
   }
 }

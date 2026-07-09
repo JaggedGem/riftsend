@@ -22,6 +22,7 @@ export const SIGNALING_MESSAGE_TYPES = {
   offer: "offer",
   answer: "answer",
   iceCandidate: "ice-candidate",
+  peerError: "peer-error",
 
   // Room signaling messages
   joinRoom: "join-room",
@@ -77,16 +78,17 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
     "Failed to remove peer from room",
 };
 
-export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> = {
-  [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
-  [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
-  [SignalingErrorCode.INVALID_JSON]: 1008,
-  [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
-  [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
-  [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
-  [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
-  [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
-};
+export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
+  {
+    [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
+    [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
+    [SignalingErrorCode.INVALID_JSON]: 1008,
+    [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
+    [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
+    [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
+    [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
+    [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
+  };
 
 export const formatSignalingError = (code: SignalingErrorCode): string => {
   return SignalingErrorMessages[code];

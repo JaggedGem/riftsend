@@ -1,11 +1,16 @@
 import type { AuthedWebSocket } from "../types.js";
-import type { OfferMessage, AnswerMessage, IceCandidateMessage } from "@riftsend/protocol";
+import type {
+  OfferMessage,
+  AnswerMessage,
+  IceCandidateMessage,
+  PeerErrorMessage,
+} from "@riftsend/protocol";
 import { findClientByPeerId } from "../peer.js";
 import { safeSend } from "../utils.js";
 import { logger } from "../logger.js";
 import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
 
-type RelayMessage = OfferMessage | AnswerMessage | IceCandidateMessage;
+type RelayMessage = OfferMessage | AnswerMessage | IceCandidateMessage | PeerErrorMessage;
 
 export const handleRelayMessage = (ws: AuthedWebSocket, message: RelayMessage): void => {
   if (!ws.peerId) {

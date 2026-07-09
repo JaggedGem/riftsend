@@ -65,7 +65,10 @@ export const OfferMessageSchema = z.object({
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
-    sdp: z.string().max(65536),
+    description: z.object({
+      type: z.literal("offer"),
+      sdp: z.string().max(65536),
+    }),
   }),
 });
 
@@ -76,7 +79,10 @@ export const AnswerMessageSchema = z.object({
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
-    sdp: z.string().max(65536),
+    description: z.object({
+      type: z.literal("answer"),
+      sdp: z.string().max(65536),
+    }),
   }),
 });
 
@@ -87,9 +93,12 @@ export const IceCandidateMessageSchema = z.object({
   from: PeerIdZod,
   to: PeerIdZod,
   payload: z.object({
-    candidate: z.string().max(4096),
-    sdpMid: z.string().max(256).nullable(),
-    sdpMLineIndex: z.number().nullable(),
+    candidate: z.object({
+      candidate: z.string().max(4096),
+      sdpMid: z.string().max(256).nullable(),
+      sdpMLineIndex: z.number().int().nonnegative().nullable(),
+      usernameFragment: z.string().max(256).optional(),
+    }),
   }),
 });
 
@@ -245,6 +254,18 @@ export const RoomLeftMessageSchema = z.object({
 
 export type RoomLeftMessage = z.infer<typeof RoomLeftMessageSchema>;
 
+export const PeerErrorMessageSchema = z.object({
+  type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
+  from: PeerIdZod,
+  to: PeerIdZod,
+  payload: z.object({
+    message: z.string().max(1024),
+    code: z.string().max(64).optional(),
+  }),
+});
+
+export type PeerErrorMessage = z.infer<typeof PeerErrorMessageSchema>;
+
 export const SignalingMessageSchema = z.discriminatedUnion("type", [
   PeerIdMessageSchema,
   HelloMessageSchema,
@@ -259,6 +280,7 @@ export const SignalingMessageSchema = z.discriminatedUnion("type", [
   RoomJoinedMessageSchema,
   LeaveRoomMessageSchema,
   RoomLeftMessageSchema,
+  PeerErrorMessageSchema,
 ]);
 
 export type SignalingMessage = z.infer<typeof SignalingMessageSchema>;
