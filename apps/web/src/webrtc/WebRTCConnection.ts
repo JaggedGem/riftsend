@@ -39,7 +39,7 @@ export class WebRTCConnection {
 
   // Public API
 
-  async createOffer(): Promise<void> {
+  async initiateConnection(): Promise<void> {
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
 
