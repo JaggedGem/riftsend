@@ -37,6 +37,24 @@ type EventMap = {
 
 type EventHandler<T> = (payload: T) => void;
 
+/**
+ * Client for the Riftsend signaling WebSocket protocol.
+ *
+ * Manages the WebSocket connection lifecycle, room join/leave, and relays
+ * WebRTC signaling messages (offer, answer, ICE candidates) between peers.
+ *
+ * ## Lifecycle
+ *
+ * 1. Call {@link connect} to open the WebSocket and send a `hello` handshake.
+ * 2. Wait for the `connected` event (server responds with `peer-id`).
+ * 3. Call {@link sendJoinRoom} to join or create a room.
+ * 4. Use {@link on} to subscribe to forwarded signaling messages.
+ * 5. Call {@link disconnect} to tear down the connection.
+ *
+ * ## Events
+ *
+ * See {@link EventMap} for the full list of typed events.
+ */
 export class SignalingClient {
   private ws: WebSocket | null = null;
   private peerId: PeerId | null = null;
@@ -46,6 +64,14 @@ export class SignalingClient {
 
   connect(resume: false): void;
   connect(resume: true, peerId: PeerId, sessionToken: SessionToken): void;
+  /**
+   * Opens a WebSocket connection to the signaling server.
+   *
+   * If the socket is already open, it is torn down first.
+   *
+   * @param resume - When `true`, attempts to resume a previous session using
+   *   the provided peerId and sessionToken.
+   */
   connect(
     resume: boolean = false,
     peerId?: PeerId,
@@ -105,6 +131,10 @@ export class SignalingClient {
     };
   }
 
+  /**
+   * Routes an incoming JSON message to the correct event emission based on its type.
+   * Messages are validated against {@link SignalingMessageSchema} before processing.
+   */
   private handleMessage(message: unknown): void {
     const result = SignalingMessageSchema.safeParse(message);
     if (!result.success) {
@@ -230,6 +260,10 @@ export class SignalingClient {
     }
   }
 
+  /**
+   * Serializes and sends a JSON message over the WebSocket.
+   * Silently drops the message if the socket is not open.
+   */
   private send(data: unknown): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn("Attempted send on non-open socket");
@@ -243,11 +277,11 @@ export class SignalingClient {
   }
 
   /**
-   * Join or create a room.
+   * Sends a `join-room` message to join or create a room.
    *
-   * - If neither `roomId` nor `joinCode` is provided, a new room is created.
-   * - If `roomId` is provided, joins an existing room by its ID.
-   * - If `joinCode` is provided (and `roomId` is not), joins by join code.
+   * - No roomId or joinCode → creates a new room (sender becomes host).
+   * - `roomId` provided → joins an existing room by ID.
+   * - `joinCode` provided (no roomId) → joins by human-readable code.
    */
   sendJoinRoom(
     role: "sender" | "receiver",
@@ -282,6 +316,7 @@ export class SignalingClient {
     this.send(joinRoomMessage);
   }
 
+  /** Sends a `leave-room` message for the currently joined room. */
   sendLeaveRoom(): void {
     if (!this.peerId) {
       throw new Error("Cannot leave room: peerId is not set");
@@ -300,6 +335,11 @@ export class SignalingClient {
     this.send(leaveRoomMessage);
   }
 
+  /**
+   * Subscribes to a signaling event.
+   *
+   * @returns A cleanup function that removes the listener when called.
+   */
   on<K extends keyof EventMap>(
     type: K,
     handler: EventHandler<EventMap[K]>,
@@ -311,6 +351,7 @@ export class SignalingClient {
     return () => this.off(type, handler);
   }
 
+  /** Removes a previously registered event listener. */
   off<K extends keyof EventMap>(
     type: K,
     handler: EventHandler<EventMap[K]>,
@@ -324,6 +365,12 @@ export class SignalingClient {
     });
   }
 
+  /**
+   * Closes the WebSocket connection.
+   *
+   * @param code - WebSocket close code (default: 1000).
+   * @param reason - Human-readable reason (default: "Client disconnect").
+   */
   disconnect(code: number = 1000, reason: string = "Client disconnect"): void {
     if (this.ws) {
       this.ws.close(code, reason);
@@ -331,6 +378,11 @@ export class SignalingClient {
     }
   }
 
+  /**
+   * Sends a WebRTC SDP offer to a remote peer via the signaling relay.
+   *
+   * @throws If the WebSocket is not open or the offer has no SDP.
+   */
   sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error("Cannot send offer: WebSocket is not open");
@@ -359,6 +411,11 @@ export class SignalingClient {
     this.send(offerMessage);
   }
 
+  /**
+   * Sends a WebRTC SDP answer to a remote peer via the signaling relay.
+   *
+   * @throws If the WebSocket is not open or the answer has no SDP.
+   */
   sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error("Cannot send answer: WebSocket is not open");
@@ -387,6 +444,14 @@ export class SignalingClient {
     this.send(answerMessage);
   }
 
+  /**
+   * Sends an ICE candidate to a remote peer via the signaling relay.
+   *
+   * Fills in defaults for optional fields that may be missing from
+   * `RTCIceCandidateInit`.
+   *
+   * @throws If the WebSocket is not open or peerId is not set.
+   */
   sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error("Cannot send ICE candidate: WebSocket is not open");
@@ -413,6 +478,11 @@ export class SignalingClient {
     this.send(iceCandidateMessage);
   }
 
+  /**
+   * Sends a peer error to a remote peer via the signaling relay.
+   *
+   * @throws If the WebSocket is not open or peerId is not set.
+   */
   sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error("Cannot send error: WebSocket is not open");

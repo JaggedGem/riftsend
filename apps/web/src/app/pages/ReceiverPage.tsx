@@ -16,6 +16,13 @@ const RECEIVER_STATUS_BADGES = [
   { label: "Integrity checks staged", variant: "secondary" as const },
 ];
 
+/**
+ * Receiver workspace page.
+ *
+ * If the URL contains a room code (`/r/:code`), it is pre-filled in the
+ * join-entry card. Lays out room entry, transfer preview, download queue,
+ * trust controls, and diagnostics. Currently renders placeholder cards.
+ */
 export function ReceiverPage() {
   const { code } = useParams();
   const initialRoomCode = code?.trim().toUpperCase();

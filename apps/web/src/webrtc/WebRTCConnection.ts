@@ -1,6 +1,13 @@
 import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "../signaling/SignalingClient.js";
 
+/**
+ * Default STUN servers used for NAT traversal.
+ *
+ * Multiple Google STUN servers are listed for redundancy, plus Cloudflare
+ * and Nextcloud as fallbacks. No TURN servers are configured here — those
+ * would be fetched from the signaling server at connection time.
+ */
 const iceServers: RTCIceServer[] = [
   {
     urls: [
@@ -35,6 +42,24 @@ type EventMap = {
 
 type EventHandler<T> = (payload: T) => void;
 
+/**
+ * Manages a single WebRTC peer connection to a remote peer.
+ *
+ * Creates two data channels:
+ * - **Data channel** (`riftsend-data`): unordered binary transport for file bytes.
+ * - **Control channel** (`riftsend-control`): ordered reliable transport for JSON metadata.
+ *
+ * ICE candidates received before the remote description is set are queued and
+ * flushed once the remote description is available.
+ *
+ * ## Lifecycle
+ *
+ * 1. Construct with an active {@link SignalingClient} and the target peer ID.
+ * 2. Call {@link initiateConnection} (sender side) OR receive {@link handleOffer} (receiver side).
+ * 3. Exchange ICE candidates automatically via signaling.
+ * 4. Use {@link sendData} / {@link sendControl} once `isReady()` returns `true`.
+ * 5. Call {@link close} to tear down.
+ */
 export class WebRTCConnection {
   private readonly pc: RTCPeerConnection;
   private readonly signaling: SignalingClient;
@@ -66,6 +91,12 @@ export class WebRTCConnection {
 
   // Public API
 
+  /**
+   * Creates data channels, generates an SDP offer, and sends it via signaling.
+   *
+   * Call this on the **sender** side after the peer is known.
+   * The receiver side will receive the offer via {@link handleOffer}.
+   */
   async initiateConnection(): Promise<void> {
     this.dataChannel = this.pc.createDataChannel(DATA_CHANNEL_LABEL, {
       ordered: false,
@@ -83,6 +114,12 @@ export class WebRTCConnection {
     this.signaling.sendOffer(this.remotePeer, offer);
   }
 
+  /**
+   * Processes an incoming SDP offer from the remote peer.
+   *
+   * Handles glare (simultaneous offers), rolls back non-stable states, and
+   * responds with an SDP answer.
+   */
   async handleOffer(offer: RTCSessionDescriptionInit): Promise<void> {
     if (offer.type !== "offer" || !offer.sdp) {
       this.signaling.sendError(this.remotePeer, {
@@ -141,12 +178,22 @@ export class WebRTCConnection {
     }
   }
 
+  /**
+   * Sets the remote SDP description from the peer's answer and flushes any
+   * ICE candidates that arrived before the description was set.
+   */
   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(answer);
     this.remoteDescriptionSet = true;
     this.flushPendingIceCandidates();
   }
 
+  /**
+   * Queues or forwards an ICE candidate from the remote peer.
+   *
+   * If the remote description is not yet set, the candidate is queued and will
+   * be flushed once the description arrives.
+   */
   async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     if (!this.remoteDescriptionSet) {
       this.pendingIceCandidates.push(candidate);
@@ -164,6 +211,11 @@ export class WebRTCConnection {
     }
   }
 
+  /**
+   * Sends binary data over the unordered data channel.
+   *
+   * Silently drops if the channel is not open.
+   */
   sendData(data: ArrayBuffer): void {
     if (!this.dataChannel || this.dataChannel.readyState !== "open") {
       console.warn("Data channel not open, cannot send data");
@@ -172,6 +224,11 @@ export class WebRTCConnection {
     this.dataChannel.send(data);
   }
 
+  /**
+   * Sends a JSON string over the ordered control channel.
+   *
+   * Silently drops if the channel is not open.
+   */
   sendControl(data: string): void {
     if (!this.controlChannel || this.controlChannel.readyState !== "open") {
       console.warn("Control channel not open, cannot send control message");
@@ -180,10 +237,14 @@ export class WebRTCConnection {
     this.controlChannel.send(data);
   }
 
+  /** Returns `true` when both data and control channels are open and ready. */
   isReady(): boolean {
     return this.dataReady && this.controlReady;
   }
 
+  /**
+   * Tears down the peer connection and unsubscribes from signaling events.
+   */
   close(): void {
     this.dataReady = false;
     this.controlReady = false;
@@ -198,6 +259,7 @@ export class WebRTCConnection {
 
   // Setup
 
+  /** Wires up event handlers on the RTCPeerConnection. */
   private setupPeerConnection(): void {
     this.pc.onicecandidate = (event) => this.onIceCandidate(event);
     this.pc.onconnectionstatechange = () => this.onConnectionStateChange();
@@ -223,6 +285,7 @@ export class WebRTCConnection {
     };
   }
 
+  /** Subscribes to signaling events (offer, answer, ICE) and registers cleanup. */
   private setupSignalingListeners(): void {
     this.cleanupFns.push(
       this.signaling.on("offer", (payload) => {
@@ -245,6 +308,7 @@ export class WebRTCConnection {
 
   // Event handlers
 
+  /** Forwards local ICE candidates to the remote peer via signaling. */
   private onIceCandidate(event: RTCPeerConnectionIceEvent): void {
     if (!event.candidate) {
       return;
@@ -253,6 +317,7 @@ export class WebRTCConnection {
     this.signaling.sendIceCandidate(this.remotePeer, event.candidate.toJSON());
   }
 
+  /** Tracks connection state and sends a peer error on failure. */
   private onConnectionStateChange(): void {
     if (this.pc.connectionState === "failed") {
       this.signaling.sendError(this.remotePeer, {
@@ -267,6 +332,7 @@ export class WebRTCConnection {
     }
   }
 
+  /** Sends a peer error when the ICE connection fails. */
   private onIceConnectionStateChange(): void {
     if (this.pc.iceConnectionState === "failed") {
       this.signaling.sendError(this.remotePeer, {
@@ -276,6 +342,12 @@ export class WebRTCConnection {
     }
   }
 
+  /**
+   * Wires up data channel event handlers (open, close, message, error).
+   *
+   * The data channel uses `arraybuffer` binary type; the control channel
+   * uses the default string type.
+   */
   private setupDataChannel(
     channel: RTCDataChannel,
     type: "data" | "control",
@@ -327,6 +399,10 @@ export class WebRTCConnection {
     };
   }
 
+  /**
+   * Adds all queued ICE candidates to the peer connection.
+   * Called once the remote description is set.
+   */
   private flushPendingIceCandidates(): void {
     const candidates = this.pendingIceCandidates;
     this.pendingIceCandidates = [];
@@ -354,6 +430,11 @@ export class WebRTCConnection {
     return this.controlChannel;
   }
 
+  /**
+   * Subscribes to a WebRTC connection event.
+   *
+   * @returns A cleanup function that removes the listener when called.
+   */
   on<K extends keyof EventMap>(
     type: K,
     handler: EventHandler<EventMap[K]>,
@@ -365,6 +446,7 @@ export class WebRTCConnection {
     return () => this.off(type, handler);
   }
 
+  /** Removes a previously registered event listener. */
   off<K extends keyof EventMap>(
     type: K,
     handler: EventHandler<EventMap[K]>,
