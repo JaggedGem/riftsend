@@ -3,6 +3,10 @@ import { resetPeerState } from "../peer.js";
 import { resetRoomState } from "../handlers/rooms.js";
 import { TestClient, type TestClientOptions } from "./testClient.js";
 
+/**
+ * A test harness for the signaling server.
+ * This class provides methods to create a server instance, manage test clients, and perform HTTP requests.
+ */
 export class TestHarness {
   public httpPort!: number;
   public wsPort!: number;
@@ -13,6 +17,11 @@ export class TestHarness {
 
   private constructor() {}
 
+  /**
+   * Creates a new test harness instance with an optional configuration override.
+   * @param overrides Optional configuration overrides for heartbeat and connection timeout.
+   * @returns A promise that resolves to the created TestHarness instance.
+   */
   static async create(overrides?: {
     heartbeatMs?: number;
     connectionTimeoutMs?: number;
@@ -34,18 +43,33 @@ export class TestHarness {
     return h;
   }
 
+  /**
+   * Creates and connects a new test client to the signaling server.
+   * @param opts Optional configuration for the test client.
+   * @returns A promise that resolves to the connected TestClient instance.
+   */
   async createClient(opts: TestClientOptions = {}): Promise<TestClient> {
     const client = await TestClient.createConnected(this.wsUrl, opts);
     this.clients.push(client);
     return client;
   }
 
+  /**
+   * Creates and connects a new raw test client to the signaling server.
+   * @param opts Optional configuration for the test client.
+   * @returns A promise that resolves to the connected TestClient instance.
+   */
   async rawClient(opts: TestClientOptions = {}): Promise<TestClient> {
     const client = await TestClient.connect(this.wsUrl, opts);
     this.clients.push(client);
     return client;
   }
 
+  /**
+   * Performs an HTTP GET request to the specified path on the signaling server.
+   * @param path The path to send the GET request to.
+   * @returns A promise that resolves to an object containing the response status and body.
+   */
   async httpGet(path: string): Promise<{ status: number; body: unknown }> {
     const res = await fetch(`${this.httpUrl}${path}`);
     return {
@@ -54,6 +78,11 @@ export class TestHarness {
     };
   }
 
+  /**
+   * Shuts down the test harness, closing all connected clients and stopping the server.
+   * This method also resets the peer and room state to ensure a clean environment for subsequent tests.
+   * @returns A promise that resolves when the shutdown process is complete.
+   */
   async shutdown(): Promise<void> {
     for (const c of this.clients) {
       try {

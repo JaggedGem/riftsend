@@ -10,8 +10,17 @@ import { safeSend } from "../utils.js";
 import { logger } from "../logger.js";
 import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
 
+/**
+ * Type representing a relay message, which can be an offer, answer, ICE candidate, or peer error message.
+ */
 type RelayMessage = OfferMessage | AnswerMessage | IceCandidateMessage | PeerErrorMessage;
 
+/**
+ * Handles a relay message from a client WebSocket connection.
+ * Validates the message, checks for authentication, and forwards it to the target peer if found.
+ * @param ws - The authenticated WebSocket connection.
+ * @param message - The relay message received from the client.
+ */
 export const handleRelayMessage = (ws: AuthedWebSocket, message: RelayMessage): void => {
   if (!ws.peerId) {
     logger.warn("Unauthenticated client sent relay message");

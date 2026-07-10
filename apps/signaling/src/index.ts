@@ -1,3 +1,25 @@
+/**
+ * Riftsend Signaling Server
+ *
+ * Entry point for the signaling server. Handles WebSocket connections and
+ * relays signaling messages (offer, answer, ICE candidates) between peers in
+ * a room. Also provides an HTTP health-check endpoint.
+ *
+ * ## Message flow
+ *
+ * - `hello` — Initial handshake; server responds with `peer-id`.
+ * - `join-room` — Request to join or create a room.
+ * - `leave-room` — Request to leave the current room.
+ * - `offer`, `answer`, `ice-candidate` — WebRTC signaling relayed between
+ *   peers in the same room.
+ * - `peer-error` — Error messages forwarded between peers.
+ *
+ * ## Guardrails
+ *
+ * Rate limiting, connection caps, authentication timeouts, and heartbeat
+ * checks prevent common abuse and keep connections stable.
+ */
+
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -25,6 +47,16 @@ import {
 import { SignalingErrorCode, SignalingCloseCodes } from "@riftsend/shared";
 import type { FastifyInstance } from "fastify";
 
+/**
+ * Creates and starts the signaling server (HTTP + WebSocket).
+ *
+ * @param override - Ports and timing overrides (used for testing or custom deployment).
+ *   - `httpPort`: port for the HTTP health endpoint (default: 3000).
+ *   - `wsPort`: port for the WebSocket server (default: 8080).
+ *   - `heartbeatMs`: ping interval for keep-alive (default: 30s).
+ *   - `connectionTimeoutMs`: time before closing an unauthenticated socket (default: 10s).
+ *   - `maxConnections`: maximum concurrent WebSocket connections (default: 1000).
+ */
 export async function createServer(override?: {
   httpPort?: number;
   wsPort?: number;
@@ -173,10 +205,7 @@ export async function createServer(override?: {
           }
 
           default:
-            logger.warn(
-              { type: msg.type, peerId: ws.peerId },
-              "Unknown message type",
-            );
+            logger.warn({ type: msg.type, peerId: ws.peerId }, "Unknown message type");
         }
       } catch (err) {
         logger.error({ err, peerId: ws.peerId }, "Unhandled error in message handler");
@@ -244,6 +273,10 @@ export async function createServer(override?: {
   return { app, wss, httpPort, wsPort, stop };
 }
 
+/**
+ * Starts the server using config from environment variables and installs
+ * graceful shutdown handlers for SIGTERM and SIGINT.
+ */
 async function main() {
   const { WS_PORT, HTTP_PORT } = await import("./config.js");
   const server = await createServer({ httpPort: HTTP_PORT, wsPort: WS_PORT });

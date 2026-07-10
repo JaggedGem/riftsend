@@ -1,6 +1,5 @@
+import { generateJoinCode, generateRoomId } from "@riftsend/shared";
 import {
-  generateJoinCode,
-  generateRoomId,
   JoinCode,
   PeerId,
   RoomCredentials,
@@ -23,10 +22,21 @@ import {
   LeaveRoomMessage,
 } from "@riftsend/protocol";
 
+/** Active rooms, keyed by room ID. */
 const rooms = new Map<RoomId, Room>();
+
+/** Maps a join code to its corresponding room ID (reverse lookup). */
 const joinCodeToRoomId = new Map<JoinCode, RoomId>();
+
+/** Pending expiration timers for rooms, keyed by room ID. */
 const roomTimers = new Map<RoomId, ReturnType<typeof setTimeout>>();
 
+/**
+ * Schedules (or resets) the expiration timer for a room.
+ *
+ * If a timer already exists, it is cleared and replaced so that recent activity
+ * extends the room's lifetime.
+ */
 const scheduleRoomExpiration = (roomId: RoomId): void => {
   const existing = roomTimers.get(roomId);
   if (existing) {
@@ -41,6 +51,7 @@ const scheduleRoomExpiration = (roomId: RoomId): void => {
   roomTimers.get(roomId)!.unref();
 };
 
+/** Clears and removes the expiration timer for a room, if one exists. */
 const clearRoomTimer = (roomId: RoomId): void => {
   const existing = roomTimers.get(roomId);
   if (existing) {
@@ -49,6 +60,13 @@ const clearRoomTimer = (roomId: RoomId): void => {
   }
 };
 
+/**
+ * Creates a new room with the given host.
+ *
+ * @param roomCredentials - When provided, uses these explicit credentials instead of
+ *   generating fresh ones. Useful for testing or resuming a room with a known ID.
+ * @returns The created room, or `null` if a room with the same ID already exists.
+ */
 export const createRoom = (hostPeerId: PeerId, roomCredentials?: RoomCredentials): Room | null => {
   const roomId = roomCredentials?.roomId ?? generateRoomId();
 
@@ -82,6 +100,11 @@ export const getRoom = (roomId: RoomId): Room | undefined => {
   return rooms.get(roomId);
 };
 
+/**
+ * Deletes a room by ID, removing its join-code mapping and expiration timer.
+ *
+ * @returns `true` if the room existed and was deleted.
+ */
 export const deleteRoom = (roomId: RoomId): boolean => {
   const room = rooms.get(roomId);
   if (room) {
@@ -101,6 +124,12 @@ type AddPeerToRoomResult =
       code: SignalingErrorCode;
     };
 
+/**
+ * Adds a peer to a room.
+ *
+ * Validates that the room exists, is not full, and the peer is not already
+ * a member. On success, all other room members are notified.
+ */
 export const addPeerToRoom = (roomId: RoomId, ws: AuthedWebSocket): AddPeerToRoomResult => {
   const room = rooms.get(roomId);
   if (!room) {
@@ -126,6 +155,10 @@ export const addPeerToRoom = (roomId: RoomId, ws: AuthedWebSocket): AddPeerToRoo
   return { success: true, joinedAt };
 };
 
+/**
+ * Sends a `room-peer-joined` or `room-peer-left` event to all members of a room,
+ * excluding the peer that triggered the event.
+ */
 const notifyRoomMembersPeerEvent = (
   room: Room,
   newPeerId: PeerId,
@@ -174,6 +207,13 @@ const notifyRoomMembersPeerEvent = (
   );
 };
 
+/**
+ * Removes a peer from a room and notifies remaining members.
+ *
+ * If the room becomes empty after removal it is cleaned up entirely.
+ *
+ * @returns `true` if the peer was a member and was removed.
+ */
 export const removePeerFromRoom = (roomId: RoomId, ws: AuthedWebSocket): boolean => {
   const room = rooms.get(roomId);
   if (!room) {
@@ -196,6 +236,10 @@ export const removePeerFromRoom = (roomId: RoomId, ws: AuthedWebSocket): boolean
   return true;
 };
 
+/**
+ * Notifies all remaining members that a room has expired, then removes the
+ * room from state.
+ */
 const handleRoomExpiration = (roomId: RoomId): void => {
   const room = rooms.get(roomId);
   if (!room) {
@@ -226,6 +270,7 @@ const handleRoomExpiration = (roomId: RoomId): void => {
   cleanupRoom(roomId);
 };
 
+/** Removes a room from state, including its join-code mapping and expiration timer. */
 const cleanupRoom = (roomId: RoomId): void => {
   const room = rooms.get(roomId);
   if (room) {
@@ -235,12 +280,17 @@ const cleanupRoom = (roomId: RoomId): void => {
   rooms.delete(roomId);
 };
 
+/**
+ * Clears all room state, including timers.
+ * Used during server shutdown or between tests.
+ */
 export const resetRoomState = (): void => {
   stopCleanupTimers();
   rooms.clear();
   joinCodeToRoomId.clear();
 };
 
+/** Stops and removes every pending room expiration timer. */
 export const stopCleanupTimers = (): void => {
   for (const [roomId, timer] of roomTimers) {
     clearTimeout(timer);
@@ -249,6 +299,12 @@ export const stopCleanupTimers = (): void => {
   roomTimers.clear();
 };
 
+/**
+ * Resolves a join method (id, code, or create) and adds the peer to the room.
+ *
+ * On failure, sends an `error` message back to the peer.
+ * On success, sends a `room-joined` message with the full room state.
+ */
 const handleJoinRoom = (
   ws: AuthedWebSocket,
   method: "id" | "code" | "create",
@@ -333,6 +389,10 @@ const handleJoinRoom = (
   logger.info({ roomId, peerId: ws.peerId }, "Peer joined room");
 };
 
+/**
+ * Dispatches a validated `join-room` message to the appropriate handler
+ * based on the join method (id, code, or create).
+ */
 export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage): void => {
   const { method, role } = msg.payload;
 
@@ -380,6 +440,12 @@ export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage)
   }
 };
 
+/**
+ * Handles a `leave-room` request.
+ *
+ * Verifies the peer is in a room, removes them, and sends a `room-left`
+ * confirmation. On failure, sends an `error` message.
+ */
 export const handleLeaveRoomMessage = (ws: AuthedWebSocket, msg: LeaveRoomMessage) => {
   if (!ws.roomId) {
     const errorMsg: ErrorMessage = {

@@ -33,6 +33,10 @@ export interface TestClientOptions {
   supportChunkAck?: boolean;
 }
 
+/**
+ * A test client for interacting with the signaling server.
+ * This class provides methods to connect, authenticate, send messages, and receive messages from the server.
+ */
 export class TestClient {
   public peerId!: PeerId;
   public sessionToken!: SessionToken;
@@ -42,6 +46,10 @@ export class TestClient {
   private closePromise: Promise<{ code: number; reason: string }>;
   private resolveClose!: (value: { code: number; reason: string }) => void;
 
+  /**
+   * Constructs a new TestClient instance with the provided WebSocket connection.
+   * @param ws The WebSocket connection to the signaling server.
+   */
   private constructor(public readonly ws: WebSocket) {
     this.closePromise = new Promise((resolve) => {
       this.resolveClose = resolve;
@@ -76,6 +84,12 @@ export class TestClient {
     });
   }
 
+  /**
+   * Connects to the signaling server at the specified URL and returns a new TestClient instance.
+   * @param url The WebSocket URL of the signaling server.
+   * @param opts Optional configuration for the test client.
+   * @returns A promise that resolves to the connected TestClient instance.
+   */
   static async connect(url: string, opts: TestClientOptions = {}): Promise<TestClient> {
     const ws = new WebSocket(url);
     const client = new TestClient(ws);
@@ -95,6 +109,12 @@ export class TestClient {
     return client;
   }
 
+  /**
+   * Authenticates the test client with the signaling server by sending a "hello" message.
+   * This method retrieves and sets the peer ID and session token for the client.
+   * @param opts Optional configuration for the test client.
+   * @returns A promise that resolves when authentication is complete.
+   */
   async authenticate(opts: TestClientOptions = {}): Promise<void> {
     const helloMsg = {
       type: "hello",
@@ -118,6 +138,12 @@ export class TestClient {
     this.sessionToken = peerIdMsg.payload.sessionToken as SessionToken;
   }
 
+  /**
+   * Creates and connects a new test client to the signaling server, then authenticates it.
+   * @param url The WebSocket URL of the signaling server.
+   * @param opts Optional configuration for the test client.
+   * @returns A promise that resolves to the connected and authenticated TestClient instance.
+   */
   static async createConnected(url: string, opts: TestClientOptions = {}): Promise<TestClient> {
     const client = await TestClient.connect(url, opts);
     await client.authenticate(opts);
@@ -139,6 +165,14 @@ export class TestClient {
     this.sendRaw({ type, from: this.peerId, to, payload });
   }
 
+  /**
+   * Receives a message of the specified type from the signaling server.
+   * If a message of that type has already been received, it is returned immediately.
+   * Otherwise, this method waits for a message of that type to arrive or times out after the specified duration.
+   * @param type The type of message to wait for.
+   * @param timeoutMs The maximum time to wait for the message in milliseconds (default: 3000ms).
+   * @returns A promise that resolves to the received ServerMessage.
+   */
   async receive(type: string, timeoutMs = 3000): Promise<ServerMessage> {
     const existing = this.received.findIndex((m) => m.type === type);
     if (existing !== -1) {
@@ -163,6 +197,15 @@ export class TestClient {
     });
   }
 
+  /**
+   * Receives a message of the specified type that matches the provided predicate function.
+   * If a matching message has already been received, it is returned immediately.
+   * Otherwise, this method waits for a matching message to arrive or times out after the specified duration.
+   * @param type The type of message to wait for.
+   * @param predicate A function that takes a ServerMessage and returns true if it matches the desired criteria.
+   * @param timeoutMs The maximum time to wait for the message in milliseconds (default: 3000ms).
+   * @returns A promise that resolves to the received ServerMessage that matches the predicate.
+   */
   async receiveExactly(
     type: string,
     predicate: (msg: ServerMessage) => boolean,
@@ -196,6 +239,14 @@ export class TestClient {
     });
   }
 
+  /**
+   * Waits for a message that matches the provided predicate function, regardless of its type.
+   * If a matching message has already been received, it is returned immediately.
+   * Otherwise, this method waits for a matching message to arrive or times out after the specified duration.
+   * @param predicate A function that takes a ServerMessage and returns true if it matches the desired criteria.
+   * @param timeoutMs The maximum time to wait for the message in milliseconds (default: 3000ms).
+   * @returns A promise that resolves to the received ServerMessage that matches the predicate.
+   */
   async waitForMessage(
     predicate: (msg: ServerMessage) => boolean,
     timeoutMs = 3000,
@@ -227,6 +278,12 @@ export class TestClient {
     return msg.payload.code as SignalingErrorCode;
   }
 
+  /**
+   * Waits for the WebSocket connection to close and returns the close code and reason.
+   * If the connection does not close within the specified timeout, an error is thrown.
+   * @param timeoutMs The maximum time to wait for the connection to close in milliseconds (default: 3000ms).
+   * @returns A promise that resolves to an object containing the close code and reason.
+   */
   async expectClose(timeoutMs = 3000): Promise<{ code: number; reason: string }> {
     const result = await Promise.race([
       this.closePromise,
@@ -240,6 +297,9 @@ export class TestClient {
     return result;
   }
 
+  /**
+   * Closes the WebSocket connection to the signaling server.
+   */
   close(): void {
     this.ws.close();
   }
