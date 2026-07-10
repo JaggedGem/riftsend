@@ -1,20 +1,73 @@
+/**
+ * Riftsend shared constants.
+ *
+ * Defines all configurable sizes, prefixes, error codes, and message-type
+ * strings used across the signaling server and web client.
+ *
+ * ## Conventions
+ *
+ * - Error codes use UPPER_SNAKE_CASE so they round-trip cleanly through JSON.
+ * - Every error code in {@link SignalingErrorCode} maps to a human-readable
+ *   string in {@link SignalingErrorMessages} and (optionally) a WebSocket
+ *   close code in {@link SignalingCloseCodes}.
+ * - {@link WebRTCPeerErrorCode} mirrors the same pattern for peer-to-peer
+ *   errors that flow through the signaling relay.
+ */
+
+/** Number of random bytes generated for IDs (peer, room, etc.). */
 export const NR_RANDOM_BYTES = 12;
+
+/** String prepended to every encoded peer ID. */
 export const PEER_ID_PREFIX = "peer_";
+
+/** Number of random bytes used for a session token. */
 export const SESSION_TOKEN_BYTES = 20;
 
+/**
+ * Length of a base64url-encoded peer ID after the prefix.
+ *
+ * Computed as `ceil(nrRandomBytes * 4 / 3)`.
+ */
 export const PEER_ID_ENCODED_LENGTH = Math.ceil((NR_RANDOM_BYTES * 4) / 3);
+
+/**
+ * Length of a base64url-encoded session token.
+ */
 export const SESSION_TOKEN_ENCODED_LENGTH = Math.ceil(
   (SESSION_TOKEN_BYTES * 4) / 3,
 );
 
+/**
+ * Length of a base64url-encoded room ID after the prefix.
+ */
 export const ROOM_ID_ENCODED_LENGTH = Math.ceil((NR_RANDOM_BYTES * 4) / 3);
 
+/**
+ * Length of a human-readable room join code (characters).
+ *
+ * Join codes use a subset of alphanumeric chars (no 0/O, 1/I/L) for easy
+ * verbal dictation.
+ */
 export const ROOM_JOIN_CODE_LENGTH = 6;
 
+/** String prepended to every encoded room ID. */
 export const ROOM_ID_PREFIX = "room_";
 
+/**
+ * Room lifetime before automatic expiration (milliseconds).
+ *
+ * Rooms that reach this age are cleaned up regardless of activity to avoid
+ * unbounded server-side state.
+ */
 export const ROOM_EXPIRE_TIME = 1000 * 60 * 60; // 1 hour
 
+/**
+ * Canonical message type strings understood by the signaling protocol.
+ *
+ * Every value here appears as the `type` field in a JSON wire message.
+ * New message types must be added here AND to the discriminated union schema
+ * in `@riftsend/protocol`.
+ */
 export const SIGNALING_MESSAGE_TYPES = {
   error: "error",
   peerId: "peer-id",
@@ -24,7 +77,6 @@ export const SIGNALING_MESSAGE_TYPES = {
   iceCandidate: "ice-candidate",
   peerError: "peer-error",
 
-  // Room signaling messages
   joinRoom: "join-room",
   roomJoined: "room-joined",
   roomLeft: "room-left",
@@ -34,8 +86,13 @@ export const SIGNALING_MESSAGE_TYPES = {
   roomExpired: "room-expired",
 } as const;
 
+/**
+ * Error codes returned by the signaling server in `error` messages.
+ *
+ * These represent **protocol-level** failures (room full, rate limited, etc.)
+ * as opposed to WebRTC-level failures, which use {@link WebRTCPeerErrorCode}.
+ */
 export const SignalingErrorCode = {
-  // Room errors
   ROOM_NOT_FOUND: "ROOM_NOT_FOUND",
   ROOM_IS_FULL: "ROOM_IS_FULL",
   PEER_ALREADY_IN_ROOM: "PEER_ALREADY_IN_ROOM",
@@ -46,7 +103,6 @@ export const SignalingErrorCode = {
   NOT_IN_A_ROOM: "NOT_IN_A_ROOM",
   FAILED_TO_REMOVE_PEER_FROM_ROOM: "FAILED_TO_REMOVE_PEER_FROM_ROOM",
 
-  // Connection errors
   TOO_MANY_CONNECTIONS: "TOO_MANY_CONNECTIONS",
   RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
   INVALID_JSON: "INVALID_JSON",
@@ -58,6 +114,9 @@ export const SignalingErrorCode = {
 export type SignalingErrorCode =
   (typeof SignalingErrorCode)[keyof typeof SignalingErrorCode];
 
+/**
+ * Human-readable descriptions for every {@link SignalingErrorCode}.
+ */
 export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
   [SignalingErrorCode.ROOM_NOT_FOUND]: "Room not found",
   [SignalingErrorCode.ROOM_IS_FULL]: "Room is full",
@@ -78,6 +137,12 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
     "Failed to remove peer from room",
 };
 
+/**
+ * WebSocket close codes mapped from {@link SignalingErrorCode}.
+ *
+ * Only errors that should cause a WebSocket close are included.
+ * Per the spec only codes in the 1000–1015 range and 3000–4999 are valid.
+ */
 export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
   {
     [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
@@ -90,10 +155,19 @@ export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
     [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
   };
 
+/**
+ * Formats a {@link SignalingErrorCode} into a human-readable string.
+ */
 export const formatSignalingError = (code: SignalingErrorCode): string => {
   return SignalingErrorMessages[code];
 };
 
+/**
+ * Error codes sent between peers over the signaling relay.
+ *
+ * These represent **WebRTC-level** failures (ICE failed, glare, etc.)
+ * as opposed to protocol-level failures, which use {@link SignalingErrorCode}.
+ */
 export const WebRTCPeerErrorCode = {
   INVALID_OFFER: "INVALID_OFFER",
   GLARE_CONFLICT: "GLARE_CONFLICT",
@@ -108,6 +182,9 @@ export const WebRTCPeerErrorCode = {
 export type WebRTCPeerErrorCode =
   (typeof WebRTCPeerErrorCode)[keyof typeof WebRTCPeerErrorCode];
 
+/**
+ * Human-readable descriptions for every {@link WebRTCPeerErrorCode}.
+ */
 export const WebRTCPeerErrorMessages: Record<WebRTCPeerErrorCode, string> = {
   [WebRTCPeerErrorCode.INVALID_OFFER]: "Invalid offer: missing or malformed SDP",
   [WebRTCPeerErrorCode.GLARE_CONFLICT]: "Glare: simultaneous offer detected",
@@ -124,6 +201,9 @@ export const WebRTCPeerErrorMessages: Record<WebRTCPeerErrorCode, string> = {
   [WebRTCPeerErrorCode.TIMEOUT]: "Peer connection timed out",
 };
 
+/**
+ * Formats a {@link WebRTCPeerErrorCode} into a human-readable string.
+ */
 export const formatWebRTCPeerError = (
   code: WebRTCPeerErrorCode,
 ): string => {

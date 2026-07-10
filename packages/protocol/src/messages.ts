@@ -1,3 +1,17 @@
+/**
+ * Signaling message schemas and inferred types.
+ *
+ * ## Message flow
+ *
+ * 1. Client sends `hello` → server responds with `peer-id`.
+ * 2. Client sends `join-room` → server responds with `room-joined`.
+ * 3. While in a room, the server forwards `offer`, `answer`, `ice-candidate`,
+ *    and `peer-error` messages between peers.
+ * 4. Server sends `room-peer-joined`, `room-peer-left`, `room-expired`, and
+ *    `room-left` asynchronously in response to room lifecycle events.
+ * 5. Client sends `leave-room` to leave the room explicitly.
+ */
+
 import {
   PEER_ID_PREFIX,
   ROOM_ID_PREFIX,
@@ -50,6 +64,12 @@ export const JoinCodeZod = z
   .regex(JOIN_CODE_REGEX, "Invalid JoinCode")
   .transform((v) => v as JoinCode);
 
+/**
+ * Server response to a successful `hello` handshake.
+ *
+ * Contains the assigned {@link PeerId} and {@link SessionToken} for the
+ * connection. The session token may be used to resume the session on reconnect.
+ */
 export const PeerIdMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.peerId),
   from: z.literal("server"),
@@ -61,6 +81,11 @@ export const PeerIdMessageSchema = z.object({
 
 export type PeerIdMessage = z.infer<typeof PeerIdMessageSchema>;
 
+/**
+ * WebRTC SDP offer forwarded from one peer to another through the signaling server.
+ *
+ * The `sdp` field is limited to 64 KiB to prevent abuse.
+ */
 export const OfferMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.offer),
   from: PeerIdZod,
@@ -75,6 +100,9 @@ export const OfferMessageSchema = z.object({
 
 export type OfferMessage = z.infer<typeof OfferMessageSchema>;
 
+/**
+ * WebRTC SDP answer forwarded from one peer to another through the signaling server.
+ */
 export const AnswerMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.answer),
   from: PeerIdZod,
@@ -89,6 +117,12 @@ export const AnswerMessageSchema = z.object({
 
 export type AnswerMessage = z.infer<typeof AnswerMessageSchema>;
 
+/**
+ * WebRTC ICE candidate forwarded from one peer to another through the signaling server.
+ *
+ * The `candidate` string is limited to 4 KiB. The `sdpMid` and `sdpMLineIndex`
+ * identify which media stream the candidate belongs to.
+ */
 export const IceCandidateMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.iceCandidate),
   from: PeerIdZod,
@@ -105,6 +139,12 @@ export const IceCandidateMessageSchema = z.object({
 
 export type IceCandidateMessage = z.infer<typeof IceCandidateMessageSchema>;
 
+/**
+ * Initial handshake message sent by the client on WebSocket open.
+ *
+ * If `from` and `sessionToken` are both non-null, the client is attempting to
+ * resume a previous session.
+ */
 export const HelloMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.hello),
   from: z.union([PeerIdZod, z.null()]),
@@ -121,6 +161,9 @@ export const HelloMessageSchema = z.object({
 
 export type HelloMessage = z.infer<typeof HelloMessageSchema>;
 
+/**
+ * Server notification that a room has expired and been cleaned up.
+ */
 export const RoomExpiredMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.roomExpired),
   from: z.literal("server"),
@@ -131,6 +174,9 @@ export const RoomExpiredMessageSchema = z.object({
 
 export type RoomExpiredMessage = z.infer<typeof RoomExpiredMessageSchema>;
 
+/**
+ * Server notification that a new peer has joined the room.
+ */
 export const RoomPeerJoinedMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerJoined),
   from: z.literal("server"),
@@ -143,6 +189,9 @@ export const RoomPeerJoinedMessageSchema = z.object({
 
 export type RoomPeerJoinedMessage = z.infer<typeof RoomPeerJoinedMessageSchema>;
 
+/**
+ * Server notification that a peer has left the room.
+ */
 export const RoomPeerLeftMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerLeft),
   from: z.literal("server"),
@@ -157,6 +206,13 @@ export type RoomPeerLeftMessage = z.infer<typeof RoomPeerLeftMessageSchema>;
 
 export type RoomPeerEventMessage = RoomPeerJoinedMessage | RoomPeerLeftMessage;
 
+/**
+ * Union of the three ways to join a room:
+ *
+ * - `id`: Join an existing room by its ID.
+ * - `code`: Join an existing room by its human-readable join code.
+ * - `create`: Create a new room (the client becomes the host).
+ */
 export const JoinRoomPayloadSchema = z.discriminatedUnion("method", [
   z
     .object({
@@ -182,6 +238,9 @@ export const JoinRoomPayloadSchema = z.discriminatedUnion("method", [
 
 export type JoinRoomPayload = z.infer<typeof JoinRoomPayloadSchema>;
 
+/**
+ * Client request to join or create a room.
+ */
 export const JoinRoomMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.joinRoom),
@@ -194,6 +253,9 @@ export type JoinRoomMessage = z.infer<typeof JoinRoomMessageSchema>;
 
 export const SignalingErrorCodeSchema = z.enum(SignalingErrorCode);
 
+/**
+ * Server error message with a machine-readable error code.
+ */
 export const ErrorMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.error),
@@ -206,6 +268,9 @@ export const ErrorMessageSchema = z
 
 export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
 
+/**
+ * Schema for a room member entry.
+ */
 export const RoomMemberSchema = z.object({
   peerId: PeerIdZod,
   name: z.string().max(256).optional(),
@@ -214,6 +279,12 @@ export const RoomMemberSchema = z.object({
 
 export type RoomMember = z.infer<typeof RoomMemberSchema>;
 
+/**
+ * Server response to a successful `join-room` request.
+ *
+ * Contains the full room state including the join code, member list, and
+ * expiration timestamps.
+ */
 export const RoomJoinedMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomJoined),
@@ -236,6 +307,9 @@ export const RoomJoinedMessageSchema = z
 
 export type RoomJoinedMessage = z.infer<typeof RoomJoinedMessageSchema>;
 
+/**
+ * Client request to leave the current room.
+ */
 export const LeaveRoomMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.leaveRoom),
   from: PeerIdZod,
@@ -244,6 +318,9 @@ export const LeaveRoomMessageSchema = z.object({
 
 export type LeaveRoomMessage = z.infer<typeof LeaveRoomMessageSchema>;
 
+/**
+ * Server notification that a peer has left (or was removed from) the room.
+ */
 export const RoomLeftMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.roomLeft),
   from: z.literal("server"),
@@ -257,6 +334,12 @@ export type RoomLeftMessage = z.infer<typeof RoomLeftMessageSchema>;
 
 export const PeerErrorCodeSchema = z.enum(WebRTCPeerErrorCode);
 
+/**
+ * Error message sent from one peer to another through the signaling relay.
+ *
+ * Carries an optional {@link WebRTCPeerErrorCode} for machine-readable error
+ * handling and a human-readable message limited to 1 KiB.
+ */
 export const PeerErrorMessageSchema = z.object({
   type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
   from: PeerIdZod,
@@ -269,6 +352,13 @@ export const PeerErrorMessageSchema = z.object({
 
 export type PeerErrorMessage = z.infer<typeof PeerErrorMessageSchema>;
 
+/**
+ * Discriminated union of all valid signaling messages.
+ *
+ * Use this as the single entry point for parsing incoming WebSocket messages.
+ * Every message type listed in {@link @riftsend/shared!SIGNALING_MESSAGE_TYPES}
+ * must be represented here.
+ */
 export const SignalingMessageSchema = z.discriminatedUnion("type", [
   PeerIdMessageSchema,
   HelloMessageSchema,
