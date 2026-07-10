@@ -14,6 +14,8 @@ export {
   SignalingErrorMessages,
   SignalingCloseCodes,
   formatSignalingError,
+  WebRTCPeerErrorMessages,
+  formatWebRTCPeerError,
 } from "./constants.js";
 export type {
   PeerId,
@@ -30,3 +32,7 @@ export { generateRoomId, generateJoinCode } from "./room.js";
 import { SignalingErrorCode as _SEC } from "./constants.js";
 export const SignalingErrorCode = _SEC;
 export type SignalingErrorCode = (typeof _SEC)[keyof typeof _SEC];
+
+import { WebRTCPeerErrorCode as _WPEC } from "./constants.js";
+export const WebRTCPeerErrorCode = _WPEC;
+export type WebRTCPeerErrorCode = (typeof _WPEC)[keyof typeof _WPEC];

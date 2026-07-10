@@ -26,9 +26,9 @@
   },
   "devDependencies": {
     "@types/ws": "^8.18.1",
-    "prettier": "^3.9.4",
+    "prettier": "^3.9.5",
     "tsx": "^4.23.0",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "vitest": "^4.1.10"
   },
   "packageManager": "pnpm@10.33.4"

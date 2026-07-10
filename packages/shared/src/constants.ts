@@ -22,6 +22,7 @@ export const SIGNALING_MESSAGE_TYPES = {
   offer: "offer",
   answer: "answer",
   iceCandidate: "ice-candidate",
+  peerError: "peer-error",
 
   // Room signaling messages
   joinRoom: "join-room",
@@ -77,17 +78,54 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
     "Failed to remove peer from room",
 };
 
-export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> = {
-  [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
-  [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
-  [SignalingErrorCode.INVALID_JSON]: 1008,
-  [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
-  [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
-  [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
-  [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
-  [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
-};
+export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
+  {
+    [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
+    [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
+    [SignalingErrorCode.INVALID_JSON]: 1008,
+    [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
+    [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
+    [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
+    [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
+    [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
+  };
 
 export const formatSignalingError = (code: SignalingErrorCode): string => {
   return SignalingErrorMessages[code];
+};
+
+export const WebRTCPeerErrorCode = {
+  INVALID_OFFER: "INVALID_OFFER",
+  GLARE_CONFLICT: "GLARE_CONFLICT",
+  SIGNALING_STATE_CONFLICT: "SIGNALING_STATE_CONFLICT",
+  NEGOTIATION_FAILED: "NEGOTIATION_FAILED",
+  ICE_CANDIDATE_FAILED: "ICE_CANDIDATE_FAILED",
+  CONNECTION_FAILED: "CONNECTION_FAILED",
+  ICE_CONNECTION_FAILED: "ICE_CONNECTION_FAILED",
+  TIMEOUT: "TIMEOUT",
+} as const;
+
+export type WebRTCPeerErrorCode =
+  (typeof WebRTCPeerErrorCode)[keyof typeof WebRTCPeerErrorCode];
+
+export const WebRTCPeerErrorMessages: Record<WebRTCPeerErrorCode, string> = {
+  [WebRTCPeerErrorCode.INVALID_OFFER]: "Invalid offer: missing or malformed SDP",
+  [WebRTCPeerErrorCode.GLARE_CONFLICT]: "Glare: simultaneous offer detected",
+  [WebRTCPeerErrorCode.SIGNALING_STATE_CONFLICT]:
+    "Cannot accept offer: signaling state conflict",
+  [WebRTCPeerErrorCode.NEGOTIATION_FAILED]:
+    "Failed to create or send answer",
+  [WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED]:
+    "Failed to process ICE candidate",
+  [WebRTCPeerErrorCode.CONNECTION_FAILED]:
+    "Peer connection failed",
+  [WebRTCPeerErrorCode.ICE_CONNECTION_FAILED]:
+    "ICE connection failed",
+  [WebRTCPeerErrorCode.TIMEOUT]: "Peer connection timed out",
+};
+
+export const formatWebRTCPeerError = (
+  code: WebRTCPeerErrorCode,
+): string => {
+  return WebRTCPeerErrorMessages[code];
 };

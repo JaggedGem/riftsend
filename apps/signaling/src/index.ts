@@ -166,14 +166,15 @@ export async function createServer(override?: {
 
           case "offer":
           case "answer":
-          case "ice-candidate": {
+          case "ice-candidate":
+          case "peer-error": {
             handleRelayMessage(ws, msg);
             break;
           }
 
           default:
             logger.warn(
-              { type: (msg as { type: string }).type, peerId: ws.peerId },
+              { type: msg.type, peerId: ws.peerId },
               "Unknown message type",
             );
         }
