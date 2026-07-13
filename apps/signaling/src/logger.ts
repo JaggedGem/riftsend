@@ -17,5 +17,6 @@ const loggerOptions = isDev
     }
   : {};
 
+/** Pre-configured pino logger for the signaling server. */
 export const logger = pino(loggerOptions);
 export { loggerOptions };

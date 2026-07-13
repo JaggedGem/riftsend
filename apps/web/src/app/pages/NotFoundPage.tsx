@@ -28,6 +28,12 @@ function getErrorDetail(error: unknown): string {
   return "The route exists in neither index nor child route definitions.";
 }
 
+/**
+ * 404 error page used as the router's error boundary.
+ *
+ * Displays the route status, path, and a contextual error detail message,
+ * with a link back to the landing page.
+ */
 export function NotFoundPage() {
   const error = useRouteError();
   const location = useLocation();

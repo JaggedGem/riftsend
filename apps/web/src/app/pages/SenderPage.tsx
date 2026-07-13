@@ -16,6 +16,13 @@ const SENDER_STATUS_BADGES = [
   { label: "WebRTC handshake ready", variant: "secondary" as const },
 ];
 
+/**
+ * Sender workspace page.
+ *
+ * Lays out room creation, file staging, delivery queue, control toggles,
+ * and diagnostics. Currently renders placeholder cards — real state wiring
+ * is the next step.
+ */
 export function SenderPage() {
   return (
     <TransferPageLayout

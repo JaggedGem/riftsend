@@ -1,3 +1,18 @@
+/**
+ * `@riftsend/shared`
+ *
+ * Shared runtime utilities, constants, error codes, and type definitions used
+ * across the signaling server and web client.
+ *
+ * ## What lives here
+ *
+ * - **Identifiers**: Peer ID, session token, room ID, join code generation.
+ * - **Error codes**: Protocol-level and WebRTC-level error codes with
+ *   human-readable messages and WebSocket close code mappings.
+ * - **Crypto primitives**: CSPRNG wrapper, base64url encoding.
+ * - **Types**: Branded string types for IDs, room/member interfaces.
+ */
+
 export { generatePeerId } from "./peerId.js";
 export { generateSessionToken } from "./sessionToken.js";
 export {

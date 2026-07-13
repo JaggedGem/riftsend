@@ -12,12 +12,23 @@ import { peerMap, sessionMap } from "../peer.js";
 import type { WebSocketServer } from "ws";
 import { logger } from "../logger.js";
 
+/**
+ * Checks whether a raw WebSocket client has been authenticated (has a `peerId`).
+ */
 const isAuthedWebSocket = (
   ws: WebSocketServer["clients"] extends Set<infer T> ? T : never,
 ): ws is AuthedWebSocket => {
   return "peerId" in ws;
 };
 
+/**
+ * Handles the `hello` handshake from a client.
+ *
+ * If the client presents a valid (peerId, sessionToken) pair and the original
+ * connection is still alive, the old connection is closed and this one takes
+ * its place (session resumption). Otherwise a fresh peer ID and session token
+ * are issued.
+ */
 export const handleHelloMessage = (
   ws: AuthedWebSocket,
   message: HelloMessage,
