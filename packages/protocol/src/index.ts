@@ -16,5 +16,7 @@
  * - Payloads are validated with `.strict()` to reject unexpected fields.
  */
 
-export * from "./messages.js";
+export * from "./signalingMessages.js";
 export type { PeerId, SessionToken } from "@riftsend/shared";
+export { CHUNK_SIZE, CHUNK_FORMAT } from "./constants.js";
+export { buildChunk } from "./frames.js";
