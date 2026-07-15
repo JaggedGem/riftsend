@@ -287,11 +287,13 @@ export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
 /**
  * Schema for a room member entry.
  */
-export const RoomMemberSchema = z.object({
-  peerId: PeerIdZod,
-  name: z.string().max(256).optional(),
-  joinedAt: z.number(),
-});
+export const RoomMemberSchema = z
+  .object({
+    peerId: PeerIdZod,
+    name: z.string().max(256).optional(),
+    joinedAt: z.number(),
+  })
+  .strict();
 
 export type RoomMember = z.infer<typeof RoomMemberSchema>;
 
