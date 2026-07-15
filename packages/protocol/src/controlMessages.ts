@@ -1,28 +1,48 @@
 import { z } from "zod";
 import { FileId, BatchId, CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
+import {
+  MAX_CHUNK_SIZE,
+  MAX_FILES_PER_BATCH,
+  MAX_TOTAL_CHUNKS,
+} from "./constants";
 
 const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);
 
 const BatchIdSchema = z.uuidv4().transform((val): BatchId => val as BatchId);
 
+const ProtocolVersionSchema = z.union([z.literal(1)]);
+
+const FileOfferSchema = z
+  .object({
+    fileId: FileIdSchema,
+    fileName: z.string().min(1).max(255),
+    size: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER, {
+      message: "File size exceeds protocol maximum",
+    }),
+    mimeType: z.string().max(255),
+    chunkSize: z.number().int().positive().max(MAX_CHUNK_SIZE),
+    totalChunks: z.number().int().positive().max(MAX_TOTAL_CHUNKS),
+    relativePath: z.string().optional(),
+  })
+  .superRefine((file, ctx) => {
+    const expectedChunks = Math.ceil(file.size / file.chunkSize);
+
+    if (file.totalChunks !== expectedChunks) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["totalChunks"],
+        message: "Chunk count does not match file size and chunk size",
+      });
+    }
+  })
+  .strict();
+
 export const BatchOfferSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.batchOffer),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     batchId: BatchIdSchema,
-    files: z.array(
-      z
-        .object({
-          fileId: FileIdSchema,
-          fileName: z.string(),
-          size: z.number(),
-          mimeType: z.string(),
-          chunkSize: z.number(),
-          totalChunks: z.number(),
-          relativePath: z.string().optional(),
-        })
-        .strict(),
-    ),
+    files: z.array(FileOfferSchema).max(MAX_FILES_PER_BATCH),
   })
   .strict();
 
@@ -31,7 +51,7 @@ export type BatchOffer = z.infer<typeof BatchOfferSchema>;
 export const BatchResponseSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.batchResponse),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     batchId: BatchIdSchema,
     accepted: z.array(FileIdSchema),
   })
@@ -42,7 +62,7 @@ export type BatchResponse = z.infer<typeof BatchResponseSchema>;
 export const FileStartSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.fileStart),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -52,7 +72,7 @@ export type FileStart = z.infer<typeof FileStartSchema>;
 export const FilePauseSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.filePause),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -62,7 +82,7 @@ export type FilePause = z.infer<typeof FilePauseSchema>;
 export const FileCancelSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.fileCancel),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -72,7 +92,7 @@ export type FileCancel = z.infer<typeof FileCancelSchema>;
 export const FileCompleteSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.fileComplete),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -82,7 +102,7 @@ export type FileComplete = z.infer<typeof FileCompleteSchema>;
 export const FileVerifiedSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.fileVerified),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -92,7 +112,7 @@ export type FileVerified = z.infer<typeof FileVerifiedSchema>;
 export const FileFailedSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.fileFailed),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
     reason: z.string(),
   })
@@ -103,7 +123,7 @@ export type FileFailed = z.infer<typeof FileFailedSchema>;
 export const ResumeRequestSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeRequest),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -113,7 +133,7 @@ export type ResumeRequest = z.infer<typeof ResumeRequestSchema>;
 export const ResumeAcceptSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeAccept),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -123,7 +143,7 @@ export type ResumeAccept = z.infer<typeof ResumeAcceptSchema>;
 export const ResumeDenySchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeDeny),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
   })
   .strict();
@@ -133,7 +153,7 @@ export type ResumeDeny = z.infer<typeof ResumeDenySchema>;
 export const ResumeResponseSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeResponse),
-    protocolVersion: z.number(),
+    protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
     missingRanges: z.array(
       z
