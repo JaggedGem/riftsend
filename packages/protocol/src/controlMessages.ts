@@ -11,15 +11,17 @@ export const BatchOfferSchema = z
     protocolVersion: z.number(),
     batchId: BatchIdSchema,
     files: z.array(
-      z.object({
-        fileId: FileIdSchema,
-        fileName: z.string(),
-        size: z.number(),
-        mimeType: z.string(),
-        chunkSize: z.number(),
-        totalChunks: z.number(),
-        relativePath: z.string().optional(),
-      }),
+      z
+        .object({
+          fileId: FileIdSchema,
+          fileName: z.string(),
+          size: z.number(),
+          mimeType: z.string(),
+          chunkSize: z.number(),
+          totalChunks: z.number(),
+          relativePath: z.string().optional(),
+        })
+        .strict(),
     ),
   })
   .strict();
@@ -134,10 +136,12 @@ export const ResumeResponseSchema = z
     protocolVersion: z.number(),
     fileId: FileIdSchema,
     missingRanges: z.array(
-      z.object({
-        start: z.number(),
-        end: z.number(),
-      }),
+      z
+        .object({
+          start: z.number(),
+          end: z.number(),
+        })
+        .strict(),
     ),
   })
   .strict();
