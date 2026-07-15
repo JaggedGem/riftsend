@@ -186,26 +186,43 @@ export type WebRTCPeerErrorCode =
  * Human-readable descriptions for every {@link WebRTCPeerErrorCode}.
  */
 export const WebRTCPeerErrorMessages: Record<WebRTCPeerErrorCode, string> = {
-  [WebRTCPeerErrorCode.INVALID_OFFER]: "Invalid offer: missing or malformed SDP",
+  [WebRTCPeerErrorCode.INVALID_OFFER]:
+    "Invalid offer: missing or malformed SDP",
   [WebRTCPeerErrorCode.GLARE_CONFLICT]: "Glare: simultaneous offer detected",
   [WebRTCPeerErrorCode.SIGNALING_STATE_CONFLICT]:
     "Cannot accept offer: signaling state conflict",
-  [WebRTCPeerErrorCode.NEGOTIATION_FAILED]:
-    "Failed to create or send answer",
-  [WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED]:
-    "Failed to process ICE candidate",
-  [WebRTCPeerErrorCode.CONNECTION_FAILED]:
-    "Peer connection failed",
-  [WebRTCPeerErrorCode.ICE_CONNECTION_FAILED]:
-    "ICE connection failed",
+  [WebRTCPeerErrorCode.NEGOTIATION_FAILED]: "Failed to create or send answer",
+  [WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED]: "Failed to process ICE candidate",
+  [WebRTCPeerErrorCode.CONNECTION_FAILED]: "Peer connection failed",
+  [WebRTCPeerErrorCode.ICE_CONNECTION_FAILED]: "ICE connection failed",
   [WebRTCPeerErrorCode.TIMEOUT]: "Peer connection timed out",
 };
 
 /**
  * Formats a {@link WebRTCPeerErrorCode} into a human-readable string.
  */
-export const formatWebRTCPeerError = (
-  code: WebRTCPeerErrorCode,
-): string => {
+export const formatWebRTCPeerError = (code: WebRTCPeerErrorCode): string => {
   return WebRTCPeerErrorMessages[code];
 };
+
+/**
+ * Canonical message type strings understood by the signaling protocol.
+ *
+ * Every value here appears as the `type` field in a JSON wire message.
+ * New message types must be added here AND to the discriminated union schema
+ * in `@riftsend/protocol`.
+ */
+export const CONTROL_MESSAGE_TYPES = {
+  batchOffer: "batch-offer",
+  batchResponse: "batch-response",
+  fileStart: "file-start",
+  filePause: "file-pause",
+  fileCancel: "file-cancel",
+  fileComplete: "file-complete",
+  fileVerified: "file-verified",
+  fileFailed: "file-failed",
+  resumeRequest: "resume-request",
+  resumeAccept: "resume-accept",
+  resumeDeny: "resume-deny",
+  resumeResponse: "resume-response",
+} as const;

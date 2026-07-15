@@ -31,6 +31,7 @@ export {
   formatSignalingError,
   WebRTCPeerErrorMessages,
   formatWebRTCPeerError,
+  CONTROL_MESSAGE_TYPES,
 } from "./constants.js";
 export type {
   PeerId,
