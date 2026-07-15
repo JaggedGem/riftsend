@@ -70,14 +70,16 @@ export const JoinCodeZod = z
  * Contains the assigned {@link PeerId} and {@link SessionToken} for the
  * connection. The session token may be used to resume the session on reconnect.
  */
-export const PeerIdMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.peerId),
-  from: z.literal("server"),
-  payload: z.object({
-    peerId: PeerIdZod,
-    sessionToken: SessionTokenZod,
-  }),
-});
+export const PeerIdMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.peerId),
+    from: z.literal("server"),
+    payload: z.object({
+      peerId: PeerIdZod,
+      sessionToken: SessionTokenZod,
+    }),
+  })
+  .strict();
 
 export type PeerIdMessage = z.infer<typeof PeerIdMessageSchema>;
 
@@ -86,34 +88,38 @@ export type PeerIdMessage = z.infer<typeof PeerIdMessageSchema>;
  *
  * The `sdp` field is limited to 64 KiB to prevent abuse.
  */
-export const OfferMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.offer),
-  from: PeerIdZod,
-  to: PeerIdZod,
-  payload: z.object({
-    description: z.object({
-      type: z.literal("offer"),
-      sdp: z.string().max(65536),
+export const OfferMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.offer),
+    from: PeerIdZod,
+    to: PeerIdZod,
+    payload: z.object({
+      description: z.object({
+        type: z.literal("offer"),
+        sdp: z.string().max(65536),
+      }),
     }),
-  }),
-});
+  })
+  .strict();
 
 export type OfferMessage = z.infer<typeof OfferMessageSchema>;
 
 /**
  * WebRTC SDP answer forwarded from one peer to another through the signaling server.
  */
-export const AnswerMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.answer),
-  from: PeerIdZod,
-  to: PeerIdZod,
-  payload: z.object({
-    description: z.object({
-      type: z.literal("answer"),
-      sdp: z.string().max(65536),
+export const AnswerMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.answer),
+    from: PeerIdZod,
+    to: PeerIdZod,
+    payload: z.object({
+      description: z.object({
+        type: z.literal("answer"),
+        sdp: z.string().max(65536),
+      }),
     }),
-  }),
-});
+  })
+  .strict();
 
 export type AnswerMessage = z.infer<typeof AnswerMessageSchema>;
 
@@ -123,19 +129,21 @@ export type AnswerMessage = z.infer<typeof AnswerMessageSchema>;
  * The `candidate` string is limited to 4 KiB. The `sdpMid` and `sdpMLineIndex`
  * identify which media stream the candidate belongs to.
  */
-export const IceCandidateMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.iceCandidate),
-  from: PeerIdZod,
-  to: PeerIdZod,
-  payload: z.object({
-    candidate: z.object({
-      candidate: z.string().max(4096),
-      sdpMid: z.string().max(256).nullable(),
-      sdpMLineIndex: z.number().int().nonnegative().nullable(),
-      usernameFragment: z.string().max(256).optional(),
+export const IceCandidateMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.iceCandidate),
+    from: PeerIdZod,
+    to: PeerIdZod,
+    payload: z.object({
+      candidate: z.object({
+        candidate: z.string().max(4096),
+        sdpMid: z.string().max(256).nullable(),
+        sdpMLineIndex: z.number().int().nonnegative().nullable(),
+        usernameFragment: z.string().max(256).optional(),
+      }),
     }),
-  }),
-});
+  })
+  .strict();
 
 export type IceCandidateMessage = z.infer<typeof IceCandidateMessageSchema>;
 
@@ -145,62 +153,70 @@ export type IceCandidateMessage = z.infer<typeof IceCandidateMessageSchema>;
  * If `from` and `sessionToken` are both non-null, the client is attempting to
  * resume a previous session.
  */
-export const HelloMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.hello),
-  from: z.union([PeerIdZod, z.null()]),
-  protocolVersion: z.number(),
-  clientVersion: z.string().max(64),
-  sessionToken: z.union([SessionTokenZod, z.null()]),
-  payload: z.object({
-    name: z.string().max(256),
-    platform: z.string().max(64),
-    supportResume: z.boolean(),
-    supportChunkAck: z.boolean(),
-  }),
-});
+export const HelloMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.hello),
+    from: z.union([PeerIdZod, z.null()]),
+    protocolVersion: z.number(),
+    clientVersion: z.string().max(64),
+    sessionToken: z.union([SessionTokenZod, z.null()]),
+    payload: z.object({
+      name: z.string().max(256),
+      platform: z.string().max(64),
+      supportResume: z.boolean(),
+      supportChunkAck: z.boolean(),
+    }),
+  })
+  .strict();
 
 export type HelloMessage = z.infer<typeof HelloMessageSchema>;
 
 /**
  * Server notification that a room has expired and been cleaned up.
  */
-export const RoomExpiredMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.roomExpired),
-  from: z.literal("server"),
-  payload: z.object({
-    roomId: RoomIdZod,
-  }),
-});
+export const RoomExpiredMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.roomExpired),
+    from: z.literal("server"),
+    payload: z.object({
+      roomId: RoomIdZod,
+    }),
+  })
+  .strict();
 
 export type RoomExpiredMessage = z.infer<typeof RoomExpiredMessageSchema>;
 
 /**
  * Server notification that a new peer has joined the room.
  */
-export const RoomPeerJoinedMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerJoined),
-  from: z.literal("server"),
-  payload: z.object({
-    roomId: RoomIdZod,
-    peerId: PeerIdZod,
-    joinedAt: z.number(),
-  }),
-});
+export const RoomPeerJoinedMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerJoined),
+    from: z.literal("server"),
+    payload: z.object({
+      roomId: RoomIdZod,
+      peerId: PeerIdZod,
+      joinedAt: z.number(),
+    }),
+  })
+  .strict();
 
 export type RoomPeerJoinedMessage = z.infer<typeof RoomPeerJoinedMessageSchema>;
 
 /**
  * Server notification that a peer has left the room.
  */
-export const RoomPeerLeftMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerLeft),
-  from: z.literal("server"),
-  payload: z.object({
-    roomId: RoomIdZod,
-    peerId: PeerIdZod,
-    leftAt: z.number(),
-  }),
-});
+export const RoomPeerLeftMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerLeft),
+    from: z.literal("server"),
+    payload: z.object({
+      roomId: RoomIdZod,
+      peerId: PeerIdZod,
+      leftAt: z.number(),
+    }),
+  })
+  .strict();
 
 export type RoomPeerLeftMessage = z.infer<typeof RoomPeerLeftMessageSchema>;
 
@@ -310,25 +326,29 @@ export type RoomJoinedMessage = z.infer<typeof RoomJoinedMessageSchema>;
 /**
  * Client request to leave the current room.
  */
-export const LeaveRoomMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.leaveRoom),
-  from: PeerIdZod,
-  payload: z.null(),
-});
+export const LeaveRoomMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.leaveRoom),
+    from: PeerIdZod,
+    payload: z.null(),
+  })
+  .strict();
 
 export type LeaveRoomMessage = z.infer<typeof LeaveRoomMessageSchema>;
 
 /**
  * Server notification that a peer has left (or was removed from) the room.
  */
-export const RoomLeftMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.roomLeft),
-  from: z.literal("server"),
-  payload: z.object({
-    roomId: RoomIdZod,
-    peerId: PeerIdZod,
-  }),
-});
+export const RoomLeftMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.roomLeft),
+    from: z.literal("server"),
+    payload: z.object({
+      roomId: RoomIdZod,
+      peerId: PeerIdZod,
+    }),
+  })
+  .strict();
 
 export type RoomLeftMessage = z.infer<typeof RoomLeftMessageSchema>;
 
@@ -340,15 +360,17 @@ export const PeerErrorCodeSchema = z.enum(WebRTCPeerErrorCode);
  * Carries an optional {@link WebRTCPeerErrorCode} for machine-readable error
  * handling and a human-readable message limited to 1 KiB.
  */
-export const PeerErrorMessageSchema = z.object({
-  type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
-  from: PeerIdZod,
-  to: PeerIdZod,
-  payload: z.object({
-    message: z.string().max(1024),
-    code: PeerErrorCodeSchema.optional(),
-  }),
-});
+export const PeerErrorMessageSchema = z
+  .object({
+    type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
+    from: PeerIdZod,
+    to: PeerIdZod,
+    payload: z.object({
+      message: z.string().max(1024),
+      code: PeerErrorCodeSchema.optional(),
+    }),
+  })
+  .strict();
 
 export type PeerErrorMessage = z.infer<typeof PeerErrorMessageSchema>;
 
