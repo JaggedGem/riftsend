@@ -41,6 +41,8 @@ export type {
   SignalingMessageTypes,
   RoomMember,
   Room,
+  FileId,
+  BatchId,
 } from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
 
@@ -51,3 +53,5 @@ export type SignalingErrorCode = (typeof _SEC)[keyof typeof _SEC];
 import { WebRTCPeerErrorCode as _WPEC } from "./constants.js";
 export const WebRTCPeerErrorCode = _WPEC;
 export type WebRTCPeerErrorCode = (typeof _WPEC)[keyof typeof _WPEC];
+export { getFileId } from "./fileId.js";
+export { getBatchId } from "./batchId.js";

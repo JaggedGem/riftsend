@@ -32,6 +32,20 @@ export type RoomId = string & { readonly __brand: unique symbol };
 export type JoinCode = string & { readonly __brand: unique symbol };
 
 /**
+ * Branded string representing a file id internally.
+ *
+ * It is a simple UUID v4
+ */
+export type FileId = string & { readonly __brand: unique symbol };
+
+/**
+ * Branded string representing a batch id internally.
+ *
+ * It is a simple UUID v4
+ */
+export type BatchId = string & { readonly __brand: unique symbol };
+
+/**
  * Credentials needed to locate a room on the signaling server.
  */
 export interface RoomCredentials {
