@@ -1,4 +1,4 @@
-import { CHUNK_FORMAT, CHUNK_SIZE } from "./constants.js";
+import { CHUNK_FORMAT, CHUNK_SIZE, HEADER_SIZE } from "./constants.js";
 
 export const buildChunk = (
   protocolVersion: number,
@@ -6,11 +6,11 @@ export const buildChunk = (
   chunkIndex: number,
   payload: ArrayBuffer,
 ) => {
-  if (payload.byteLength + 11 > CHUNK_SIZE) {
+  if (payload.byteLength + HEADER_SIZE >= CHUNK_SIZE) {
     throw new Error(`Chunk should be smaller than ${CHUNK_SIZE}`);
   }
 
-  const buffer = new ArrayBuffer(11 + payload.byteLength);
+  const buffer = new ArrayBuffer(HEADER_SIZE + payload.byteLength);
 
   const view = new DataView(buffer);
 
@@ -19,7 +19,7 @@ export const buildChunk = (
   view.setUint32(CHUNK_FORMAT.CHUNK_INDEX.offset, chunkIndex);
   view.setUint32(CHUNK_FORMAT.LENGTH.offset, payload.byteLength);
 
-  new Uint8Array(buffer, 11).set(new Uint8Array(payload));
+  new Uint8Array(buffer, HEADER_SIZE).set(new Uint8Array(payload));
 
   return buffer;
 };

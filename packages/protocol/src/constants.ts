@@ -41,3 +41,5 @@ export const MAX_CHUNK_SIZE = 16 * 1024 * 1024; // 16 MiB
 export const MAX_FILES_PER_BATCH = 10000;
 
 export const MAX_TOTAL_CHUNKS = 2 ** 32 - 1; // ~4 billion
+
+export const HEADER_SIZE = 11;
