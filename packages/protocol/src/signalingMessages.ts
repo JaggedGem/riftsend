@@ -74,10 +74,12 @@ export const PeerIdMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.peerId),
     from: z.literal("server"),
-    payload: z.object({
-      peerId: PeerIdZod,
-      sessionToken: SessionTokenZod,
-    }),
+    payload: z
+      .object({
+        peerId: PeerIdZod,
+        sessionToken: SessionTokenZod,
+      })
+      .strict(),
   })
   .strict();
 
@@ -93,12 +95,16 @@ export const OfferMessageSchema = z
     type: z.literal(SIGNALING_MESSAGE_TYPES.offer),
     from: PeerIdZod,
     to: PeerIdZod,
-    payload: z.object({
-      description: z.object({
-        type: z.literal("offer"),
-        sdp: z.string().max(65536),
-      }),
-    }),
+    payload: z
+      .object({
+        description: z
+          .object({
+            type: z.literal("offer"),
+            sdp: z.string().max(65536),
+          })
+          .strict(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -112,12 +118,16 @@ export const AnswerMessageSchema = z
     type: z.literal(SIGNALING_MESSAGE_TYPES.answer),
     from: PeerIdZod,
     to: PeerIdZod,
-    payload: z.object({
-      description: z.object({
-        type: z.literal("answer"),
-        sdp: z.string().max(65536),
-      }),
-    }),
+    payload: z
+      .object({
+        description: z
+          .object({
+            type: z.literal("answer"),
+            sdp: z.string().max(65536),
+          })
+          .strict(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -134,14 +144,18 @@ export const IceCandidateMessageSchema = z
     type: z.literal(SIGNALING_MESSAGE_TYPES.iceCandidate),
     from: PeerIdZod,
     to: PeerIdZod,
-    payload: z.object({
-      candidate: z.object({
-        candidate: z.string().max(4096),
-        sdpMid: z.string().max(256).nullable(),
-        sdpMLineIndex: z.number().int().nonnegative().nullable(),
-        usernameFragment: z.string().max(256).optional(),
-      }),
-    }),
+    payload: z
+      .object({
+        candidate: z
+          .object({
+            candidate: z.string().max(4096),
+            sdpMid: z.string().max(256).nullable(),
+            sdpMLineIndex: z.number().int().nonnegative().nullable(),
+            usernameFragment: z.string().max(256).optional(),
+          })
+          .strict(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -160,12 +174,14 @@ export const HelloMessageSchema = z
     protocolVersion: z.number(),
     clientVersion: z.string().max(64),
     sessionToken: z.union([SessionTokenZod, z.null()]),
-    payload: z.object({
-      name: z.string().max(256),
-      platform: z.string().max(64),
-      supportResume: z.boolean(),
-      supportChunkAck: z.boolean(),
-    }),
+    payload: z
+      .object({
+        name: z.string().max(256),
+        platform: z.string().max(64),
+        supportResume: z.boolean(),
+        supportChunkAck: z.boolean(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -178,9 +194,11 @@ export const RoomExpiredMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomExpired),
     from: z.literal("server"),
-    payload: z.object({
-      roomId: RoomIdZod,
-    }),
+    payload: z
+      .object({
+        roomId: RoomIdZod,
+      })
+      .strict(),
   })
   .strict();
 
@@ -193,11 +211,13 @@ export const RoomPeerJoinedMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerJoined),
     from: z.literal("server"),
-    payload: z.object({
-      roomId: RoomIdZod,
-      peerId: PeerIdZod,
-      joinedAt: z.number(),
-    }),
+    payload: z
+      .object({
+        roomId: RoomIdZod,
+        peerId: PeerIdZod,
+        joinedAt: z.number(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -210,11 +230,13 @@ export const RoomPeerLeftMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomPeerLeft),
     from: z.literal("server"),
-    payload: z.object({
-      roomId: RoomIdZod,
-      peerId: PeerIdZod,
-      leftAt: z.number(),
-    }),
+    payload: z
+      .object({
+        roomId: RoomIdZod,
+        peerId: PeerIdZod,
+        leftAt: z.number(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -276,9 +298,11 @@ export const ErrorMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.error),
     from: z.literal("server"),
-    payload: z.object({
-      code: SignalingErrorCodeSchema,
-    }),
+    payload: z
+      .object({
+        code: SignalingErrorCodeSchema,
+      })
+      .strict(),
   })
   .strict();
 
@@ -345,10 +369,12 @@ export const RoomLeftMessageSchema = z
   .object({
     type: z.literal(SIGNALING_MESSAGE_TYPES.roomLeft),
     from: z.literal("server"),
-    payload: z.object({
-      roomId: RoomIdZod,
-      peerId: PeerIdZod,
-    }),
+    payload: z
+      .object({
+        roomId: RoomIdZod,
+        peerId: PeerIdZod,
+      })
+      .strict(),
   })
   .strict();
 
@@ -367,10 +393,12 @@ export const PeerErrorMessageSchema = z
     type: z.literal(SIGNALING_MESSAGE_TYPES.peerError),
     from: PeerIdZod,
     to: PeerIdZod,
-    payload: z.object({
-      message: z.string().max(1024),
-      code: PeerErrorCodeSchema.optional(),
-    }),
+    payload: z
+      .object({
+        message: z.string().max(1024),
+        code: PeerErrorCodeSchema.optional(),
+      })
+      .strict(),
   })
   .strict();
 
