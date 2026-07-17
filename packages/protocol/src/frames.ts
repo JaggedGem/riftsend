@@ -7,7 +7,25 @@ export const buildChunk = (
   payload: ArrayBuffer,
 ) => {
   if (payload.byteLength > CHUNK_FORMAT.PAYLOAD.size) {
-    throw new Error(`Chunk should be smaller than ${CHUNK_SIZE}`);
+    throw new Error(`Chunk should be smaller than ${CHUNK_SIZE} bytes`);
+  }
+
+  if (protocolVersion > 2 ** 8 && protocolVersion >= 0) {
+    throw new Error(
+      `Protocol version should be smaller than ${2 ** 8} bytes and not negative`,
+    );
+  }
+
+  if (fileId > 2 ** 16 && fileId >= 0) {
+    throw new Error(
+      `File id should be smaller than ${2 ** 16} bytes and not negative`,
+    );
+  }
+
+  if (chunkIndex > 2 ** 32 && chunkIndex >= 0) {
+    throw new Error(
+      `Chunk index should be smaller than ${2 ** 32} bytes and not negative`,
+    );
   }
 
   const buffer = new ArrayBuffer(HEADER_SIZE + payload.byteLength);
