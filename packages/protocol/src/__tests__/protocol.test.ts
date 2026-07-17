@@ -4,7 +4,7 @@ import {
   ControlMessageSchema,
   buildChunk,
   CHUNK_FORMAT,
-  FileStart,
+  type FileStart,
 } from "../index.js";
 
 describe("protocol schemas", () => {

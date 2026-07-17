@@ -58,7 +58,6 @@ type EventHandler<T> = (payload: T) => void;
 export class SignalingClient {
   private ws: WebSocket | null = null;
   private peerId: PeerId | null = null;
-  private sessionToken: SessionToken | null = null;
   private room: Room | null = null;
   private listeners = new Map<string, Set<(payload: unknown) => void>>();
 
@@ -143,7 +142,7 @@ export class SignalingClient {
     switch (msg.type) {
       case "peer-id": {
         this.peerId = msg.payload.peerId;
-        this.sessionToken = msg.payload.sessionToken;
+        // this.sessionToken = msg.payload.sessionToken;
 
         this.emit("connected", {
           peerId: msg.payload.peerId,

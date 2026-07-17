@@ -1,4 +1,4 @@
-import { RoomId, SessionToken } from "@riftsend/shared";
+import type { RoomId, SessionToken } from "@riftsend/shared";
 import type { PeerId } from "@riftsend/shared";
 import { WebSocket } from "ws";
 

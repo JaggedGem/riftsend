@@ -1,25 +1,24 @@
 import { generateJoinCode, generateRoomId } from "@riftsend/shared";
 import {
-  JoinCode,
-  PeerId,
-  RoomCredentials,
-  RoomId,
+  type JoinCode,
+  type PeerId,
+  type RoomCredentials,
+  type RoomId,
   SignalingErrorCode,
   formatSignalingError,
 } from "@riftsend/shared";
-import { AuthedWebSocket } from "../types.js";
+import type { AuthedWebSocket } from "../types.js";
 import { ROOM_EXPIRE_TIME, type Room } from "@riftsend/shared";
 import { logger } from "../logger.js";
 import { peerMap } from "../peer.js";
 import { safeSend } from "../utils.js";
-import {
+import type {
   RoomExpiredMessage,
   RoomJoinedMessage,
   RoomLeftMessage,
   RoomPeerEventMessage,
   ErrorMessage,
   JoinRoomMessage,
-  LeaveRoomMessage,
 } from "@riftsend/protocol";
 
 /** Active rooms, keyed by room ID. */
@@ -446,7 +445,7 @@ export const handleJoinRoomMessage = (ws: AuthedWebSocket, msg: JoinRoomMessage)
  * Verifies the peer is in a room, removes them, and sends a `room-left`
  * confirmation. On failure, sends an `error` message.
  */
-export const handleLeaveRoomMessage = (ws: AuthedWebSocket, msg: LeaveRoomMessage) => {
+export const handleLeaveRoomMessage = (ws: AuthedWebSocket) => {
   if (!ws.roomId) {
     const errorMsg: ErrorMessage = {
       type: "error",

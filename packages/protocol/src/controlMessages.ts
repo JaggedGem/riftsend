@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FileId, BatchId, CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
+import { type FileId, type BatchId, CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
 import { MAX_CHUNK_SIZE, MAX_FILES_PER_BATCH, MAX_TOTAL_CHUNKS } from "./constants.js";
 
 const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);

@@ -9,16 +9,16 @@
 /**
  * Fills a `Uint8Array` with cryptographically-secure random bytes (in-place).
  */
-export const getRandomValues = (buffer: Uint8Array): void => {
-  globalThis.crypto.getRandomValues(buffer as Uint8Array<ArrayBuffer>);
+export const getRandomValues = (buffer: Uint8Array<ArrayBuffer>): void => {
+  globalThis.crypto.getRandomValues(buffer);
 };
 
 /**
  * Creates a new `Uint8Array` of the given size filled with random bytes.
  */
-export const createRandomValues = (size: number): Uint8Array => {
+export const createRandomValues = (size: number): Uint8Array<ArrayBuffer> => {
   const bytes = new Uint8Array(size);
-  globalThis.crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
+  globalThis.crypto.getRandomValues(bytes);
   return bytes;
 };
 
