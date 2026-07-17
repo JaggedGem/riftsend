@@ -6,7 +6,7 @@ export const buildChunk = (
   chunkIndex: number,
   payload: ArrayBuffer,
 ) => {
-  if (payload.byteLength + HEADER_SIZE >= CHUNK_SIZE) {
+  if (payload.byteLength > CHUNK_FORMAT.PAYLOAD.size) {
     throw new Error(`Chunk should be smaller than ${CHUNK_SIZE}`);
   }
 
