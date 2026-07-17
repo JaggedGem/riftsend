@@ -10,21 +10,29 @@ export const buildChunk = (
     throw new Error(`Chunk should be smaller than ${CHUNK_SIZE} bytes`);
   }
 
-  if (protocolVersion > 2 ** 8 && protocolVersion >= 0) {
+  if (
+    protocolVersion >= 2 ** 8 ||
+    protocolVersion < 0 ||
+    !Number.isInteger(protocolVersion)
+  ) {
     throw new Error(
-      `Protocol version should be smaller than ${2 ** 8} bytes and not negative`,
+      `Protocol version should be smaller than ${2 ** 8} bytes, not negative and an integer`,
     );
   }
 
-  if (fileId > 2 ** 16 && fileId >= 0) {
+  if (fileId >= 2 ** 16 || fileId < 0 || !Number.isInteger(fileId)) {
     throw new Error(
-      `File id should be smaller than ${2 ** 16} bytes and not negative`,
+      `File id should be smaller than ${2 ** 16} bytes, not negative and an integer`,
     );
   }
 
-  if (chunkIndex > 2 ** 32 && chunkIndex >= 0) {
+  if (
+    chunkIndex >= 2 ** 32 ||
+    chunkIndex < 0 ||
+    !Number.isInteger(chunkIndex)
+  ) {
     throw new Error(
-      `Chunk index should be smaller than ${2 ** 32} bytes and not negative`,
+      `Chunk index should be smaller than ${2 ** 32} bytes, not negative and an integer`,
     );
   }
 
