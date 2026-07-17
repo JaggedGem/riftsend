@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Chisinau",
+  "schedule": ["before 6am on monday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "packageRules": [
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": ["@typescript/typescript6", "typescript7", "typescript"],
+      "automerge": false,
+      "labels": ["compiler-preview"]
+    },
+    {
+      "matchPackageNames": ["turbo", "vitest", "eslint", "typescript-eslint"],
+      "groupName": "tooling"
+    }
+  ]
+}

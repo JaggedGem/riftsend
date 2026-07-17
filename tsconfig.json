@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared" }
+    // add other internal libraries here later
+  ]
+}

@@ -6,5 +6,6 @@
     "lib": ["ESNext"],
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [{ "path": "../shared" }]
 }

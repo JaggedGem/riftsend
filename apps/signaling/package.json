@@ -9,7 +9,8 @@
     "start": "tsx dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
