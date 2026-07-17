@@ -1,8 +1,5 @@
 import { useRef, useState } from "react";
-import {
-  DiscoveryPeersOverlay,
-  type DiscoveryPeer,
-} from "@/app/components/DiscoveryPeersOverlay";
+import { DiscoveryPeersOverlay, type DiscoveryPeer } from "@/app/components/DiscoveryPeersOverlay";
 import { AppTopBar } from "@/app/components/AppTopBar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import {
-  ArrowRight,
-  Download,
-  SendHorizontal,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { ArrowRight, Download, SendHorizontal, Wifi, WifiOff } from "lucide-react";
 import { Link } from "react-router";
 
 type RoleOption = {
@@ -67,8 +58,7 @@ const ROLE_OPTIONS: RoleOption[] = [
     cta: "Start Sending",
     icon: SendHorizontal,
     variant: "default",
-    cardClassName:
-      "border-primary/30 bg-primary text-primary-foreground ring-primary/25",
+    cardClassName: "border-primary/30 bg-primary text-primary-foreground ring-primary/25",
   },
   {
     id: "receiver",
@@ -134,8 +124,8 @@ export function LandingPage() {
                   Choose your role
                 </CardTitle>
                 <CardDescription className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                  Sender starts the room. Receiver joins it. RiftSend keeps both
-                  flows clear and fast.
+                  Sender starts the room. Receiver joins it. RiftSend keeps both flows clear and
+                  fast.
                 </CardDescription>
               </CardHeader>
 
@@ -156,17 +146,13 @@ export function LandingPage() {
                         <Icon
                           className={cn(
                             "h-5 w-5",
-                            isPrimaryOption
-                              ? "text-primary-foreground"
-                              : "text-primary",
+                            isPrimaryOption ? "text-primary-foreground" : "text-primary",
                           )}
                         />
                         <CardTitle
                           className={cn(
                             "text-xl tracking-tight",
-                            isPrimaryOption
-                              ? "text-primary-foreground"
-                              : "text-foreground",
+                            isPrimaryOption ? "text-primary-foreground" : "text-foreground",
                           )}
                         >
                           {option.title}
@@ -223,9 +209,7 @@ export function LandingPage() {
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Switch
                     checked={isLocalDiscoverable}
-                    onCheckedChange={(checked) =>
-                      setIsLocalDiscoverable(checked)
-                    }
+                    onCheckedChange={(checked) => setIsLocalDiscoverable(checked)}
                     aria-label={
                       isLocalDiscoverable
                         ? "Make me undiscoverable on the local network"

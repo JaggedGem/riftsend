@@ -72,11 +72,7 @@ export class SignalingClient {
    * @param resume - When `true`, attempts to resume a previous session using
    *   the provided peerId and sessionToken.
    */
-  connect(
-    resume: boolean = false,
-    peerId?: PeerId,
-    sessionToken?: SessionToken,
-  ): void {
+  connect(resume: boolean = false, peerId?: PeerId, sessionToken?: SessionToken): void {
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onerror = null;
@@ -231,10 +227,7 @@ export class SignalingClient {
       }
 
       case "error": {
-        console.error(
-          "Received error message from signaling server:",
-          msg.payload.code,
-        );
+        console.error("Received error message from signaling server:", msg.payload.code);
 
         this.emit("error", { message: `Signaling error: ${msg.payload.code}` });
         break;
@@ -283,11 +276,7 @@ export class SignalingClient {
    * - `roomId` provided → joins an existing room by ID.
    * - `joinCode` provided (no roomId) → joins by human-readable code.
    */
-  sendJoinRoom(
-    role: "sender" | "receiver",
-    roomId?: string,
-    joinCode?: string,
-  ): void {
+  sendJoinRoom(role: "sender" | "receiver", roomId?: string, joinCode?: string): void {
     if (!this.peerId) {
       throw new Error("Cannot join room: peerId is not set");
     }
@@ -340,10 +329,7 @@ export class SignalingClient {
    *
    * @returns A cleanup function that removes the listener when called.
    */
-  on<K extends keyof EventMap>(
-    type: K,
-    handler: EventHandler<EventMap[K]>,
-  ): () => void {
+  on<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): () => void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
@@ -352,10 +338,7 @@ export class SignalingClient {
   }
 
   /** Removes a previously registered event listener. */
-  off<K extends keyof EventMap>(
-    type: K,
-    handler: EventHandler<EventMap[K]>,
-  ): void {
+  off<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): void {
     this.listeners.get(type)?.delete(handler as (payload: unknown) => void);
   }
 

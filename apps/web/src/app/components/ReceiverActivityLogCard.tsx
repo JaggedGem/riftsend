@@ -1,13 +1,7 @@
 import { Terminal } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const RECEIVER_LOG_ITEMS = [
   "11:09:04 receiver workspace initialized",

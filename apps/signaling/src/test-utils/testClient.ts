@@ -88,10 +88,9 @@ export class TestClient {
   /**
    * Connects to the signaling server at the specified URL and returns a new TestClient instance.
    * @param url The WebSocket URL of the signaling server.
-   * @param opts Optional configuration for the test client.
    * @returns A promise that resolves to the connected TestClient instance.
    */
-  static async connect(url: string, opts: TestClientOptions = {}): Promise<TestClient> {
+  static async connect(url: string): Promise<TestClient> {
     const ws = new WebSocket(url);
     const client = new TestClient(ws);
 
@@ -145,7 +144,7 @@ export class TestClient {
    * @returns A promise that resolves to the connected and authenticated TestClient instance.
    */
   static async createConnected(url: string, opts: TestClientOptions = {}): Promise<TestClient> {
-    const client = await TestClient.connect(url, opts);
+    const client = await TestClient.connect(url);
     await client.authenticate(opts);
     return client;
   }

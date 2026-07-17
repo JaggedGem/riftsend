@@ -263,8 +263,7 @@ export class WebRTCConnection {
   private setupPeerConnection(): void {
     this.pc.onicecandidate = (event) => this.onIceCandidate(event);
     this.pc.onconnectionstatechange = () => this.onConnectionStateChange();
-    this.pc.oniceconnectionstatechange = () =>
-      this.onIceConnectionStateChange();
+    this.pc.oniceconnectionstatechange = () => this.onIceConnectionStateChange();
     this.pc.ondatachannel = (event) => {
       if (event.channel.label === CONTROL_CHANNEL_LABEL) {
         this.controlChannel = event.channel;
@@ -273,9 +272,7 @@ export class WebRTCConnection {
         this.dataChannel = event.channel;
         this.setupDataChannel(this.dataChannel, "data");
       } else {
-        console.warn(
-          `Received unexpected data channel with label: ${event.channel.label}`,
-        );
+        console.warn(`Received unexpected data channel with label: ${event.channel.label}`);
 
         this.signaling.sendError(this.remotePeer, {
           message: `Unexpected data channel label: ${event.channel.label}`,
@@ -348,19 +345,13 @@ export class WebRTCConnection {
    * The data channel uses `arraybuffer` binary type; the control channel
    * uses the default string type.
    */
-  private setupDataChannel(
-    channel: RTCDataChannel,
-    type: "data" | "control",
-  ): void {
+  private setupDataChannel(channel: RTCDataChannel, type: "data" | "control"): void {
     if (type === "data") {
       channel.binaryType = "arraybuffer";
     }
 
     channel.onerror = (error) => {
-      console.error(
-        `${type === "control" ? "Control" : "Data"} channel error:`,
-        error,
-      );
+      console.error(`${type === "control" ? "Control" : "Data"} channel error:`, error);
 
       this.signaling.sendError(this.remotePeer, {
         message: `${type === "control" ? "Control" : "Data"} channel error`,
@@ -435,10 +426,7 @@ export class WebRTCConnection {
    *
    * @returns A cleanup function that removes the listener when called.
    */
-  on<K extends keyof EventMap>(
-    type: K,
-    handler: EventHandler<EventMap[K]>,
-  ): () => void {
+  on<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): () => void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
@@ -447,10 +435,7 @@ export class WebRTCConnection {
   }
 
   /** Removes a previously registered event listener. */
-  off<K extends keyof EventMap>(
-    type: K,
-    handler: EventHandler<EventMap[K]>,
-  ): void {
+  off<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): void {
     this.listeners.get(type)?.delete(handler as (payload: unknown) => void);
   }
 

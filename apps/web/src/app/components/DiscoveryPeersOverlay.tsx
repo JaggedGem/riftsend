@@ -119,12 +119,7 @@ function randomBetween(rng: () => number, min: number, max: number): number {
  * @param height - Rectangle height.
  * @returns Rectangle bounds.
  */
-function buildRectFromCenter(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): RectBounds {
+function buildRectFromCenter(x: number, y: number, width: number, height: number): RectBounds {
   return {
     left: x - width / 2,
     top: y - height / 2,
@@ -141,11 +136,7 @@ function buildRectFromCenter(
  * @param insetY - Vertical inset size.
  * @returns Inset rectangle.
  */
-function insetRect(
-  rect: RectBounds,
-  insetX: number,
-  insetY: number,
-): RectBounds {
+function insetRect(rect: RectBounds, insetX: number, insetY: number): RectBounds {
   return {
     left: rect.left + insetX,
     top: rect.top + insetY,
@@ -178,12 +169,7 @@ function expandRect(rect: RectBounds, margin: number): RectBounds {
  * @returns True if the rectangles intersect.
  */
 function intersectsRect(a: RectBounds, b: RectBounds): boolean {
-  return !(
-    a.right <= b.left ||
-    a.left >= b.right ||
-    a.bottom <= b.top ||
-    a.top >= b.bottom
-  );
+  return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
 }
 
 /**
@@ -448,18 +434,13 @@ export function DiscoveryPeersOverlay({
       CARD_CONTENT_SAFE_INSET_X,
       CARD_CONTENT_SAFE_INSET_Y,
     );
-    const pageExclusionRect = expandRect(
-      anchorRect,
-      PAGE_CARD_EXCLUSION_MARGIN,
-    );
+    const pageExclusionRect = expandRect(anchorRect, PAGE_CARD_EXCLUSION_MARGIN);
 
     peers.forEach((peer, index) => {
       const zone: DiscoveryZone = index < edgeSpawnLimit ? "edge" : "page";
       const gap = zone === "edge" ? EDGE_CARD_GAP : PAGE_CARD_GAP;
-      const preferredDistance =
-        zone === "edge" ? EDGE_MIN_DISTANCE : PAGE_MIN_DISTANCE;
-      const candidateCount =
-        zone === "edge" ? EDGE_CANDIDATE_COUNT : PAGE_CANDIDATE_COUNT;
+      const preferredDistance = zone === "edge" ? EDGE_MIN_DISTANCE : PAGE_MIN_DISTANCE;
+      const candidateCount = zone === "edge" ? EDGE_CANDIDATE_COUNT : PAGE_CANDIDATE_COUNT;
       const peerSeed = mixSeed(placementSeed, `${peer.id}:${index}:${zone}`);
       const rng = createSeededRng(peerSeed);
       const sideShift = Math.floor(rng() * 4);
@@ -492,17 +473,11 @@ export function DiscoveryPeersOverlay({
           continue;
         }
 
-        if (
-          zone === "edge" &&
-          intersectsRect(candidateRect, cardContentSafeRect)
-        ) {
+        if (zone === "edge" && intersectsRect(candidateRect, cardContentSafeRect)) {
           continue;
         }
 
-        if (
-          zone === "page" &&
-          intersectsRect(candidateRect, pageExclusionRect)
-        ) {
+        if (zone === "page" && intersectsRect(candidateRect, pageExclusionRect)) {
           continue;
         }
 
@@ -514,15 +489,11 @@ export function DiscoveryPeersOverlay({
           continue;
         }
 
-        const closestDistanceSquared = getClosestDistanceSquared(
-          candidate,
-          placedCenters,
-        );
+        const closestDistanceSquared = getClosestDistanceSquared(candidate, placedCenters);
         const closestDistance = Math.sqrt(closestDistanceSquared);
 
         const minimumDistanceThreshold =
-          preferredDistance -
-          (preferredDistance * 0.35 * attempt) / candidateCount;
+          preferredDistance - (preferredDistance * 0.35 * attempt) / candidateCount;
 
         if (closestDistance < minimumDistanceThreshold) {
           continue;
@@ -552,22 +523,12 @@ export function DiscoveryPeersOverlay({
     });
 
     return placements;
-  }, [
-    anchorRect,
-    edgeSpawnLimit,
-    peers,
-    placementSeed,
-    viewportSize.height,
-    viewportSize.width,
-  ]);
+  }, [anchorRect, edgeSpawnLimit, peers, placementSeed, viewportSize.height, viewportSize.width]);
 
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        "pointer-events-none fixed inset-0 z-20 hidden lg:block",
-        className,
-      )}
+      className={cn("pointer-events-none fixed inset-0 z-20 hidden lg:block", className)}
     >
       {floatingPeerCards.map(({ peer, x, y, zone }) => (
         <div

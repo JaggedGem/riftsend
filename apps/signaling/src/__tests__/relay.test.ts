@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TestHarness } from "../test-utils/harness.js";
 import { SignalingErrorCode } from "@riftsend/shared";
-import {
+import type {
   AnswerMessage,
   IceCandidateMessage,
   OfferMessage,

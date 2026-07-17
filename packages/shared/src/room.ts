@@ -1,9 +1,5 @@
 import { createRandomValues, getRandomValues, toBase64Url } from "./crypto.js";
-import {
-  NR_RANDOM_BYTES,
-  ROOM_ID_PREFIX,
-  ROOM_JOIN_CODE_LENGTH,
-} from "./constants.js";
+import { NR_RANDOM_BYTES, ROOM_ID_PREFIX, ROOM_JOIN_CODE_LENGTH } from "./constants.js";
 import type { RoomId, JoinCode } from "./types.js";
 
 /**

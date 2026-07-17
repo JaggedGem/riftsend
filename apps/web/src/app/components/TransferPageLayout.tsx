@@ -81,9 +81,7 @@ export function TransferPageLayout({
               <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
                 {title}
               </h1>
-              <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-                {description}
-              </p>
+              <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">{description}</p>
             </div>
 
             {headerActions ? (

@@ -33,9 +33,7 @@ export const PEER_ID_ENCODED_LENGTH = Math.ceil((NR_RANDOM_BYTES * 4) / 3);
 /**
  * Length of a base64url-encoded session token.
  */
-export const SESSION_TOKEN_ENCODED_LENGTH = Math.ceil(
-  (SESSION_TOKEN_BYTES * 4) / 3,
-);
+export const SESSION_TOKEN_ENCODED_LENGTH = Math.ceil((SESSION_TOKEN_BYTES * 4) / 3);
 
 /**
  * Length of a base64url-encoded room ID after the prefix.
@@ -111,8 +109,7 @@ export const SignalingErrorCode = {
   RECONNECTED_ELSEWHERE: "RECONNECTED_ELSEWHERE",
 } as const;
 
-export type SignalingErrorCode =
-  (typeof SignalingErrorCode)[keyof typeof SignalingErrorCode];
+export type SignalingErrorCode = (typeof SignalingErrorCode)[keyof typeof SignalingErrorCode];
 
 /**
  * Human-readable descriptions for every {@link SignalingErrorCode}.
@@ -122,8 +119,7 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
   [SignalingErrorCode.ROOM_IS_FULL]: "Room is full",
   [SignalingErrorCode.PEER_ALREADY_IN_ROOM]: "Peer already in room",
   [SignalingErrorCode.JOIN_CODE_NOT_FOUND]: "Join code not found",
-  [SignalingErrorCode.NO_ROOM_ID_OR_JOIN_CODE]:
-    "No room ID or join code provided",
+  [SignalingErrorCode.NO_ROOM_ID_OR_JOIN_CODE]: "No room ID or join code provided",
   [SignalingErrorCode.TOO_MANY_CONNECTIONS]: "Too many connections",
   [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: "Rate limit exceeded",
   [SignalingErrorCode.INVALID_JSON]: "Invalid JSON",
@@ -133,8 +129,7 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
   [SignalingErrorCode.ROOM_ID_COLLISION]: "Room ID collision",
   [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: "Unknown join-room method",
   [SignalingErrorCode.NOT_IN_A_ROOM]: "Peer not in any room",
-  [SignalingErrorCode.FAILED_TO_REMOVE_PEER_FROM_ROOM]:
-    "Failed to remove peer from room",
+  [SignalingErrorCode.FAILED_TO_REMOVE_PEER_FROM_ROOM]: "Failed to remove peer from room",
 };
 
 /**
@@ -143,17 +138,16 @@ export const SignalingErrorMessages: Record<SignalingErrorCode, string> = {
  * Only errors that should cause a WebSocket close are included.
  * Per the spec only codes in the 1000–1015 range and 3000–4999 are valid.
  */
-export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> =
-  {
-    [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
-    [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
-    [SignalingErrorCode.INVALID_JSON]: 1008,
-    [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
-    [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
-    [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
-    [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
-    [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
-  };
+export const SignalingCloseCodes: Partial<Record<SignalingErrorCode, number>> = {
+  [SignalingErrorCode.TOO_MANY_CONNECTIONS]: 1013,
+  [SignalingErrorCode.RATE_LIMIT_EXCEEDED]: 1008,
+  [SignalingErrorCode.INVALID_JSON]: 1008,
+  [SignalingErrorCode.INTERNAL_SERVER_ERROR]: 1011,
+  [SignalingErrorCode.NOT_AUTHENTICATED]: 1008,
+  [SignalingErrorCode.RECONNECTED_ELSEWHERE]: 1000,
+  [SignalingErrorCode.ROOM_ID_COLLISION]: 1008,
+  [SignalingErrorCode.UNKNOWN_JOIN_ROOM_METHOD]: 1008,
+};
 
 /**
  * Formats a {@link SignalingErrorCode} into a human-readable string.
@@ -179,18 +173,15 @@ export const WebRTCPeerErrorCode = {
   TIMEOUT: "TIMEOUT",
 } as const;
 
-export type WebRTCPeerErrorCode =
-  (typeof WebRTCPeerErrorCode)[keyof typeof WebRTCPeerErrorCode];
+export type WebRTCPeerErrorCode = (typeof WebRTCPeerErrorCode)[keyof typeof WebRTCPeerErrorCode];
 
 /**
  * Human-readable descriptions for every {@link WebRTCPeerErrorCode}.
  */
 export const WebRTCPeerErrorMessages: Record<WebRTCPeerErrorCode, string> = {
-  [WebRTCPeerErrorCode.INVALID_OFFER]:
-    "Invalid offer: missing or malformed SDP",
+  [WebRTCPeerErrorCode.INVALID_OFFER]: "Invalid offer: missing or malformed SDP",
   [WebRTCPeerErrorCode.GLARE_CONFLICT]: "Glare: simultaneous offer detected",
-  [WebRTCPeerErrorCode.SIGNALING_STATE_CONFLICT]:
-    "Cannot accept offer: signaling state conflict",
+  [WebRTCPeerErrorCode.SIGNALING_STATE_CONFLICT]: "Cannot accept offer: signaling state conflict",
   [WebRTCPeerErrorCode.NEGOTIATION_FAILED]: "Failed to create or send answer",
   [WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED]: "Failed to process ICE candidate",
   [WebRTCPeerErrorCode.CONNECTION_FAILED]: "Peer connection failed",

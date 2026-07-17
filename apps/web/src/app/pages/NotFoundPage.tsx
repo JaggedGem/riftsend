@@ -1,9 +1,4 @@
-import {
-  Link,
-  isRouteErrorResponse,
-  useLocation,
-  useRouteError,
-} from "react-router";
+import { Link, isRouteErrorResponse, useLocation, useRouteError } from "react-router";
 
 import { AppTopBar } from "@/app/components/AppTopBar";
 import { Button } from "@/components/ui/button";
@@ -56,13 +51,9 @@ export function NotFoundPage() {
 
       <main className="relative z-10 mx-auto flex min-h-[calc(100dvh-65px)] w-full max-w-400 items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <section className="w-full max-w-2xl space-y-5 rounded-2xl border border-border/70 bg-card/92 p-6 shadow-xl shadow-black/5 sm:p-8">
-          <p className="font-mono text-6xl font-semibold tracking-tight sm:text-7xl">
-            404
-          </p>
+          <p className="font-mono text-6xl font-semibold tracking-tight sm:text-7xl">404</p>
           <div className="space-y-2">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-              Page not found
-            </h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Page not found</h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               The page you requested does not exist or is no longer available.
             </p>

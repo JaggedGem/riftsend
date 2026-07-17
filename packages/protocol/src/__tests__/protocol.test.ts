@@ -46,9 +46,7 @@ describe("protocol schemas", () => {
     });
 
     expect(parsed.type).toBe("file-start");
-    expect((parsed as FileStart).fileId).toBe(
-      "123e4567-e89b-42d3-a456-426614174002",
-    );
+    expect((parsed as FileStart).fileId).toBe("123e4567-e89b-42d3-a456-426614174002");
   });
 });
 
@@ -62,8 +60,6 @@ describe("chunk framing", () => {
     expect(view.getUint16(CHUNK_FORMAT.FILE_ID.offset)).toBe(42);
     expect(view.getUint32(CHUNK_FORMAT.CHUNK_INDEX.offset)).toBe(7);
     expect(view.getUint32(CHUNK_FORMAT.LENGTH.offset)).toBe(4);
-    expect(
-      Array.from(new Uint8Array(chunk, CHUNK_FORMAT.PAYLOAD.offset)),
-    ).toEqual([1, 2, 3, 4]);
+    expect(Array.from(new Uint8Array(chunk, CHUNK_FORMAT.PAYLOAD.offset))).toEqual([1, 2, 3, 4]);
   });
 });

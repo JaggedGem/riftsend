@@ -9,9 +9,7 @@
     "start": "tsx dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
@@ -26,10 +24,6 @@
   },
   "devDependencies": {
     "@types/ws": "^8.18.1",
-    "prettier": "^3.9.5",
-    "tsx": "^4.23.0",
-    "typescript": "~7.0.2",
-    "vitest": "^4.1.10"
-  },
-  "packageManager": "pnpm@10.33.4"
+    "tsx": "^4.23.0"
+  }
 }

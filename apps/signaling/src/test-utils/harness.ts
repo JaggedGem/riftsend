@@ -56,11 +56,10 @@ export class TestHarness {
 
   /**
    * Creates and connects a new raw test client to the signaling server.
-   * @param opts Optional configuration for the test client.
    * @returns A promise that resolves to the connected TestClient instance.
    */
-  async rawClient(opts: TestClientOptions = {}): Promise<TestClient> {
-    const client = await TestClient.connect(this.wsUrl, opts);
+  async rawClient(): Promise<TestClient> {
+    const client = await TestClient.connect(this.wsUrl);
     this.clients.push(client);
     return client;
   }

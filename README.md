@@ -207,6 +207,13 @@ The first milestone is a minimal WebRTC hello-world:
 
 Do not begin compression, resume, or WASM work before this milestone is working.
 
+## TypeScript versions
+
+The `typescript` dependency intentionally points to @typescript/typescript6.
+typescript-eslint currently requires the TypeScript 6 compiler API.
+
+The `typescript7` alias is used for actual project builds.
+
 ## Security expectations
 
 Before a public alpha, the project should have:

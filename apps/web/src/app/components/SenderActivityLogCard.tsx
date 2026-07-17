@@ -1,13 +1,7 @@
 import { Terminal } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const SENDER_LOG_ITEMS = [
   "11:08:13 room created (J7K4-9P)",

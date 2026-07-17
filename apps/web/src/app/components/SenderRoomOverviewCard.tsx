@@ -60,9 +60,7 @@ export function SenderRoomOverviewCard() {
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
             Room code
           </p>
-          <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.12em]">
-            J7K4-9P
-          </p>
+          <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.12em]">J7K4-9P</p>
           <p className="mt-1 text-xs text-muted-foreground">share.riftsend.app/r/J7K4-9P</p>
         </div>
 

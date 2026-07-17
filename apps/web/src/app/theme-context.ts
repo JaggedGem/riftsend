@@ -26,7 +26,5 @@ export function getInitialThemeMode(): ThemeMode {
     return persistedTheme;
   }
 
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

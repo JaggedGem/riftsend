@@ -15,11 +15,7 @@ type AppTopBarProps = {
 /**
  * Shared app header used across all routes.
  */
-export function AppTopBar({
-  className,
-  contentClassName,
-  rightSlot,
-}: AppTopBarProps) {
+export function AppTopBar({ className, contentClassName, rightSlot }: AppTopBarProps) {
   const { themeMode, toggleThemeMode } = useThemeMode();
 
   return (
@@ -46,11 +42,7 @@ export function AppTopBar({
             size="icon-sm"
             className="rounded-full border-border/70 bg-card/80 backdrop-blur-sm"
           >
-            {themeMode === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
+            {themeMode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </div>
       </div>

@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { FileId, BatchId, CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
-import {
-  MAX_CHUNK_SIZE,
-  MAX_FILES_PER_BATCH,
-  MAX_TOTAL_CHUNKS,
-} from "./constants.js";
+import { MAX_CHUNK_SIZE, MAX_FILES_PER_BATCH, MAX_TOTAL_CHUNKS } from "./constants.js";
 
 const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);
 
@@ -24,13 +20,10 @@ const FileOfferSchema = z
     totalChunks: z.number().int().nonnegative().max(MAX_TOTAL_CHUNKS),
     relativePath: z.string().optional(),
   })
-  .refine(
-    (file) => Math.ceil(file.size / file.chunkSize) === file.totalChunks,
-    {
-      path: ["totalChunks"],
-      message: "Chunk count does not match file size and chunk size",
-    },
-  )
+  .refine((file) => Math.ceil(file.size / file.chunkSize) === file.totalChunks, {
+    path: ["totalChunks"],
+    message: "Chunk count does not match file size and chunk size",
+  })
   .strict();
 
 export const BatchOfferSchema = z

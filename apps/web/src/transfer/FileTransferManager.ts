@@ -9,9 +9,7 @@ import type { WebRTCConnection } from "../webrtc/WebRTCConnection.js";
  */
 export class FileTransferManager {
   private readonly connection: WebRTCConnection;
-  private readonly fileHandlers = new Set<
-    (file: ArrayBuffer, name: string) => void
-  >();
+  private readonly fileHandlers = new Set<(file: ArrayBuffer, name: string) => void>();
 
   constructor(connection: WebRTCConnection) {
     this.connection = connection;
@@ -22,9 +20,7 @@ export class FileTransferManager {
    *
    * @returns A cleanup function that removes the handler when called.
    */
-  onFileReceived(
-    handler: (file: ArrayBuffer, name: string) => void,
-  ): () => void {
+  onFileReceived(handler: (file: ArrayBuffer, name: string) => void): () => void {
     this.fileHandlers.add(handler);
     return () => this.fileHandlers.delete(handler);
   }

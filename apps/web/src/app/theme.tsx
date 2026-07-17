@@ -16,9 +16,7 @@ type ThemeProviderProps = {
  * Global theme state and persistence provider.
  */
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
-    getInitialThemeMode(),
-  );
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialThemeMode());
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", themeMode === "dark");
@@ -29,8 +27,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     () => ({
       themeMode,
       setThemeMode,
-      toggleThemeMode: () =>
-        setThemeMode((current) => (current === "dark" ? "light" : "dark")),
+      toggleThemeMode: () => setThemeMode((current) => (current === "dark" ? "light" : "dark")),
     }),
     [themeMode],
   );
