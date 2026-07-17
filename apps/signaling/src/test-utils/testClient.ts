@@ -1,4 +1,5 @@
 import { WebSocket } from "ws";
+import type { ErrorMessage, PeerIdMessage } from "@riftsend/protocol";
 import type { PeerId, SessionToken, SignalingErrorCode } from "@riftsend/shared";
 
 export type MessageType =
@@ -123,7 +124,6 @@ export class TestClient {
       clientVersion: opts.clientVersion ?? "1.0.0",
       sessionToken: null,
       payload: {
-        role: opts.role ?? "sender",
         name: opts.name ?? "test-client",
         platform: opts.platform ?? "test",
         supportResume: opts.supportResume ?? false,
@@ -133,7 +133,7 @@ export class TestClient {
 
     this.sendRaw(helloMsg);
 
-    const peerIdMsg = await this.receive("peer-id");
+    const peerIdMsg = await this.receive<PeerIdMessage>("peer-id");
     this.peerId = peerIdMsg.payload.peerId as PeerId;
     this.sessionToken = peerIdMsg.payload.sessionToken as SessionToken;
   }
@@ -173,13 +173,16 @@ export class TestClient {
    * @param timeoutMs The maximum time to wait for the message in milliseconds (default: 3000ms).
    * @returns A promise that resolves to the received ServerMessage.
    */
-  async receive(type: string, timeoutMs = 3000): Promise<ServerMessage> {
+  async receive<T extends ServerMessage = ServerMessage>(
+    type: string,
+    timeoutMs = 3000,
+  ): Promise<T> {
     const existing = this.received.findIndex((m) => m.type === type);
     if (existing !== -1) {
-      return this.received.splice(existing, 1)[0];
+      return this.received.splice(existing, 1)[0] as T;
     }
 
-    return new Promise<ServerMessage>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.cleanup(type, listener);
         reject(new Error(`Timeout waiting for message type "${type}" after ${timeoutMs}ms`));
@@ -187,7 +190,7 @@ export class TestClient {
 
       const listener = (msg: ServerMessage) => {
         clearTimeout(timeout);
-        resolve(msg);
+        resolve(msg as T);
       };
 
       if (!this.listeners.has(type)) {
@@ -274,7 +277,7 @@ export class TestClient {
   }
 
   async receiveError(timeoutMs = 3000): Promise<SignalingErrorCode> {
-    const msg = await this.receive("error", timeoutMs);
+    const msg = await this.receive<ErrorMessage>("error", timeoutMs);
     return msg.payload.code as SignalingErrorCode;
   }
 

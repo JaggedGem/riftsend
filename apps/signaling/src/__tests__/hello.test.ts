@@ -14,7 +14,7 @@ afterAll(async () => {
 
 describe("hello / authentication", () => {
   it("assigns a peerId and sessionToken on hello", async () => {
-    const client = await h.createClient({ name: "Alice", role: "sender" });
+    const client = await h.createClient({ name: "Alice" });
 
     expect(client.peerId).toMatch(/^peer_/);
     expect(client.sessionToken).toBeTruthy();
@@ -24,7 +24,6 @@ describe("hello / authentication", () => {
   it("accepts metadata from the client", async () => {
     const client = await h.createClient({
       name: "Bob",
-      role: "receiver",
       platform: "linux",
       protocolVersion: 2,
       clientVersion: "2.1.0",
@@ -47,7 +46,7 @@ describe("hello / authentication", () => {
   });
 
   it("reconnects with valid session and closes old connection", async () => {
-    const alice1 = await h.createClient({ name: "Alice", role: "sender" });
+    const alice1 = await h.createClient({ name: "Alice" });
     const { peerId, sessionToken } = alice1;
 
     const closePromise = alice1.expectClose();
@@ -60,7 +59,6 @@ describe("hello / authentication", () => {
       clientVersion: "1.0.0",
       sessionToken,
       payload: {
-        role: "sender",
         name: "Alice",
         platform: "test",
         supportResume: false,
@@ -103,14 +101,14 @@ describe("hello / authentication", () => {
     client.sendRaw({
       type: "join-room",
       from: "peer_CCCCCCCCCCCCCCCC",
-      payload: { method: "create" },
+      payload: { method: "create", role: "sender" },
     });
     const closeResult = await client.expectClose();
     expect(closeResult.reason).toBe(SignalingErrorCode.NOT_AUTHENTICATED);
   });
 
   it("room-joined response includes roomId and joinCode for create method", async () => {
-    const client = await h.createClient({ name: "Alice", role: "sender" });
+    const client = await h.createClient({ name: "Alice" });
 
     client.send("join-room", { method: "create", role: "sender" });
     const msg = await client.receive("room-joined");
