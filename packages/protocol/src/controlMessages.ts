@@ -21,7 +21,7 @@ const FileOfferSchema = z
     }),
     mimeType: z.string().max(255),
     chunkSize: z.number().int().positive().max(MAX_CHUNK_SIZE),
-    totalChunks: z.number().int().positive().max(MAX_TOTAL_CHUNKS),
+    totalChunks: z.number().int().nonnegative().max(MAX_TOTAL_CHUNKS),
     relativePath: z.string().optional(),
   })
   .refine(
