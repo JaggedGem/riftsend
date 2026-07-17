@@ -4,7 +4,7 @@ import {
   MAX_CHUNK_SIZE,
   MAX_FILES_PER_BATCH,
   MAX_TOTAL_CHUNKS,
-} from "./constants";
+} from "./constants.js";
 
 const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);
 
@@ -24,17 +24,13 @@ const FileOfferSchema = z
     totalChunks: z.number().int().positive().max(MAX_TOTAL_CHUNKS),
     relativePath: z.string().optional(),
   })
-  .superRefine((file, ctx) => {
-    const expectedChunks = Math.ceil(file.size / file.chunkSize);
-
-    if (file.totalChunks !== expectedChunks) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["totalChunks"],
-        message: "Chunk count does not match file size and chunk size",
-      });
-    }
-  })
+  .refine(
+    (file) => Math.ceil(file.size / file.chunkSize) === file.totalChunks,
+    {
+      path: ["totalChunks"],
+      message: "Chunk count does not match file size and chunk size",
+    },
+  )
   .strict();
 
 export const BatchOfferSchema = z
@@ -150,19 +146,23 @@ export const ResumeDenySchema = z
 
 export type ResumeDeny = z.infer<typeof ResumeDenySchema>;
 
+const MissingRangeSchema = z
+  .object({
+    start: z.number().int().nonnegative(),
+    end: z.number().int().nonnegative(),
+  })
+  .refine((range) => range.start <= range.end, {
+    path: ["start"],
+    message: "The start of the missing range cannot be bigger than the end",
+  })
+  .strict();
+
 export const ResumeResponseSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeResponse),
     protocolVersion: ProtocolVersionSchema,
     fileId: FileIdSchema,
-    missingRanges: z.array(
-      z
-        .object({
-          start: z.number(),
-          end: z.number(),
-        })
-        .strict(),
-    ),
+    missingRanges: z.array(MissingRangeSchema),
   })
   .strict();
 
