@@ -1,5 +1,5 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import { getConfig } from "../config/config";
+import { getConfig } from "@/config/config";
 import {
   SignalingMessageSchema,
   type HelloMessage,

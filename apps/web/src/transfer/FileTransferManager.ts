@@ -1,4 +1,4 @@
-import type { WebRTCConnection } from "../webrtc/WebRTCConnection.js";
+import type { WebRTCConnection } from "@/webrtc/WebRTCConnection.js";
 import {
   buildChunk,
   type BatchOffer,
@@ -6,9 +6,9 @@ import {
   type ControlMessage,
   type FileOffer,
 } from "@riftsend/protocol";
-import { getConfig } from "../config/config.js";
+import { getConfig } from "@/config/config.js";
 import { getBatchId, type BatchId, type FileId } from "@riftsend/shared";
-import { Queue } from "./Queue.js";
+import { Queue } from "@/queue/Queue.js";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 
 type FileTransferEvents = {

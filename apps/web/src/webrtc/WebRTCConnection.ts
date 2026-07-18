@@ -1,5 +1,5 @@
 import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
-import { SignalingClient } from "../signaling/SignalingClient.js";
+import { SignalingClient } from "@/signaling/SignalingClient.js";
 import { ControlMessageSchema, type ControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 
