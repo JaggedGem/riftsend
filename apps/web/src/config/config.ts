@@ -1,3 +1,5 @@
+import { ProtocolVersionSchema, type ProtocolVersion } from "@riftsend/protocol";
+
 /**
  * Reads a required `import.meta.env` variable.
  *
@@ -29,7 +31,7 @@ const requireBooleanEnv = (key: string): boolean => {
 
 let _config: {
   signalingUrl: string;
-  protocolVersion: number;
+  protocolVersion: ProtocolVersion;
   clientVersion: string;
   clientName: string;
   clientPlatform: string;
@@ -46,7 +48,9 @@ export const getConfig = () => {
   if (!_config) {
     _config = {
       signalingUrl: requireEnv("VITE_SIGNALING_SERVER_URL"),
-      protocolVersion: parseInt(requireEnv("VITE_SIGNALING_PROTOCOL_VERSION"), 10),
+      protocolVersion: ProtocolVersionSchema.parse(
+        parseInt(requireEnv("VITE_PROTOCOL_VERSION"), 10),
+      ),
       clientVersion: requireEnv("VITE_SIGNALING_CLIENT_VERSION"),
       clientName: requireEnv("VITE_SIGNALING_CLIENT_NAME"),
       clientPlatform: requireEnv("VITE_SIGNALING_CLIENT_PLATFORM"),
