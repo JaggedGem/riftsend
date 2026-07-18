@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "description": "Browser-based end-to-end encrypted peer-to-peer file transfer.",
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "pnpm --recursive --parallel dev",
     "build": "pnpm --recursive build",
