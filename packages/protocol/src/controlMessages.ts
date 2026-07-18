@@ -6,7 +6,9 @@ const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);
 
 const BatchIdSchema = z.uuidv4().transform((val): BatchId => val as BatchId);
 
-const ProtocolVersionSchema = z.union([z.literal(1)]);
+export const ProtocolVersionSchema = z.union([z.literal(1)]);
+
+export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
 
 const FileOfferSchema = z
   .object({
@@ -25,6 +27,8 @@ const FileOfferSchema = z
     message: "Chunk count does not match file size and chunk size",
   })
   .strict();
+
+export type FileOffer = z.infer<typeof FileOfferSchema>;
 
 export const BatchOfferSchema = z
   .object({
