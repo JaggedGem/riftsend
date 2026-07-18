@@ -100,6 +100,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   async initiateConnection(): Promise<void> {
     this.dataChannel = this.pc.createDataChannel(DATA_CHANNEL_LABEL, {
       ordered: false,
+      maxRetransmits: 0,
     });
     this.setupDataChannel(this.dataChannel, "data");
 
@@ -214,27 +215,31 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   /**
    * Sends binary data over the unordered data channel.
    *
-   * Silently drops if the channel is not open.
+   * @returns true if the message was sent, or false if the channel was not open
    */
-  sendData(data: ArrayBuffer): void {
+  sendData(data: ArrayBuffer): boolean {
     if (!this.dataChannel || this.dataChannel.readyState !== "open") {
       console.warn("Data channel not open, cannot send data");
-      return;
+      return false;
     }
+
     this.dataChannel.send(data);
+    return true;
   }
 
   /**
    * Sends a JSON string over the ordered control channel.
    *
-   * Silently drops if the channel is not open.
+   * @returns true if the message was sent, or false if the channel was not open
    */
-  sendControl(data: unknown): void {
+  sendControl(data: unknown): boolean {
     if (!this.controlChannel || this.controlChannel.readyState !== "open") {
       console.warn("Control channel not open, cannot send control message");
-      return;
+      return false;
     }
+
     this.controlChannel.send(JSON.stringify(data));
+    return true;
   }
 
   /** Returns `true` when both data and control channels are open and ready. */
