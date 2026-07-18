@@ -1,4 +1,4 @@
-export type EventHandler<T> = (payload: T) => void;
+type EventHandler<T> = T extends void ? () => void : (payload: T) => void;
 
 export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>> {
   private listeners: {
