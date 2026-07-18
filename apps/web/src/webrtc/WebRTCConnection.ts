@@ -1,5 +1,7 @@
 import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "../signaling/SignalingClient.js";
+import { ControlMessageSchema, type ControlMessage } from "@riftsend/protocol";
+import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 
 /**
  * Default STUN servers used for NAT traversal.
@@ -29,18 +31,16 @@ const iceServers: RTCIceServer[] = [
 const DATA_CHANNEL_LABEL = "riftsend-data";
 const CONTROL_CHANNEL_LABEL = "riftsend-control";
 
-type EventMap = {
+type WebRTCConnectionEvents = {
   dataChannelOpen: RTCDataChannel;
   dataChannelMessage: unknown;
   dataChannelClose: void;
   controlChannelOpen: RTCDataChannel;
-  controlChannelMessage: unknown;
+  controlChannelMessage: ControlMessage;
   controlChannelClose: void;
   connectionStateChange: RTCIceConnectionState;
   iceConnectionStateChange: RTCIceConnectionState;
 };
-
-type EventHandler<T> = (payload: T) => void;
 
 /**
  * Manages a single WebRTC peer connection to a remote peer.
@@ -60,7 +60,7 @@ type EventHandler<T> = (payload: T) => void;
  * 4. Use {@link sendData} / {@link sendControl} once `isReady()` returns `true`.
  * 5. Call {@link close} to tear down.
  */
-export class WebRTCConnection {
+export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> {
   private readonly pc: RTCPeerConnection;
   private readonly signaling: SignalingClient;
   private readonly remotePeer: PeerId;
@@ -75,9 +75,9 @@ export class WebRTCConnection {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
 
-  private listeners = new Map<string, Set<(payload: unknown) => void>>();
-
   constructor(signaling: SignalingClient, remotePeer: PeerId) {
+    super();
+
     this.pc = new RTCPeerConnection({
       iceServers,
     });
@@ -229,12 +229,12 @@ export class WebRTCConnection {
    *
    * Silently drops if the channel is not open.
    */
-  sendControl(data: string): void {
+  sendControl(data: unknown): void {
     if (!this.controlChannel || this.controlChannel.readyState !== "open") {
       console.warn("Control channel not open, cannot send control message");
       return;
     }
-    this.controlChannel.send(data);
+    this.controlChannel.send(JSON.stringify(data));
   }
 
   /** Returns `true` when both data and control channels are open and ready. */
@@ -409,8 +409,15 @@ export class WebRTCConnection {
     console.log("Received data channel message:", data.byteLength, "bytes");
   }
 
-  private handleControlChannelMessage(data: string): void {
-    console.log("Received control channel message:", data);
+  private handleControlChannelMessage(data: unknown): void {
+    const message = ControlMessageSchema.safeParse(data);
+
+    if (!message.success) {
+      console.warn("Received unknown control channel message");
+      return;
+    }
+
+    this.emit("controlChannelMessage", message.data);
   }
 
   getDataChannel(): RTCDataChannel | undefined {
@@ -419,29 +426,5 @@ export class WebRTCConnection {
 
   getControlChannel(): RTCDataChannel | undefined {
     return this.controlChannel;
-  }
-
-  /**
-   * Subscribes to a WebRTC connection event.
-   *
-   * @returns A cleanup function that removes the listener when called.
-   */
-  on<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): () => void {
-    if (!this.listeners.has(type)) {
-      this.listeners.set(type, new Set());
-    }
-    this.listeners.get(type)!.add(handler as (payload: unknown) => void);
-    return () => this.off(type, handler);
-  }
-
-  /** Removes a previously registered event listener. */
-  off<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): void {
-    this.listeners.get(type)?.delete(handler as (payload: unknown) => void);
-  }
-
-  private emit<K extends keyof EventMap>(type: K, payload: EventMap[K]): void {
-    this.listeners.get(type)?.forEach((handler) => {
-      (handler as EventHandler<EventMap[K]>)(payload);
-    });
   }
 }

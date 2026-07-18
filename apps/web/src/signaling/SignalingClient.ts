@@ -1,4 +1,5 @@
-import { getConfig } from "./config";
+import { TypedEventEmitter } from "@/events/TypedEventEmitter";
+import { getConfig } from "../config/config";
 import {
   SignalingMessageSchema,
   type HelloMessage,
@@ -21,7 +22,7 @@ import {
 } from "@riftsend/protocol";
 import { type Room } from "@riftsend/shared";
 
-type EventMap = {
+type SignalingClientEvents = {
   connected: PeerIdMessage["payload"];
   "room-joined": Room;
   "room-peer-joined": RoomPeerJoinedMessage["payload"];
@@ -34,8 +35,6 @@ type EventMap = {
   answer: AnswerMessage["payload"];
   iceCandidate: IceCandidateMessage["payload"];
 };
-
-type EventHandler<T> = (payload: T) => void;
 
 /**
  * Client for the Riftsend signaling WebSocket protocol.
@@ -55,11 +54,10 @@ type EventHandler<T> = (payload: T) => void;
  *
  * See {@link EventMap} for the full list of typed events.
  */
-export class SignalingClient {
+export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
   private ws: WebSocket | null = null;
   private peerId: PeerId | null = null;
   private room: Room | null = null;
-  private listeners = new Map<string, Set<(payload: unknown) => void>>();
 
   connect(resume: false): void;
   connect(resume: true, peerId: PeerId, sessionToken: SessionToken): void;
@@ -117,7 +115,7 @@ export class SignalingClient {
         code: event.code,
         reason: sanitizedReason,
       });
-      this.listeners.clear();
+      this.clearAll();
       this.ws = null;
     };
 
@@ -321,30 +319,6 @@ export class SignalingClient {
       payload: null,
     };
     this.send(leaveRoomMessage);
-  }
-
-  /**
-   * Subscribes to a signaling event.
-   *
-   * @returns A cleanup function that removes the listener when called.
-   */
-  on<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): () => void {
-    if (!this.listeners.has(type)) {
-      this.listeners.set(type, new Set());
-    }
-    this.listeners.get(type)!.add(handler as (payload: unknown) => void);
-    return () => this.off(type, handler);
-  }
-
-  /** Removes a previously registered event listener. */
-  off<K extends keyof EventMap>(type: K, handler: EventHandler<EventMap[K]>): void {
-    this.listeners.get(type)?.delete(handler as (payload: unknown) => void);
-  }
-
-  private emit<K extends keyof EventMap>(type: K, payload: EventMap[K]): void {
-    this.listeners.get(type)?.forEach((handler) => {
-      (handler as EventHandler<EventMap[K]>)(payload);
-    });
   }
 
   /**
