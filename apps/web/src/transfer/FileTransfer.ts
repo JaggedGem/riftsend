@@ -11,6 +11,7 @@ type FileTransferEvents = {
   failed: { error: Error };
   cancelled: void;
   paused: void;
+  resumed: void;
 };
 
 type OutgoingFileTransferEvents = FileTransferEvents & {};
@@ -25,7 +26,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private state: TransferState = "idle";
   private bytesSent: number = 0;
   private lastProgressEmit = 0;
-  private abortController = new AbortController();
+  private cancelController = new AbortController();
   private startedAt: number | undefined;
   private nextChunkIndex = 0;
 
@@ -54,8 +55,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   private emitProgress() {
     if (this.state !== "running" || !this.startedAt) {
-      console.warn("Cannot emit progress if transfer hasn't started already");
-      return;
+      throw new Error("Cannot emit progress if transfer hasn't started already");
     }
 
     const now = Date.now();
@@ -77,20 +77,20 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   }
 
   public cancel() {
-    if (this.state !== "running") {
-      return;
+    if (this.state !== "running" && this.state !== "paused") {
+      throw new Error("Cannot cancel the transfer if it is not currently running or paused");
     }
 
     this.state = "cancelled";
 
-    this.abortController.abort();
+    this.cancelController.abort();
 
     this.emit("cancelled", undefined);
   }
 
   public pause() {
     if (this.state !== "running") {
-      return;
+      throw new Error("Cannot pause the transfer if it is not currently running");
     }
 
     this.state = "paused";
@@ -100,31 +100,35 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   public resume() {
     if (this.state !== "paused") {
-      return;
+      throw new Error("Cannot resume the transfer if it is not currently paused");
     }
 
-    void this.run();
+    void this.run(false);
   }
 
   public start() {
     if (this.state !== "idle") {
-      return;
+      throw new Error("Cannot start the transfer if it is not idling");
     }
 
-    void this.run();
+    void this.run(true);
   }
 
-  private async run() {
+  private async run(firstRun: boolean) {
     this.state = "running";
 
-    this.emit("started", undefined);
+    if (firstRun) {
+      this.emit("started", undefined);
+    } else {
+      this.emit("resumed", undefined);
+    }
 
     this.startedAt = Date.now();
 
     try {
       for await (const rawChunk of this.fileSource.readChunks(
         this.nextChunkIndex,
-        this.abortController.signal,
+        this.cancelController.signal,
       )) {
         if (this.isCancelled() || this.isPaused()) {
           return;
@@ -138,7 +142,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
         this.bytesSent += rawChunk.data.byteLength;
 
-        this.nextChunkIndex++;
+        this.nextChunkIndex = rawChunk.index + 1;
 
         this.emitProgress();
       }
@@ -157,6 +161,10 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.state = "completed";
 
     this.emit("completed", undefined);
+  }
+
+  public getState(): TransferState {
+    return this.state;
   }
 }
 
