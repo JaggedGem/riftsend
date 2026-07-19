@@ -53,7 +53,6 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
   private readonly sendQueue = new FileSendQueue<TransferId>();
   private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
-  private readonly fileMappings = new Map<FileId, TransferId>();
 
   constructor(connection: WebRTCConnection) {
     super();
@@ -165,16 +164,9 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return [file];
     });
 
-    this.sendTransferMappings(message.batchId, acceptedFiles);
+    const transferIds = this.sendTransferMappings(message.batchId, acceptedFiles);
 
-    acceptedFiles.forEach((pendingFile) => {
-      const transferId = this.fileMappings.get(pendingFile.offer.fileId);
-
-      if (!transferId) {
-        console.warn("No transfer id was assigned for this accepted file");
-        return;
-      }
-
+    transferIds.forEach((transferId) => {
       this.sendQueue.enqueue(transferId);
     });
   }
@@ -183,7 +175,9 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  sendTransferMappings(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
+  sendTransferMappings(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]): TransferId[] {
+    const transferIds: TransferId[] = [];
+
     const mappings = acceptedFiles.map((pendingFile) => {
       const mapping = {
         fileId: pendingFile.offer.fileId,
@@ -200,7 +194,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         ),
       );
 
-      this.fileMappings.set(mapping.fileId, mapping.transferId);
+      transferIds.push(mapping.transferId);
 
       return mapping;
     });
@@ -217,6 +211,8 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         "Failed sending the transfer mappings. Make sure that the control channel is open",
       );
     }
+
+    return transferIds;
   }
 
   /**
@@ -244,8 +240,6 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         mapping.transferId,
         new IncomingFileTransfer(this.connection, this.protocolVersion, mapping.transferId),
       );
-
-      this.fileMappings.set(mapping.fileId, mapping.transferId);
     });
   }
 
