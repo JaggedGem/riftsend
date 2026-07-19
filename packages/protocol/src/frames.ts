@@ -2,7 +2,7 @@ import { CHUNK_FORMAT, CHUNK_SIZE, HEADER_SIZE } from "./constants.js";
 
 export const buildChunk = (
   protocolVersion: number,
-  fileId: number,
+  transferId: number,
   chunkIndex: number,
   payload: ArrayBuffer,
 ) => {
@@ -16,7 +16,7 @@ export const buildChunk = (
     );
   }
 
-  if (fileId >= 2 ** 16 || fileId < 0 || !Number.isInteger(fileId)) {
+  if (transferId >= 2 ** 16 || transferId < 0 || !Number.isInteger(transferId)) {
     throw new Error(`File id should be smaller than ${2 ** 16} bytes, not negative and an integer`);
   }
 
@@ -31,7 +31,7 @@ export const buildChunk = (
   const view = new DataView(buffer);
 
   view.setUint8(CHUNK_FORMAT.PROTOCOL_VERSION.offset, protocolVersion);
-  view.setUint16(CHUNK_FORMAT.FILE_ID.offset, fileId);
+  view.setUint16(CHUNK_FORMAT.FILE_ID.offset, transferId);
   view.setUint32(CHUNK_FORMAT.CHUNK_INDEX.offset, chunkIndex);
   view.setUint32(CHUNK_FORMAT.LENGTH.offset, payload.byteLength);
 

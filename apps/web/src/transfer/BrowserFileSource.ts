@@ -1,5 +1,5 @@
 import type { FileId } from "@riftsend/shared";
-import type { FileSource } from "./FileSource.js";
+import type { FileChunk, FileSource } from "./FileSource.js";
 import { CHUNK_SIZE } from "@riftsend/protocol";
 
 export class BrowserFileSource implements FileSource {
@@ -14,8 +14,9 @@ export class BrowserFileSource implements FileSource {
     this.size = file.size;
   }
 
-  async *readChunks(startChunk = 0): AsyncGenerator<Uint8Array> {
+  async *readChunks(startChunk = 0): AsyncGenerator<FileChunk> {
     let byteOffset = startChunk * CHUNK_SIZE;
+    let index = startChunk;
 
     if (byteOffset >= this.file.size) {
       return;
@@ -24,9 +25,10 @@ export class BrowserFileSource implements FileSource {
     while (byteOffset < this.file.size) {
       this.file.slice(byteOffset, byteOffset + CHUNK_SIZE);
 
-      yield new Uint8Array(await this.file.arrayBuffer());
+      yield { index, data: await this.file.arrayBuffer() };
 
       byteOffset += CHUNK_SIZE;
+      index++;
     }
   }
 }

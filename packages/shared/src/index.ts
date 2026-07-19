@@ -44,6 +44,7 @@ export type {
   Room,
   FileId,
   BatchId,
+  TransferId,
 } from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
 
@@ -56,3 +57,4 @@ export const WebRTCPeerErrorCode = _WPEC;
 export type WebRTCPeerErrorCode = (typeof _WPEC)[keyof typeof _WPEC];
 export { getFileId } from "./fileId.js";
 export { getBatchId } from "./batchId.js";
+export { createTransferId } from "./transferId.js";

@@ -1,19 +1,38 @@
 import type { WebRTCConnection } from "@/webrtc/WebRTCConnection.js";
 import {
-  buildChunk,
+  CHUNK_SIZE,
   type BatchOffer,
   type BatchResponse,
+  type BatchTransferMappings,
   type ControlMessage,
   type FileOffer,
+  type TransferStart,
 } from "@riftsend/protocol";
 import { getConfig } from "@/config/config.js";
-import { getBatchId, type BatchId, type FileId } from "@riftsend/shared";
-import { Queue } from "@/queue/Queue.js";
+import {
+  getBatchId,
+  getFileId,
+  type BatchId,
+  type FileId,
+  type TransferId,
+  createTransferId,
+} from "@riftsend/shared";
+import { FileSendQueue } from "./FileSendQueue.js";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
+import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
+import { BrowserFileSource } from "./BrowserFileSource.js";
 
-type FileTransferEvents = {
+type PendingOutgoingFile = {
+  offer: FileOffer;
+  file: File;
+};
+
+type PendingBatch = Map<FileId, PendingOutgoingFile>;
+
+type FileTransferManagerEvents = {
   batchOfferMessage: BatchOffer;
   batchResponseMessage: BatchResponse;
+  batchTransferMappingsMessage: BatchTransferMappings;
 };
 
 /**
@@ -23,18 +42,26 @@ type FileTransferEvents = {
  * over the unordered data channel. Future iterations will add chunked
  * transfer, backpressure, progress tracking, and receiver-side reconstruction.
  */
-export class FileTransferManager extends TypedEventEmitter<FileTransferEvents> {
+export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEvents> {
   private readonly connection: WebRTCConnection;
   private readonly protocolVersion = getConfig().protocolVersion;
-  private readonly batchOffersSent = new Map<BatchId, Map<FileId, FileOffer>>();
+
+  private nextTransferId: TransferId = createTransferId(0);
+
+  private readonly batchOffersSent = new Map<BatchId, PendingBatch>();
   private readonly batchOffersReceived = new Map<BatchId, FileOffer[]>();
-  private readonly sendQueue = new Queue<FileOffer>();
+
+  private readonly sendQueue = new FileSendQueue<TransferId>();
+  private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
+  private readonly fileMappings = new Map<FileId, TransferId>();
 
   constructor(connection: WebRTCConnection) {
     super();
 
     this.connection = connection;
     this.connection.on("controlChannelMessage", this.handleControlChannelMessage);
+
+    this.sendQueue.on("available", this.processSendQueue);
   }
 
   /**
@@ -51,15 +78,41 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferEvents> {
    * the future manifest-based protocol.
    */
 
-  sendBatchOffer(files: FileOffer[]) {
+  private allocateTransferId(): TransferId {
+    const id = this.nextTransferId;
+
+    this.nextTransferId = createTransferId(id + 1);
+
+    return id;
+  }
+
+  offerFiles(files: File[]) {
+    const batchId = getBatchId();
+    const pendingBatch: PendingBatch = new Map();
+
+    const fileOffers: FileOffer[] = files.map((file) => {
+      const offer: FileOffer = {
+        fileId: getFileId(),
+        fileName: file.name,
+        size: file.size,
+        mimeType: file.type,
+        chunkSize: CHUNK_SIZE,
+        totalChunks: Math.ceil(file.size / CHUNK_SIZE),
+      };
+
+      pendingBatch.set(offer.fileId, { offer, file });
+
+      return offer;
+    });
+
+    this.batchOffersSent.set(batchId, pendingBatch);
+
     const batchOffer: BatchOffer = {
       type: "batch-offer",
       protocolVersion: this.protocolVersion,
-      batchId: getBatchId(),
-      files,
+      batchId: batchId,
+      files: fileOffers,
     };
-
-    this.batchOffersSent.set(batchOffer.batchId, new Map(files.map((file) => [file.fileId, file])));
 
     this.connection.sendControl(batchOffer);
   }
@@ -79,9 +132,20 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferEvents> {
         this.handleBatchResponseMessage(message);
         break;
       }
+
+      case "batch-transfer-mappings": {
+        this.emit("batchTransferMappingsMessage", message);
+
+        this.handleTransferMappingsMessage(message);
+      }
     }
   }
 
+  /**
+   * Sender function
+   * @param message
+   * @returns
+   */
   handleBatchResponseMessage(message: BatchResponse) {
     const batchOffer = this.batchOffersSent.get(message.batchId);
 
@@ -101,17 +165,104 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferEvents> {
       return [file];
     });
 
-    this.sendQueue.enqueue(...acceptedFiles);
+    this.sendTransferMappings(message.batchId, acceptedFiles);
+
+    acceptedFiles.forEach((pendingFile) => {
+      const transferId = this.fileMappings.get(pendingFile.offer.fileId);
+
+      if (!transferId) {
+        console.warn("No transfer id was assigned for this accepted file");
+        return;
+      }
+
+      this.sendQueue.enqueue(transferId);
+    });
   }
 
-  sendChunk(
-    protocolVersion: number,
-    fileId: number,
-    chunkIndex: number,
-    payload: ArrayBuffer,
-  ): void {
-    const chunk = buildChunk(protocolVersion, fileId, chunkIndex, payload);
+  /**
+   * Sender function
+   * @param batchId
+   */
+  sendTransferMappings(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
+    const mappings = acceptedFiles.map((pendingFile) => {
+      const mapping = {
+        fileId: pendingFile.offer.fileId,
+        transferId: this.allocateTransferId(),
+      };
 
-    this.connection.sendData(chunk);
+      this.transfers.set(
+        mapping.transferId,
+        new OutgoingFileTransfer(
+          this.connection,
+          this.protocolVersion,
+          new BrowserFileSource(pendingFile.file, mapping.fileId),
+          mapping.transferId,
+        ),
+      );
+
+      this.fileMappings.set(mapping.fileId, mapping.transferId);
+
+      return mapping;
+    });
+
+    const transferMappingsMessage: BatchTransferMappings = {
+      type: "batch-transfer-mappings",
+      protocolVersion: this.protocolVersion,
+      batchId,
+      mappings,
+    };
+
+    if (!this.connection.sendControl(transferMappingsMessage)) {
+      throw new Error(
+        "Failed sending the transfer mappings. Make sure that the control channel is open",
+      );
+    }
+  }
+
+  /**
+   * Receiver function
+   * @param message
+   * @returns
+   */
+  handleTransferMappingsMessage(message: BatchTransferMappings) {
+    const pendingBatch = this.batchOffersReceived.get(message.batchId);
+
+    if (!pendingBatch) {
+      console.warn("The batch reffered to in the transfer mappings was not sent");
+      return;
+    }
+
+    message.mappings.forEach((mapping) => {
+      const incomingFile = pendingBatch;
+
+      if (!incomingFile) {
+        console.warn("No file with the specified file id exists in the referenced batch");
+        return;
+      }
+
+      this.transfers.set(
+        mapping.transferId,
+        new IncomingFileTransfer(this.connection, this.protocolVersion, mapping.transferId),
+      );
+
+      this.fileMappings.set(mapping.fileId, mapping.transferId);
+    });
+  }
+
+  processSendQueue() {
+    const transferId = this.sendQueue.dequeue();
+
+    if (!transferId) {
+      console.warn("Cannot process send queue: queue is empty");
+      return;
+    }
+
+    const fileStartMessage: TransferStart = {
+      type: "transfer-start",
+      protocolVersion: this.protocolVersion,
+      transferId: transferId,
+    };
+
+    this.connection.sendControl(fileStartMessage);
   }
 }

@@ -1,10 +1,21 @@
 import { z } from "zod";
-import { type FileId, type BatchId, CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
+import {
+  type FileId,
+  type BatchId,
+  CONTROL_MESSAGE_TYPES,
+  type TransferId,
+} from "@riftsend/shared";
 import { MAX_CHUNK_SIZE, MAX_FILES_PER_BATCH, MAX_TOTAL_CHUNKS } from "./constants.js";
 
 const FileIdSchema = z.uuidv4().transform((val): FileId => val as FileId);
 
 const BatchIdSchema = z.uuidv4().transform((val): BatchId => val as BatchId);
+
+const TransferIdSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .transform((val): TransferId => val as TransferId);
 
 export const ProtocolVersionSchema = z.union([z.literal(1)]);
 
@@ -52,72 +63,83 @@ export const BatchResponseSchema = z
 
 export type BatchResponse = z.infer<typeof BatchResponseSchema>;
 
-export const FileStartSchema = z
+export const BatchTransferMappingsSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.fileStart),
+    type: z.literal(CONTROL_MESSAGE_TYPES.batchTransferMappings),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    batchId: BatchIdSchema,
+    mappings: z.array(z.object({ fileId: FileIdSchema, transferId: TransferIdSchema }).strict()),
   })
   .strict();
 
-export type FileStart = z.infer<typeof FileStartSchema>;
+export type BatchTransferMappings = z.infer<typeof BatchTransferMappingsSchema>;
 
-export const FilePauseSchema = z
+export const TransferStartSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.filePause),
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferStart),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
-export type FilePause = z.infer<typeof FilePauseSchema>;
+export type TransferStart = z.infer<typeof TransferStartSchema>;
 
-export const FileCancelSchema = z
+export const TransferPauseSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.fileCancel),
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferPause),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
-export type FileCancel = z.infer<typeof FileCancelSchema>;
+export type TransferPause = z.infer<typeof TransferPauseSchema>;
 
-export const FileCompleteSchema = z
+export const TransferCancelSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.fileComplete),
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferCancel),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
-export type FileComplete = z.infer<typeof FileCompleteSchema>;
+export type TransferCancel = z.infer<typeof TransferCancelSchema>;
 
-export const FileVerifiedSchema = z
+export const TransferCompleteSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.fileVerified),
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferComplete),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
-export type FileVerified = z.infer<typeof FileVerifiedSchema>;
+export type TransferComplete = z.infer<typeof TransferCompleteSchema>;
 
-export const FileFailedSchema = z
+export const TransferVerifiedSchema = z
   .object({
-    type: z.literal(CONTROL_MESSAGE_TYPES.fileFailed),
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferVerified),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
+  })
+  .strict();
+
+export type TransferVerified = z.infer<typeof TransferVerifiedSchema>;
+
+export const TransferFailedSchema = z
+  .object({
+    type: z.literal(CONTROL_MESSAGE_TYPES.transferFailed),
+    protocolVersion: ProtocolVersionSchema,
+    transferId: TransferIdSchema,
     reason: z.string(),
   })
   .strict();
 
-export type FileFailed = z.infer<typeof FileFailedSchema>;
+export type TransferFailed = z.infer<typeof TransferFailedSchema>;
 
 export const ResumeRequestSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeRequest),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
@@ -127,7 +149,7 @@ export const ResumeAcceptSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeAccept),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
@@ -137,7 +159,7 @@ export const ResumeDenySchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeDeny),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
   })
   .strict();
 
@@ -158,7 +180,7 @@ export const ResumeResponseSchema = z
   .object({
     type: z.literal(CONTROL_MESSAGE_TYPES.resumeResponse),
     protocolVersion: ProtocolVersionSchema,
-    fileId: FileIdSchema,
+    transferId: TransferIdSchema,
     missingRanges: z.array(MissingRangeSchema),
   })
   .strict();
@@ -175,12 +197,13 @@ export type ResumeResponse = z.infer<typeof ResumeResponseSchema>;
 export const ControlMessageSchema = z.discriminatedUnion("type", [
   BatchOfferSchema,
   BatchResponseSchema,
-  FileStartSchema,
-  FilePauseSchema,
-  FileCancelSchema,
-  FileCompleteSchema,
-  FileVerifiedSchema,
-  FileFailedSchema,
+  BatchTransferMappingsSchema,
+  TransferStartSchema,
+  TransferPauseSchema,
+  TransferCancelSchema,
+  TransferCompleteSchema,
+  TransferVerifiedSchema,
+  TransferFailedSchema,
   ResumeRequestSchema,
   ResumeAcceptSchema,
   ResumeDenySchema,

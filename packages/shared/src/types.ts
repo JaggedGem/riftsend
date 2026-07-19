@@ -46,6 +46,11 @@ export type FileId = string & { readonly __brand: unique symbol };
 export type BatchId = string & { readonly __brand: unique symbol };
 
 /**
+ * Branded number representing a transfer id internally.
+ */
+export type TransferId = number & { readonly __brand: unique symbol };
+
+/**
  * Credentials needed to locate a room on the signaling server.
  */
 export interface RoomCredentials {
