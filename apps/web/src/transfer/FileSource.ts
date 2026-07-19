@@ -10,5 +10,5 @@ export interface FileSource {
   readonly name: string;
   readonly size: number;
 
-  readChunks(startChunk?: number): AsyncGenerator<FileChunk>;
+  readChunks(startChunk?: number, abortSignal?: AbortSignal): AsyncGenerator<FileChunk>;
 }

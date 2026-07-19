@@ -14,7 +14,7 @@ export class BrowserFileSource implements FileSource {
     this.size = file.size;
   }
 
-  async *readChunks(startChunk = 0): AsyncGenerator<FileChunk> {
+  async *readChunks(startChunk = 0, abortSignal?: AbortSignal): AsyncGenerator<FileChunk> {
     let byteOffset = startChunk * CHUNK_SIZE;
     let index = startChunk;
 
@@ -23,7 +23,11 @@ export class BrowserFileSource implements FileSource {
     }
 
     while (byteOffset < this.file.size) {
+      abortSignal?.throwIfAborted();
+
       const binaryChunk = this.file.slice(byteOffset, byteOffset + CHUNK_SIZE);
+
+      abortSignal?.throwIfAborted();
 
       yield { index, data: await binaryChunk.arrayBuffer() };
 
