@@ -85,7 +85,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return id;
   }
 
-  offerFiles(files: File[]) {
+  public offerFiles(files: File[]) {
     const batchId = getBatchId();
     const pendingBatch: PendingBatch = new Map();
 
@@ -116,7 +116,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     this.connection.sendControl(batchOffer);
   }
 
-  handleControlChannelMessage(message: ControlMessage) {
+  private handleControlChannelMessage(message: ControlMessage) {
     switch (message.type) {
       case "batch-offer": {
         this.emit("batchOfferMessage", message);
@@ -145,7 +145,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @param message
    * @returns
    */
-  handleBatchResponseMessage(message: BatchResponse) {
+  private handleBatchResponseMessage(message: BatchResponse) {
     const batchOffer = this.batchOffersSent.get(message.batchId);
 
     if (!batchOffer) {
@@ -175,7 +175,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  sendTransferMappings(
+  private sendTransferMappings(
     batchId: BatchId,
     acceptedFiles: PendingOutgoingFile[],
   ): OutgoingFileTransfer[] {
@@ -222,7 +222,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @param message
    * @returns
    */
-  handleTransferMappingsMessage(message: BatchTransferMappings) {
+  private handleTransferMappingsMessage(message: BatchTransferMappings) {
     const pendingBatch = this.batchOffersReceived.get(message.batchId);
 
     if (!pendingBatch) {
@@ -245,7 +245,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     });
   }
 
-  processSendQueue() {
+  private async processSendQueue() {
     const transfer = this.sendQueue.dequeue();
 
     if (!transfer) {
@@ -259,6 +259,14 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       transferId: transfer.transferId,
     };
 
-    this.connection.sendControl(fileStartMessage);
+    if (!this.connection.sendControl(fileStartMessage)) {
+      console.warn("Cannot send transfer start message. Check if the control channel is open");
+
+      this.sendQueue.enqueue(transfer);
+
+      return;
+    }
+
+    transfer.start();
   }
 }
