@@ -51,7 +51,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   private readonly batchOffersSent = new Map<BatchId, PendingBatch>();
   private readonly batchOffersReceived = new Map<BatchId, FileOffer[]>();
 
-  private readonly sendQueue = new FileSendQueue<TransferId>();
+  private readonly sendQueue = new FileSendQueue<OutgoingFileTransfer>();
   private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
 
   constructor(connection: WebRTCConnection) {
@@ -175,8 +175,11 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  sendTransferMappings(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]): TransferId[] {
-    const transferIds: TransferId[] = [];
+  sendTransferMappings(
+    batchId: BatchId,
+    acceptedFiles: PendingOutgoingFile[],
+  ): OutgoingFileTransfer[] {
+    const transfers: OutgoingFileTransfer[] = [];
 
     const mappings = acceptedFiles.map((pendingFile) => {
       const mapping = {
@@ -184,17 +187,16 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         transferId: this.allocateTransferId(),
       };
 
-      this.transfers.set(
+      const outgoingFileTransfer = new OutgoingFileTransfer(
+        this.connection,
+        this.protocolVersion,
+        new BrowserFileSource(pendingFile.file, mapping.fileId),
         mapping.transferId,
-        new OutgoingFileTransfer(
-          this.connection,
-          this.protocolVersion,
-          new BrowserFileSource(pendingFile.file, mapping.fileId),
-          mapping.transferId,
-        ),
       );
 
-      transferIds.push(mapping.transferId);
+      this.transfers.set(mapping.transferId, outgoingFileTransfer);
+
+      transfers.push(outgoingFileTransfer);
 
       return mapping;
     });
@@ -212,7 +214,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       );
     }
 
-    return transferIds;
+    return transfers;
   }
 
   /**
@@ -244,9 +246,9 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   }
 
   processSendQueue() {
-    const transferId = this.sendQueue.dequeue();
+    const transfer = this.sendQueue.dequeue();
 
-    if (!transferId) {
+    if (!transfer) {
       console.warn("Cannot process send queue: queue is empty");
       return;
     }
@@ -254,7 +256,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     const fileStartMessage: TransferStart = {
       type: "transfer-start",
       protocolVersion: this.protocolVersion,
-      transferId: transferId,
+      transferId: transfer.transferId,
     };
 
     this.connection.sendControl(fileStartMessage);

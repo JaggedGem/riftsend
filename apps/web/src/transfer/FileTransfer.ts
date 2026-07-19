@@ -25,7 +25,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     private readonly connection: WebRTCConnection,
     private readonly protocolVersion: number,
     private readonly fileSource: FileSource,
-    private readonly transferId: TransferId,
+    public readonly transferId: TransferId,
   ) {
     super();
   }
@@ -47,7 +47,7 @@ export class IncomingFileTransfer extends TypedEventEmitter<IncomingFileTransfer
   constructor(
     private readonly connection: WebRTCConnection,
     private readonly protocolVersion: number,
-    private readonly transferId: TransferId,
+    public readonly transferId: TransferId,
   ) {
     super();
   }
