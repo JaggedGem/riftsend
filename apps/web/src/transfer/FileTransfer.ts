@@ -4,23 +4,20 @@ import type { FileSource } from "./FileSource";
 import { buildChunk } from "@riftsend/protocol";
 import type { TransferId } from "@riftsend/shared";
 
-type OutgoingFileTransferEvents = {
+type FileTransferEvents = {
   started: void;
   progress: { bytesSent: number; totalBytes: number; bytesPerSecond: number };
   completed: void;
   failed: { error: Error };
   cancelled: void;
+  paused: void;
 };
 
-type IncomingFileTransferEvents = {
-  started: void;
-  progress: { bytesSent: number; totalBytes: number };
-  completed: void;
-  failed: { error: Error };
-  cancelled: void;
-};
+type OutgoingFileTransferEvents = FileTransferEvents & {};
 
-type TransferState = "idle" | "running" | "completed" | "failed" | "cancelled";
+type IncomingFileTransferEvents = FileTransferEvents & {};
+
+type TransferState = "idle" | "running" | "completed" | "failed" | "cancelled" | "paused";
 
 const PROGRESS_EVENTS_DELAY = 250 as const;
 
@@ -30,6 +27,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private lastProgressEmit = 0;
   private abortController = new AbortController();
   private startedAt: number | undefined;
+  private nextChunkIndex = 0;
 
   constructor(
     private readonly connection: WebRTCConnection,
@@ -48,6 +46,10 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   private isCancelled(): boolean {
     return this.state === "cancelled";
+  }
+
+  private isPaused(): boolean {
+    return this.state === "paused";
   }
 
   private emitProgress() {
@@ -86,11 +88,33 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.emit("cancelled", undefined);
   }
 
-  public async start() {
-    if (this.state !== "idle") {
-      throw new Error("Cannot start transfer if not currently idling");
+  public pause() {
+    if (this.state !== "running") {
+      return;
     }
 
+    this.state = "paused";
+
+    this.emit("paused", undefined);
+  }
+
+  public resume() {
+    if (this.state !== "paused") {
+      return;
+    }
+
+    void this.run();
+  }
+
+  public start() {
+    if (this.state !== "idle") {
+      return;
+    }
+
+    void this.run();
+  }
+
+  private async run() {
     this.state = "running";
 
     this.emit("started", undefined);
@@ -98,8 +122,11 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.startedAt = Date.now();
 
     try {
-      for await (const rawChunk of this.fileSource.readChunks(0, this.abortController.signal)) {
-        if (this.isCancelled()) {
+      for await (const rawChunk of this.fileSource.readChunks(
+        this.nextChunkIndex,
+        this.abortController.signal,
+      )) {
+        if (this.isCancelled() || this.isPaused()) {
           return;
         }
 
@@ -110,6 +137,8 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
         }
 
         this.bytesSent += rawChunk.data.byteLength;
+
+        this.nextChunkIndex++;
 
         this.emitProgress();
       }
