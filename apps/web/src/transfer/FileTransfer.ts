@@ -6,7 +6,7 @@ import type { TransferId } from "@riftsend/shared";
 
 type OutgoingFileTransferEvents = {
   started: void;
-  progress: { bytesSent: number; totalBytes: number };
+  progress: { bytesSent: number; totalBytes: number; bytesPerSecond: number };
   completed: void;
   failed: { error: Error };
   cancelled: void;
@@ -29,6 +29,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private bytesSent: number = 0;
   private lastProgressEmit = 0;
   private abortController = new AbortController();
+  private startedAt: number | undefined;
 
   constructor(
     private readonly connection: WebRTCConnection,
@@ -50,6 +51,11 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   }
 
   private emitProgress() {
+    if (this.state !== "running" || !this.startedAt) {
+      console.warn("Cannot emit progress if transfer hasn't started already");
+      return;
+    }
+
     const now = Date.now();
 
     if (now - this.lastProgressEmit < PROGRESS_EVENTS_DELAY) {
@@ -58,7 +64,14 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     this.lastProgressEmit = now;
 
-    this.emit("progress", { bytesSent: this.bytesSent, totalBytes: this.fileSource.size });
+    const elapsed = (now - this.startedAt) / 1000;
+    const bytesPerSecond = this.bytesSent / elapsed;
+
+    this.emit("progress", {
+      bytesSent: this.bytesSent,
+      totalBytes: this.fileSource.size,
+      bytesPerSecond,
+    });
   }
 
   public cancel() {
@@ -81,6 +94,8 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.state = "running";
 
     this.emit("started", undefined);
+
+    this.startedAt = Date.now();
 
     try {
       for await (const rawChunk of this.fileSource.readChunks(0, this.abortController.signal)) {
