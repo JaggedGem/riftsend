@@ -42,11 +42,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private sendChunk(chunkIndex: number, payload: ArrayBuffer): boolean {
     const chunk = buildChunk(this.protocolVersion, this.transferId, chunkIndex, payload);
 
-    if (!this.connection.sendData(chunk)) {
-      return false;
-    }
-
-    return true;
+    return this.connection.sendData(chunk);
   }
 
   private isCancelled(): boolean {
