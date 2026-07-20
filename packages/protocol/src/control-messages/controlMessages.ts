@@ -4,11 +4,6 @@ import {
   BatchOfferSchema,
   BatchResponseSchema,
   BatchTransferMappingsSchema,
-
-  // Reliable message schemas
-  BatchOfferMessageSchema,
-  BatchResponseMessageSchema,
-  BatchTransferMappingsMessageSchema,
 } from "./negotiationMessages.js";
 import {
   // Raw message schemas
@@ -21,17 +16,6 @@ import {
   TransferCompleteSchema,
   TransferVerifiedSchema,
   TransferFailedSchema,
-
-  // Reliable message schemas
-  TransferStartMessageSchema,
-  TransferPauseMessageSchema,
-  TransferPausedMessageSchema,
-  TransferCancelMessageSchema,
-  TransferResumeMessageSchema,
-  TransferResumedMessageSchema,
-  TransferCompleteMessageSchema,
-  TransferVerifiedMessageSchema,
-  TransferFailedMessageSchema,
 } from "./transferMessages.js";
 import {
   RecoveryRequestSchema,
@@ -39,6 +23,8 @@ import {
   RecoveryDenySchema,
   RecoveryResponseSchema,
 } from "./recoveryMessages.js";
+import { withMessageId } from "./messageHelpers.js";
+import { AckMessageSchema } from "./reliabilityMessages.js";
 
 /**
  * Discriminated union of all valid control channel messages.
@@ -69,24 +55,33 @@ export const ControlMessageSchema = z.discriminatedUnion("type", [
   RecoveryAcceptSchema,
   RecoveryDenySchema,
   RecoveryResponseSchema,
+
+  // Reliability messages
+  AckMessageSchema,
 ]);
 export type ControlMessage = z.infer<typeof ControlMessageSchema>;
 
 export const ReliableControlMessageSchema = z.discriminatedUnion("type", [
   // Negotiation messages
-  BatchOfferMessageSchema,
-  BatchResponseMessageSchema,
-  BatchTransferMappingsMessageSchema,
+  withMessageId(BatchOfferSchema),
+  withMessageId(BatchResponseSchema),
+  withMessageId(BatchTransferMappingsSchema),
 
   // Transfer lifecycle messages
-  TransferStartMessageSchema,
-  TransferPauseMessageSchema,
-  TransferPausedMessageSchema,
-  TransferCancelMessageSchema,
-  TransferResumeMessageSchema,
-  TransferResumedMessageSchema,
-  TransferCompleteMessageSchema,
-  TransferVerifiedMessageSchema,
-  TransferFailedMessageSchema,
+  withMessageId(TransferStartSchema),
+  withMessageId(TransferPauseSchema),
+  withMessageId(TransferPausedSchema),
+  withMessageId(TransferCancelSchema),
+  withMessageId(TransferResumeSchema),
+  withMessageId(TransferResumedSchema),
+  withMessageId(TransferCompleteSchema),
+  withMessageId(TransferVerifiedSchema),
+  withMessageId(TransferFailedSchema),
 ]);
 export type ReliableControlMessage = z.infer<typeof ReliableControlMessageSchema>;
+
+export const AnyControlMessageSchema = z.union([
+  ReliableControlMessageSchema,
+  ControlMessageSchema,
+]);
+export type AnyControlMessage = z.infer<typeof AnyControlMessageSchema>;

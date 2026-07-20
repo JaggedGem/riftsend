@@ -21,6 +21,7 @@ import { FileSendQueue } from "./FileSendQueue.js";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
 import { BrowserFileSource } from "./BrowserFileSource.js";
+import { ControlTransport } from "@/transport/ControlTransport.js";
 
 type PendingOutgoingFile = {
   offer: FileOffer;
@@ -54,11 +55,20 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   private readonly sendQueue = new FileSendQueue<OutgoingFileTransfer>();
   private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
 
+  private readonly controlTransport: ControlTransport;
+
   constructor(connection: WebRTCConnection) {
     super();
 
     this.connection = connection;
-    this.connection.on("controlChannelMessage", this.handleControlChannelMessage);
+
+    this.controlTransport = new ControlTransport(
+      this.protocolVersion,
+      this.connection.sendControl,
+      this.handleControlChannelMessage,
+    );
+
+    this.connection.on("controlChannelMessage", this.controlTransport.handleMessage);
 
     this.sendQueue.on("available", this.processSendQueue);
   }

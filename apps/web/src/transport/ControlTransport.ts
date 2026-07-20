@@ -1,8 +1,11 @@
 import { getConfig } from "@/config/config";
 import {
   ReliableControlMessageSchema,
+  type AckMessage,
   type ControlMessage,
   type ReliableControlMessage,
+  type AnyControlMessage,
+  type ProtocolVersion,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
 
@@ -15,13 +18,26 @@ type PendingMessage = {
   reject?: (error: Error) => void;
 };
 
+const hasMessageId = (message: AnyControlMessage): message is ReliableControlMessage => {
+  return "messageId" in message;
+};
+
+const stripMessageId = (message: ReliableControlMessage): ControlMessage => {
+  const { messageId, ...rest } = message;
+  return rest as ControlMessage;
+};
+
 export class ControlTransport {
   private readonly config;
   private nextMessageId = createMessageId(0);
   private readonly pendingMessages = new Map<MessageId, PendingMessage>();
   private retryTimer: number | undefined = undefined;
 
-  constructor(private readonly sendRaw: (message: unknown) => boolean) {
+  constructor(
+    private readonly protocolVersion: ProtocolVersion,
+    private readonly sendRaw: (message: unknown) => boolean,
+    private readonly onMessage: (message: ControlMessage) => void,
+  ) {
     this.config = getConfig();
   }
 
@@ -67,10 +83,14 @@ export class ControlTransport {
     });
   }
 
-  public acknowledgeMessage(messageId: MessageId) {
-    if (!this.pendingMessages.delete(messageId)) {
+  public handleAckMessage(message: AckMessage) {
+    if (!this.pendingMessages.delete(message.acknowledgedMessageId)) {
       console.warn("The message id provided was not found as a pending message");
       return;
+    }
+
+    if (this.pendingMessages.size === 0) {
+      clearInterval(this.retryTimer);
     }
   }
 
@@ -111,6 +131,37 @@ export class ControlTransport {
       this.pendingMessages.delete(messageId);
 
       throw new Error("Error occured while resending reliable message through the channel");
+    }
+  }
+
+  public handleMessage(message: AnyControlMessage) {
+    if (message.type === "ack") {
+      this.handleAckMessage(message);
+      return;
+    }
+
+    if (hasMessageId(message)) {
+      this.handleReliableMessage(message);
+    } else {
+      this.onMessage(message);
+    }
+  }
+
+  private handleReliableMessage(message: ReliableControlMessage) {
+    this.sendAckMessage(message.messageId);
+
+    this.onMessage(stripMessageId(message));
+  }
+
+  private sendAckMessage(acknowledgedMessageId: MessageId) {
+    const ackMessage: AckMessage = {
+      type: "ack",
+      protocolVersion: this.protocolVersion,
+      acknowledgedMessageId,
+    };
+
+    if (!this.sendRaw(ackMessage)) {
+      throw new Error("Could not send ACK message for " + acknowledgedMessageId);
     }
   }
 }

@@ -1,6 +1,6 @@
 import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "@/signaling/SignalingClient.js";
-import { ControlMessageSchema, type ControlMessage } from "@riftsend/protocol";
+import { AnyControlMessageSchema, type AnyControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 
 /**
@@ -36,7 +36,7 @@ type WebRTCConnectionEvents = {
   dataChannelMessage: unknown;
   dataChannelClose: void;
   controlChannelOpen: RTCDataChannel;
-  controlChannelMessage: ControlMessage;
+  controlChannelMessage: AnyControlMessage;
   controlChannelClose: void;
   connectionStateChange: RTCIceConnectionState;
   iceConnectionStateChange: RTCIceConnectionState;
@@ -415,7 +415,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   }
 
   private handleControlChannelMessage(data: unknown): void {
-    const message = ControlMessageSchema.safeParse(data);
+    const message = AnyControlMessageSchema.safeParse(data);
 
     if (!message.success) {
       console.warn("Received unknown control channel message");

@@ -7,7 +7,6 @@ import {
   TransferIdSchema,
 } from "./fieldSchemas.js";
 import { CONTROL_MESSAGE_TYPES } from "@riftsend/shared";
-import { withMessageId, withRequestId } from "./messageHelpers.js";
 
 /**
  * Schema that defines a file offer used in messages (metadata)
@@ -47,14 +46,6 @@ export const BatchOfferSchema = z
 export type BatchOffer = z.infer<typeof BatchOfferSchema>;
 
 /**
- * Reliable version of the batch offer message ({@link BatchOfferSchema})
- *
- * Contains a connection-dependent message id ({@link MessageIdSchema}) which identifies the message for ACK messages
- */
-export const BatchOfferMessageSchema = withMessageId(BatchOfferSchema);
-export type BatchOfferMessage = z.infer<typeof BatchOfferMessageSchema>;
-
-/**
  * Negotiation response sent by the receiver
  *
  * Contains an array of the accepted file ids ({@link FileIdSchema}) identified by the same batch id ({@link BatchIdSchema}) as in the batch offer
@@ -70,14 +61,6 @@ export const BatchResponseSchema = z
 export type BatchResponse = z.infer<typeof BatchResponseSchema>;
 
 /**
- * Reliable version of the batch response message ({@link BatchResponseSchema})
- *
- * Contains a connection-dependent message id ({@link MessageIdSchema}) which identifies the message for ACK messages and a request id ({@link MessageIdSchema}) which represents a connection between the offer ({@link BatchOfferMessageSchema}) and the response ({@link BatchResponseMessageSchema})
- */
-export const BatchResponseMessageSchema = withRequestId(withMessageId(BatchResponseSchema));
-export type BatchResponseMessage = z.infer<typeof BatchResponseMessageSchema>;
-
-/**
  * Mapping message sent by the sender
  *
  * Contains an array of mappings each made from an accepted file id ({@link FileIdSchema}) and an assigned transfer id ({@link TransferIdSchema})
@@ -91,11 +74,3 @@ export const BatchTransferMappingsSchema = z
   })
   .strict();
 export type BatchTransferMappings = z.infer<typeof BatchTransferMappingsSchema>;
-
-/**
- * Reliable version of the transfer mappings message ({@link BatchTransferMappingsSchema})
- *
- * Contains a connection-dependent message id ({@link MessageIdSchema}) which identifies the message for ACK messages
- */
-export const BatchTransferMappingsMessageSchema = withMessageId(BatchTransferMappingsSchema);
-export type BatchTransferMappingsMessage = z.infer<typeof BatchTransferMappingsMessageSchema>;
