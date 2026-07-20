@@ -34,3 +34,4 @@ export * from "./control-messages/fieldSchemas.js";
 export * from "./control-messages/negotiationMessages.js";
 export * from "./control-messages/transferMessages.js";
 export * from "./control-messages/recoveryMessages.js";
+export * from "./control-messages/reliabilityMessages.js";

@@ -59,3 +59,4 @@ export type WebRTCPeerErrorCode = (typeof _WPEC)[keyof typeof _WPEC];
 export { getFileId } from "./fileId.js";
 export { getBatchId } from "./batchId.js";
 export { createTransferId } from "./transferId.js";
+export { createMessageId } from "./messageId.js";

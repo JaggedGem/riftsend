@@ -1,10 +1,17 @@
 import { z } from "zod";
 import {
+  // Raw message schemas
   BatchOfferSchema,
   BatchResponseSchema,
   BatchTransferMappingsSchema,
+
+  // Reliable message schemas
+  BatchOfferMessageSchema,
+  BatchResponseMessageSchema,
+  BatchTransferMappingsMessageSchema,
 } from "./negotiationMessages.js";
 import {
+  // Raw message schemas
   TransferStartSchema,
   TransferPauseSchema,
   TransferPausedSchema,
@@ -14,6 +21,17 @@ import {
   TransferCompleteSchema,
   TransferVerifiedSchema,
   TransferFailedSchema,
+
+  // Reliable message schemas
+  TransferStartMessageSchema,
+  TransferPauseMessageSchema,
+  TransferPausedMessageSchema,
+  TransferCancelMessageSchema,
+  TransferResumeMessageSchema,
+  TransferResumedMessageSchema,
+  TransferCompleteMessageSchema,
+  TransferVerifiedMessageSchema,
+  TransferFailedMessageSchema,
 } from "./transferMessages.js";
 import {
   RecoveryRequestSchema,
@@ -52,5 +70,23 @@ export const ControlMessageSchema = z.discriminatedUnion("type", [
   RecoveryDenySchema,
   RecoveryResponseSchema,
 ]);
-
 export type ControlMessage = z.infer<typeof ControlMessageSchema>;
+
+export const ReliableControlMessageSchema = z.discriminatedUnion("type", [
+  // Negotiation messages
+  BatchOfferMessageSchema,
+  BatchResponseMessageSchema,
+  BatchTransferMappingsMessageSchema,
+
+  // Transfer lifecycle messages
+  TransferStartMessageSchema,
+  TransferPauseMessageSchema,
+  TransferPausedMessageSchema,
+  TransferCancelMessageSchema,
+  TransferResumeMessageSchema,
+  TransferResumedMessageSchema,
+  TransferCompleteMessageSchema,
+  TransferVerifiedMessageSchema,
+  TransferFailedMessageSchema,
+]);
+export type ReliableControlMessage = z.infer<typeof ReliableControlMessageSchema>;

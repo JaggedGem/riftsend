@@ -221,4 +221,5 @@ export const CONTROL_MESSAGE_TYPES = {
   recoveryAccept: "recovery-accept",
   recoveryDeny: "recovery-deny",
   recoveryResponse: "recovery-response",
+  acknowledgement: "ack",
 } as const;

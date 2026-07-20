@@ -37,25 +37,31 @@ let _config: {
   clientPlatform: string;
   supportResume: boolean;
   supportChunkAck: boolean;
+  ackTimeout: number;
+  retryCheckInterval: number;
+  maxRetries: number;
+  maxRetryDelay: number;
 } | null = null;
 
 /**
  * Returns the singleton app configuration, populated from Vite environment variables.
  *
- * Reads `VITE_SIGNALING_*` vars on first call and caches the result for subsequent calls.
+ * Reads `VITE_*` vars on first call and caches the result for subsequent calls.
  */
 export const getConfig = () => {
   if (!_config) {
     _config = {
-      signalingUrl: requireEnv("VITE_SIGNALING_SERVER_URL"),
-      protocolVersion: ProtocolVersionSchema.parse(
-        parseInt(requireEnv("VITE_PROTOCOL_VERSION"), 10),
-      ),
-      clientVersion: requireEnv("VITE_SIGNALING_CLIENT_VERSION"),
-      clientName: requireEnv("VITE_SIGNALING_CLIENT_NAME"),
-      clientPlatform: requireEnv("VITE_SIGNALING_CLIENT_PLATFORM"),
-      supportResume: requireBooleanEnv("VITE_SIGNALING_CLIENT_SUPPORT_RESUME"),
-      supportChunkAck: requireBooleanEnv("VITE_SIGNALING_CLIENT_SUPPORT_CHUNK_ACK"),
+      signalingUrl: requireEnv("SIGNALING_SERVER_URL"),
+      protocolVersion: ProtocolVersionSchema.parse(parseInt(requireEnv("PROTOCOL_VERSION"), 10)),
+      clientVersion: requireEnv("SIGNALING_CLIENT_VERSION"),
+      clientName: requireEnv("SIGNALING_CLIENT_NAME"),
+      clientPlatform: requireEnv("SIGNALING_CLIENT_PLATFORM"),
+      supportResume: requireBooleanEnv("SIGNALING_CLIENT_SUPPORT_RESUME"),
+      supportChunkAck: requireBooleanEnv("SIGNALING_CLIENT_SUPPORT_CHUNK_ACK"),
+      ackTimeout: parseInt(requireEnv("ACK_TIMEOUT")),
+      retryCheckInterval: parseInt(requireEnv("RETRY_CHECK_INTERVAL")),
+      maxRetries: parseInt(requireEnv("MAX_RETRIES")),
+      maxRetryDelay: parseInt(requireEnv("MAX_RETRY_DELAY")),
     };
   }
   return _config;
