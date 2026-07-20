@@ -30,6 +30,7 @@ export * from "./signaling-messages/serverMessages.js";
 
 // Control messages
 export * from "./control-messages/controlMessages.js";
+export * from "./control-messages/fieldSchemas.js";
 export * from "./control-messages/negotiationMessages.js";
 export * from "./control-messages/transferMessages.js";
 export * from "./control-messages/recoveryMessages.js";
