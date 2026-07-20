@@ -51,6 +51,11 @@ export type BatchId = string & { readonly __brand: unique symbol };
 export type TransferId = number & { readonly __brand: unique symbol };
 
 /**
+ * Branded number representing a message id internally for ACK.
+ */
+export type MessageId = number & { readonly __brand: unique symbol };
+
+/**
  * Credentials needed to locate a room on the signaling server.
  */
 export interface RoomCredentials {

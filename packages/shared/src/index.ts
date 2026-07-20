@@ -45,6 +45,7 @@ export type {
   FileId,
   BatchId,
   TransferId,
+  MessageId,
 } from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
 
