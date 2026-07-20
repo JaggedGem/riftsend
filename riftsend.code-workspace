@@ -1,0 +1,32 @@
+{
+  "folders": [
+    {
+      "name": "RiftSend Root",
+      "path": ".",
+    },
+    {
+      "name": "Web App",
+      "path": "apps/web",
+    },
+    {
+      "name": "Signaling Server",
+      "path": "apps/signaling",
+    },
+    {
+      "name": "Protocol Package",
+      "path": "packages/protocol",
+    },
+    {
+      "name": "Shared Package",
+      "path": "packages/shared",
+    },
+  ],
+  "settings": {
+    "js/ts.tsdk.path": "node_modules/typescript7/lib",
+    "eslint.workingDirectories": [
+      {
+        "mode": "auto",
+      },
+    ],
+  },
+}
