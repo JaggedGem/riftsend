@@ -14,8 +14,8 @@ type PendingMessage = {
   sentAt: DOMHighResTimeStamp;
   retryCount: number;
   nextRetryAt: number;
-  resolve?: (value: MessageId) => void;
-  reject?: (error: Error) => void;
+  resolve: (value: MessageId) => void;
+  reject: (error: Error) => void;
 };
 
 const hasMessageId = (message: AnyControlMessage): message is ReliableControlMessage => {
@@ -39,10 +39,21 @@ export class ControlTransport {
     private readonly onMessage: (message: ControlMessage) => void,
   ) {
     this.config = getConfig();
+
+    this.scheduleCheck();
   }
+
+  private scheduleCheck = () => {
+    this.retryTimer = setTimeout(() => {
+      this.checkPendingMessages();
+      this.scheduleCheck();
+    }, this.config.retryCheckInterval);
+  };
 
   public async sendReliable<T extends ControlMessage>(message: T) {
     const messageId = this.nextMessageId;
+    let resolve!: (value: MessageId) => void;
+    let reject!: (error: Error) => void;
 
     const reliableMessage = ReliableControlMessageSchema.parse({
       ...message,
@@ -53,13 +64,18 @@ export class ControlTransport {
 
     const sentAt = performance.now();
 
-    const wasEmpty = this.pendingMessages.size === 0;
+    const promise = new Promise<MessageId>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
 
     const pendingMessage: PendingMessage = {
       message: reliableMessage,
       sentAt,
       retryCount: 0,
       nextRetryAt: sentAt + this.config.ackTimeout,
+      resolve,
+      reject,
     };
 
     this.pendingMessages.set(messageId, pendingMessage);
@@ -70,20 +86,19 @@ export class ControlTransport {
       throw new Error("Error occured while sending reliable message through the channel");
     }
 
-    return new Promise<MessageId>((resolve, reject) => {
-      this.pendingMessages.set(messageId, {
-        ...pendingMessage,
-        resolve,
-        reject,
-      });
-
-      if (wasEmpty) {
-        this.retryTimer = setInterval(this.checkPendingMessages, this.config.retryCheckInterval);
-      }
-    });
+    return promise;
   }
 
   public handleAckMessage(message: AckMessage) {
+    const acknowledgedMessage = this.pendingMessages.get(message.acknowledgedMessageId);
+
+    if (!acknowledgedMessage) {
+      console.warn("Couldn't find the pending message the ACK message was acknowledging");
+      return;
+    }
+
+    acknowledgedMessage.resolve(message.acknowledgedMessageId);
+
     if (!this.pendingMessages.delete(message.acknowledgedMessageId)) {
       console.warn("The message id provided was not found as a pending message");
       return;
@@ -102,12 +117,22 @@ export class ControlTransport {
         if (pendingMessage.retryCount + 1 > this.config.maxRetries) {
           this.pendingMessages.delete(messageId);
 
-          throw new Error(
+          const error = new Error(
             `Sending the message ${messageId} failed after ${this.config.maxRetries}`,
           );
+
+          pendingMessage.reject(error);
         }
 
-        this.retrySend(messageId);
+        try {
+          this.retrySend(messageId);
+        } catch (error) {
+          if (error instanceof Error) {
+            pendingMessage.reject(error);
+          } else {
+            pendingMessage.reject(new Error("An unknown error occured"));
+          }
+        }
       }
     });
   }
