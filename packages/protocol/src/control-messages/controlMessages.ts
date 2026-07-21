@@ -85,3 +85,9 @@ export const AnyControlMessageSchema = z.union([
   ControlMessageSchema,
 ]);
 export type AnyControlMessage = z.infer<typeof AnyControlMessageSchema>;
+
+export const reliableTypeNames = new Set<string>(
+  ReliableControlMessageSchema.options.map((reliableMessage) => reliableMessage.shape.type.value),
+);
+
+export type ReliableTypeName = ReliableControlMessage["type"];

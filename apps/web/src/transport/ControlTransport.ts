@@ -6,6 +6,8 @@ import {
   type ReliableControlMessage,
   type AnyControlMessage,
   type ProtocolVersion,
+  type ReliableTypeName,
+  reliableTypeNames,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
 
@@ -25,6 +27,12 @@ const hasMessageId = (message: AnyControlMessage): message is ReliableControlMes
 const stripMessageId = (message: ReliableControlMessage): ControlMessage => {
   const { messageId, ...rest } = message;
   return rest as ControlMessage;
+};
+
+const isReliableMessage = (
+  message: ControlMessage,
+): message is Extract<ControlMessage, { type: ReliableTypeName }> => {
+  return reliableTypeNames.has(message.type);
 };
 
 export class ControlTransport {
@@ -51,9 +59,20 @@ export class ControlTransport {
     }, this.config.retryCheckInterval);
   };
 
-  public async sendReliable<T extends ControlMessage>(message: T) {
+  public send(message: Extract<ControlMessage, { type: ReliableTypeName }>): Promise<MessageId>;
+  public send(message: Exclude<ControlMessage, { type: ReliableTypeName }>): boolean;
+  public send(message: ControlMessage): Promise<MessageId> | boolean {
+    if (isReliableMessage(message)) {
+      return this.sendReliable(message);
+    }
+    return this.sendRaw(message);
+  }
+
+  private async sendReliable(
+    message: Extract<ControlMessage, { type: ReliableTypeName }>,
+  ): Promise<MessageId> {
     if (this.isDisposed) {
-      return new Promise<void>((resolve, reject) =>
+      return new Promise<MessageId>((_resolve, reject) =>
         reject(new Error("Object is already disposed")),
       );
     }
