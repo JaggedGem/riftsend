@@ -142,7 +142,7 @@ export class ControlTransport {
   }
 
   private checkPendingMessages() {
-    const now = Date.now();
+    const now = performance.now();
 
     this.pendingMessages.forEach((pendingMessage, messageId) => {
       if (now >= pendingMessage.nextRetryAt) {
