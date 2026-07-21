@@ -32,6 +32,7 @@ export class ControlTransport {
   private nextMessageId = createMessageId(0);
   private readonly pendingMessages = new Map<MessageId, PendingMessage>();
   private retryTimer: number | undefined = undefined;
+  private isDisposed = false;
 
   constructor(
     private readonly protocolVersion: ProtocolVersion,
@@ -51,6 +52,12 @@ export class ControlTransport {
   };
 
   public async sendReliable<T extends ControlMessage>(message: T) {
+    if (this.isDisposed) {
+      return new Promise<void>((resolve, reject) =>
+        reject(new Error("Object is already disposed")),
+      );
+    }
+
     const messageId = this.nextMessageId;
     let resolve!: (value: MessageId) => void;
     let reject!: (error: Error) => void;
@@ -89,7 +96,7 @@ export class ControlTransport {
     return promise;
   }
 
-  public handleAckMessage(message: AckMessage) {
+  private handleAckMessage(message: AckMessage) {
     const acknowledgedMessage = this.pendingMessages.get(message.acknowledgedMessageId);
 
     if (!acknowledgedMessage) {
@@ -102,10 +109,6 @@ export class ControlTransport {
     if (!this.pendingMessages.delete(message.acknowledgedMessageId)) {
       console.warn("The message id provided was not found as a pending message");
       return;
-    }
-
-    if (this.pendingMessages.size === 0) {
-      clearInterval(this.retryTimer);
     }
   }
 
@@ -160,6 +163,10 @@ export class ControlTransport {
   }
 
   public handleMessage(message: AnyControlMessage) {
+    if (this.isDisposed) {
+      throw new Error("Object is already disposed");
+    }
+
     if (message.type === "ack") {
       this.handleAckMessage(message);
       return;
@@ -188,5 +195,19 @@ export class ControlTransport {
     if (!this.sendRaw(ackMessage)) {
       throw new Error("Could not send ACK message for " + acknowledgedMessageId);
     }
+  }
+
+  public dispose() {
+    if (this.isDisposed) {
+      return;
+    }
+
+    clearTimeout(this.retryTimer);
+
+    this.pendingMessages.forEach((pendingMessage) => {
+      pendingMessage.reject(new Error("Transport disposed before the ACK was received"));
+    });
+
+    this.pendingMessages.clear();
   }
 }
