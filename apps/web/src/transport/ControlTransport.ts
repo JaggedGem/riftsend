@@ -41,6 +41,7 @@ export class ControlTransport {
   private readonly pendingMessages = new Map<MessageId, PendingMessage>();
   private retryTimer: number | undefined = undefined;
   private isDisposed = false;
+  private readonly seenMessageIds = new Set<MessageId>();
 
   constructor(
     private readonly protocolVersion: ProtocolVersion,
@@ -209,7 +210,13 @@ export class ControlTransport {
   }
 
   private handleReliableMessage(message: ReliableControlMessage) {
+    if (this.seenMessageIds.has(message.messageId)) {
+      return;
+    }
+
     this.sendAckMessage(message.messageId);
+
+    this.seenMessageIds.add(message.messageId);
 
     this.onMessage(stripMessageId(message));
   }
