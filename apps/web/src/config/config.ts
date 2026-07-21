@@ -41,6 +41,7 @@ let _config: {
   retryCheckInterval: number;
   maxRetries: number;
   maxRetryDelay: number;
+  maxPendingMessages: number;
 } | null = null;
 
 /**
@@ -62,6 +63,7 @@ export const getConfig = () => {
       retryCheckInterval: parseInt(requireEnv("RETRY_CHECK_INTERVAL")),
       maxRetries: parseInt(requireEnv("MAX_RETRIES")),
       maxRetryDelay: parseInt(requireEnv("MAX_RETRY_DELAY")),
+      maxPendingMessages: parseInt(requireEnv("MAX_PENDING_MESSAGES")),
     };
   }
   return _config;

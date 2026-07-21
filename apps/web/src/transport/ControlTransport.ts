@@ -77,6 +77,16 @@ export class ControlTransport {
       );
     }
 
+    if (this.pendingMessages.size >= this.config.maxPendingMessages) {
+      return new Promise<MessageId>((_resolve, reject) =>
+        reject(
+          new Error(
+            `Cannot send message: ${this.pendingMessages.size} messages already pending (max ${this.config.maxPendingMessages}). Retry shortly`,
+          ),
+        ),
+      );
+    }
+
     const messageId = this.nextMessageId;
     let resolve!: (value: MessageId) => void;
     let reject!: (error: Error) => void;
