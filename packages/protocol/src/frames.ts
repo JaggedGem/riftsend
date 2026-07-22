@@ -10,28 +10,28 @@ export const buildChunk = (
   if (payload.byteLength > CHUNK_FORMAT.PAYLOAD.size) {
     throw new FrameValidationError(
       FrameValidationErrorCode.CHUNK_TOO_LARGE,
-      `Chunk should be smaller than ${CHUNK_SIZE} bytes`,
+      `Chunk must be <= ${CHUNK_SIZE} bytes, got ${payload.byteLength}`,
     );
   }
 
   if (protocolVersion >= 2 ** 8 || protocolVersion < 0 || !Number.isInteger(protocolVersion)) {
     throw new FrameValidationError(
       FrameValidationErrorCode.PROTOCOL_VERSION_INVALID,
-      `Protocol version should be smaller than ${2 ** 8} bytes, not negative and an integer`,
+      `Protocol Version must be an integer < ${2 ** 8} and >= 0 bytes, got ${protocolVersion}`,
     );
   }
 
   if (transferId >= 2 ** 16 || transferId < 0 || !Number.isInteger(transferId)) {
     throw new FrameValidationError(
       FrameValidationErrorCode.FILE_ID_INVALID,
-      `File id should be smaller than ${2 ** 16} bytes, not negative and an integer`,
+      `Transfer Id must be an integer < ${2 ** 16} and >= 0 bytes, got ${transferId}`,
     );
   }
 
   if (chunkIndex >= 2 ** 32 || chunkIndex < 0 || !Number.isInteger(chunkIndex)) {
     throw new FrameValidationError(
       FrameValidationErrorCode.CHUNK_INDEX_INVALID,
-      `Chunk index should be smaller than ${2 ** 32} bytes, not negative and an integer`,
+      `Chunk Index must be an integer < ${2 ** 32} bytes and >= 0, got ${chunkIndex}`,
     );
   }
 
