@@ -3,6 +3,7 @@ import type { WebRTCConnection } from "@/webrtc/WebRTCConnection";
 import type { FileSource } from "./FileSource";
 import { buildChunk } from "@riftsend/protocol";
 import type { TransferId } from "@riftsend/shared";
+import { TransferSendError, TransferStateError } from "./errors";
 
 type FileTransferEvents = {
   started: void;
@@ -18,7 +19,7 @@ type OutgoingFileTransferEvents = FileTransferEvents & {};
 
 type IncomingFileTransferEvents = FileTransferEvents & {};
 
-type TransferState = "idle" | "running" | "completed" | "failed" | "cancelled" | "paused";
+export type TransferState = "idle" | "running" | "completed" | "failed" | "cancelled" | "paused";
 
 const PROGRESS_EVENTS_DELAY = 250 as const;
 
@@ -78,7 +79,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   public cancel() {
     if (this.state !== "running" && this.state !== "paused") {
-      throw new Error("Cannot cancel the transfer if it is not currently running or paused");
+      throw new TransferStateError(["running", "paused"], this.state, "cancel");
     }
 
     this.state = "cancelled";
@@ -90,7 +91,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   public pause() {
     if (this.state !== "running") {
-      throw new Error("Cannot pause the transfer if it is not currently running");
+      throw new TransferStateError("running", this.state, "pause");
     }
 
     this.state = "paused";
@@ -100,7 +101,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   public resume() {
     if (this.state !== "paused") {
-      throw new Error("Cannot resume the transfer if it is not currently paused");
+      throw new TransferStateError("paused", this.state, "resume");
     }
 
     void this.run(false);
@@ -108,7 +109,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
   public start() {
     if (this.state !== "idle") {
-      throw new Error("Cannot start the transfer if it is not idling");
+      throw new TransferStateError("idle", this.state, "start");
     }
 
     void this.run(true);
@@ -135,9 +136,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
         }
 
         if (!this.sendChunk(rawChunk.index, rawChunk.data)) {
-          throw new Error(
-            `Cannot send chunk ${rawChunk.index} over the data channel. Check if the data channel is open`,
-          );
+          throw new TransferSendError(rawChunk.index);
         }
 
         this.bytesSent += rawChunk.data.byteLength;
