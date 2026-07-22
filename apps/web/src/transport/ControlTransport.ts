@@ -7,6 +7,8 @@ import {
   type AnyControlMessage,
   type ReliableTypeName,
   reliableTypeNames,
+  ControlMessageSchema,
+  MessageIdSchema,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
 import { ControlTransportError, ControlTransportErrorCode } from "./errors";
@@ -21,12 +23,13 @@ type PendingMessage = {
 };
 
 const hasMessageId = (message: AnyControlMessage): message is ReliableControlMessage => {
-  return "messageId" in message;
+  return "messageId" in message && MessageIdSchema.safeParse(message.messageId).success;
 };
 
 const stripMessageId = (message: ReliableControlMessage): ControlMessage => {
   const { messageId, ...rest } = message;
-  return rest as ControlMessage;
+
+  return rest;
 };
 
 const isReliableMessage = (
