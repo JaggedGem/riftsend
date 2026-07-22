@@ -1,4 +1,5 @@
 import { CHUNK_FORMAT, CHUNK_SIZE, HEADER_SIZE } from "./constants.js";
+import { FrameValidationError, FrameValidationErrorCode } from "./errors/FrameValidationError.js";
 
 export const buildChunk = (
   protocolVersion: number,
@@ -7,21 +8,29 @@ export const buildChunk = (
   payload: ArrayBuffer,
 ) => {
   if (payload.byteLength > CHUNK_FORMAT.PAYLOAD.size) {
-    throw new Error(`Chunk should be smaller than ${CHUNK_SIZE} bytes`);
+    throw new FrameValidationError(
+      FrameValidationErrorCode.CHUNK_TOO_LARGE,
+      `Chunk should be smaller than ${CHUNK_SIZE} bytes`,
+    );
   }
 
   if (protocolVersion >= 2 ** 8 || protocolVersion < 0 || !Number.isInteger(protocolVersion)) {
-    throw new Error(
+    throw new FrameValidationError(
+      FrameValidationErrorCode.PROTOCOL_VERSION_INVALID,
       `Protocol version should be smaller than ${2 ** 8} bytes, not negative and an integer`,
     );
   }
 
   if (transferId >= 2 ** 16 || transferId < 0 || !Number.isInteger(transferId)) {
-    throw new Error(`File id should be smaller than ${2 ** 16} bytes, not negative and an integer`);
+    throw new FrameValidationError(
+      FrameValidationErrorCode.FILE_ID_INVALID,
+      `File id should be smaller than ${2 ** 16} bytes, not negative and an integer`,
+    );
   }
 
   if (chunkIndex >= 2 ** 32 || chunkIndex < 0 || !Number.isInteger(chunkIndex)) {
-    throw new Error(
+    throw new FrameValidationError(
+      FrameValidationErrorCode.CHUNK_INDEX_INVALID,
       `Chunk index should be smaller than ${2 ** 32} bytes, not negative and an integer`,
     );
   }
