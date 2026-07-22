@@ -22,6 +22,8 @@ import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
 import { BrowserFileSource } from "./BrowserFileSource.js";
 import { ControlTransport } from "@/transport/ControlTransport.js";
+import { FileTransferManagerError, FileTransferManagerErrorCode } from "./errors.js";
+import { ControlTransportError, ControlTransportErrorCode } from "@/transport/errors.js";
 
 type PendingOutgoingFile = {
   offer: FileOffer;
@@ -36,6 +38,31 @@ type FileTransferManagerEvents = {
   batchTransferMappingsMessage: BatchTransferMappings;
 };
 
+type RetryableError = ControlTransportError & {
+  code: ControlTransportErrorCode.QUEUE_LIMIT_REACHED | ControlTransportErrorCode.SEND_FAILED;
+};
+
+const isRetryable = (error: unknown): error is RetryableError => {
+  return (
+    error instanceof ControlTransportError &&
+    (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED ||
+      error.code === ControlTransportErrorCode.SEND_FAILED)
+  );
+};
+
+type FatalError = ControlTransportError & {
+  code:
+    ControlTransportErrorCode.TRANSPORT_DISPOSED | ControlTransportErrorCode.MAX_RETRIES_EXCEEDED;
+};
+
+const isFatal = (error: unknown): error is FatalError => {
+  return (
+    error instanceof ControlTransportError &&
+    (error.code === ControlTransportErrorCode.TRANSPORT_DISPOSED ||
+      error.code === ControlTransportErrorCode.MAX_RETRIES_EXCEEDED)
+  );
+};
+
 /**
  * Manages file transfers over a WebRTC data channel.
  *
@@ -45,7 +72,7 @@ type FileTransferManagerEvents = {
  */
 export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEvents> {
   private readonly connection: WebRTCConnection;
-  private readonly protocolVersion = getConfig().protocolVersion;
+  private readonly config = getConfig();
 
   private nextTransferId: TransferId = createTransferId(0);
 
@@ -63,7 +90,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     this.connection = connection;
 
     this.controlTransport = new ControlTransport(
-      this.protocolVersion,
+      this.config,
       this.connection.sendControl,
       this.handleControlChannelMessage,
     );
@@ -95,7 +122,13 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return id;
   }
 
-  public offerFiles(files: File[]) {
+  public async offerFiles(files: File[]) {
+    const batchOffer = this.buildBatchOffer(files);
+
+    this.sendBatchOffer(batchOffer);
+  }
+
+  private buildBatchOffer(files: File[]): BatchOffer {
     const batchId = getBatchId();
     const pendingBatch: PendingBatch = new Map();
 
@@ -118,12 +151,88 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const batchOffer: BatchOffer = {
       type: "batch-offer",
-      protocolVersion: this.protocolVersion,
+      protocolVersion: this.config.protocolVersion,
       batchId: batchId,
       files: fileOffers,
     };
 
-    this.connection.sendControl(batchOffer);
+    return batchOffer;
+  }
+
+  private async sendBatchOffer(batchOffer: BatchOffer) {
+    try {
+      await this.controlTransport.send(batchOffer);
+    } catch (error) {
+      if (isFatal(error)) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "A fatal error occurred while sending the batch offer",
+          {
+            cause:
+              error instanceof Error
+                ? error
+                : new FileTransferManagerError(
+                    FileTransferManagerErrorCode.UNKNOWN_ERROR,
+                    "An unknown error occurred",
+                  ),
+          },
+        );
+      }
+
+      if (!isRetryable(error)) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.UNKNOWN_ERROR,
+          "An unexpected error occurred while sending the batch offer",
+          {
+            cause:
+              error instanceof Error
+                ? error
+                : new FileTransferManagerError(
+                    FileTransferManagerErrorCode.UNKNOWN_ERROR,
+                    "An unknown error occurred",
+                  ),
+          },
+        );
+      }
+
+      if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
+        setTimeout(() => {
+          void this.sendBatchOffer(batchOffer);
+        }, this.config.sendRetryDelay);
+
+        return;
+      }
+
+      const controlChannel = this.connection.getControlChannel();
+
+      if (!controlChannel || controlChannel.readyState !== "open") {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "The control data channel closed unexpectedly while sending the batch offer",
+          {
+            cause: error,
+          },
+        );
+      }
+
+      if (controlChannel.bufferedAmount < controlChannel.bufferedAmountLowThreshold) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "The batch offer could not be sent even though the control channel was not under backpressure",
+          {
+            cause: error,
+          },
+        );
+      }
+
+      const retry = () => {
+        controlChannel.removeEventListener("bufferedamountlow", retry);
+
+        void this.sendBatchOffer(batchOffer);
+      };
+
+      controlChannel.addEventListener("bufferedamountlow", retry, { once: true });
+    }
   }
 
   private handleControlChannelMessage(message: ControlMessage) {
@@ -199,7 +308,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
       const outgoingFileTransfer = new OutgoingFileTransfer(
         this.connection,
-        this.protocolVersion,
+        this.config.protocolVersion,
         new BrowserFileSource(pendingFile.file, mapping.fileId),
         mapping.transferId,
       );
@@ -213,16 +322,26 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const transferMappingsMessage: BatchTransferMappings = {
       type: "batch-transfer-mappings",
-      protocolVersion: this.protocolVersion,
+      protocolVersion: this.config.protocolVersion,
       batchId,
       mappings,
     };
 
-    if (!this.connection.sendControl(transferMappingsMessage)) {
-      throw new Error(
+    this.controlTransport.send(transferMappingsMessage).catch((error) => {
+      throw new FileTransferManagerError(
+        FileTransferManagerErrorCode.MAPPINGS_SEND_FAILED,
         "Failed sending the transfer mappings. Make sure that the control channel is open",
+        {
+          cause:
+            error instanceof Error
+              ? error
+              : new FileTransferManagerError(
+                  FileTransferManagerErrorCode.UNKNOWN_ERROR,
+                  "An unknown error occurred",
+                ),
+        },
       );
-    }
+    });
 
     return transfers;
   }
@@ -250,7 +369,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
       this.transfers.set(
         mapping.transferId,
-        new IncomingFileTransfer(this.connection, this.protocolVersion, mapping.transferId),
+        new IncomingFileTransfer(this.connection, this.config.protocolVersion, mapping.transferId),
       );
     });
   }
@@ -265,11 +384,11 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const fileStartMessage: TransferStart = {
       type: "transfer-start",
-      protocolVersion: this.protocolVersion,
+      protocolVersion: this.config.protocolVersion,
       transferId: transfer.transferId,
     };
 
-    if (!this.connection.sendControl(fileStartMessage)) {
+    if (!this.controlTransport.send(fileStartMessage)) {
       console.warn("Cannot send transfer start message. Check if the control channel is open");
 
       this.sendQueue.enqueue(transfer);
