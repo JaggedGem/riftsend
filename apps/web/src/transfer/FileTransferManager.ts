@@ -283,7 +283,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return [file];
     });
 
-    const transferIds = this.sendTransferMappings(message.batchId, acceptedFiles);
+    const transferIds = this.mapTransfers(message.batchId, acceptedFiles);
 
     transferIds.forEach((transferId) => {
       this.sendQueue.enqueue(transferId);
@@ -294,12 +294,97 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  private sendTransferMappings(
-    batchId: BatchId,
-    acceptedFiles: PendingOutgoingFile[],
-  ): OutgoingFileTransfer[] {
+  private mapTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
     const transfers: OutgoingFileTransfer[] = [];
 
+    const transferMappingsMessage = this.buildTransferMappings(batchId, acceptedFiles, transfers);
+
+    this.sendTransferMappings(transferMappingsMessage);
+
+    return transfers;
+  }
+
+  private async sendTransferMappings(transferMappingsMessage: BatchTransferMappings) {
+    try {
+      await this.controlTransport.send(transferMappingsMessage);
+    } catch (error) {
+      if (isFatal(error)) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "A fatal error occurred while sending the transfer mappings",
+          {
+            cause:
+              error instanceof Error
+                ? error
+                : new FileTransferManagerError(
+                    FileTransferManagerErrorCode.UNKNOWN_ERROR,
+                    "An unknown error occurred",
+                  ),
+          },
+        );
+      }
+
+      if (!isRetryable(error)) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.UNKNOWN_ERROR,
+          "An unexpected error occurred while sending the transfer mappings",
+          {
+            cause:
+              error instanceof Error
+                ? error
+                : new FileTransferManagerError(
+                    FileTransferManagerErrorCode.UNKNOWN_ERROR,
+                    "An unknown error occurred",
+                  ),
+          },
+        );
+      }
+
+      if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
+        setTimeout(() => {
+          void this.sendTransferMappings(transferMappingsMessage);
+        }, this.config.sendRetryDelay);
+
+        return;
+      }
+
+      const controlChannel = this.connection.getControlChannel();
+
+      if (!controlChannel || controlChannel.readyState !== "open") {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "The control data channel closed unexpectedly while sending the transfer mappings",
+          {
+            cause: error,
+          },
+        );
+      }
+
+      if (controlChannel.bufferedAmount < controlChannel.bufferedAmountLowThreshold) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.FATAL_ERROR,
+          "The transfer mappings could not be sent even though the control channel was not under backpressure",
+          {
+            cause: error,
+          },
+        );
+      }
+
+      const retry = () => {
+        controlChannel.removeEventListener("bufferedamountlow", retry);
+
+        void this.sendTransferMappings(transferMappingsMessage);
+      };
+
+      controlChannel.addEventListener("bufferedamountlow", retry, { once: true });
+    }
+  }
+
+  private buildTransferMappings(
+    batchId: BatchId,
+    acceptedFiles: PendingOutgoingFile[],
+    transfers: OutgoingFileTransfer[],
+  ): BatchTransferMappings {
     const mappings = acceptedFiles.map((pendingFile) => {
       const mapping = {
         fileId: pendingFile.offer.fileId,
@@ -327,23 +412,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       mappings,
     };
 
-    this.controlTransport.send(transferMappingsMessage).catch((error) => {
-      throw new FileTransferManagerError(
-        FileTransferManagerErrorCode.MAPPINGS_SEND_FAILED,
-        "Failed sending the transfer mappings. Make sure that the control channel is open",
-        {
-          cause:
-            error instanceof Error
-              ? error
-              : new FileTransferManagerError(
-                  FileTransferManagerErrorCode.UNKNOWN_ERROR,
-                  "An unknown error occurred",
-                ),
-        },
-      );
-    });
-
-    return transfers;
+    return transferMappingsMessage;
   }
 
   /**
