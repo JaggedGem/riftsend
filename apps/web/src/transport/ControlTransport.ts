@@ -69,7 +69,7 @@ export class ControlTransport {
     return this.sendRaw(message);
   }
 
-  private async sendReliable(
+  private sendReliable(
     message: Extract<ControlMessage, { type: ReliableTypeName }>,
   ): Promise<MessageId> {
     if (this.isDisposed) {
