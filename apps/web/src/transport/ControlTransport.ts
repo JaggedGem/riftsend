@@ -9,6 +9,7 @@ import {
   reliableTypeNames,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
+import { ControlTransportError, ControlTransportErrorCode } from "./errors";
 
 type PendingMessage = {
   message: ReliableControlMessage;
@@ -57,69 +58,107 @@ export class ControlTransport {
   };
 
   public send(message: Extract<ControlMessage, { type: ReliableTypeName }>): Promise<MessageId>;
-  public send(message: Exclude<ControlMessage, { type: ReliableTypeName }>): boolean;
-  public send(message: ControlMessage): Promise<MessageId> | boolean {
+  public send(message: Exclude<ControlMessage, { type: ReliableTypeName }>): Promise<void>;
+  public send(message: ControlMessage): Promise<MessageId | void> {
     if (isReliableMessage(message)) {
       return this.sendReliable(message);
     }
-    return this.sendRaw(message);
+
+    if (!this.sendRaw(message)) {
+      return Promise.reject(
+        new ControlTransportError(
+          ControlTransportErrorCode.SEND_FAILED,
+          "An error occurred while sending a message through the channel",
+        ),
+      );
+    }
+
+    return Promise.resolve();
   }
 
   private sendReliable(
     message: Extract<ControlMessage, { type: ReliableTypeName }>,
   ): Promise<MessageId> {
-    if (this.isDisposed) {
-      return new Promise<MessageId>((_resolve, reject) =>
-        reject(new Error("Object is already disposed")),
-      );
-    }
-
-    if (this.pendingMessages.size >= this.config.maxPendingMessages) {
-      return new Promise<MessageId>((_resolve, reject) =>
+    return new Promise((resolve, reject) => {
+      if (this.isDisposed) {
         reject(
-          new Error(
+          new ControlTransportError(
+            ControlTransportErrorCode.TRANSPORT_DISPOSED,
+            "Object is already disposed",
+          ),
+        );
+
+        return;
+      }
+
+      if (this.pendingMessages.size >= this.config.maxPendingMessages) {
+        reject(
+          new ControlTransportError(
+            ControlTransportErrorCode.QUEUE_LIMIT_REACHED,
             `Cannot send message: ${this.pendingMessages.size} messages already pending (max ${this.config.maxPendingMessages}). Retry shortly`,
           ),
-        ),
-      );
-    }
+        );
 
-    const messageId = this.nextMessageId;
-    let resolve!: (value: MessageId) => void;
-    let reject!: (error: Error) => void;
+        return;
+      }
 
-    const reliableMessage = ReliableControlMessageSchema.parse({
-      ...message,
-      messageId,
+      const messageId = this.nextMessageId;
+
+      let reliableMessage: ReliableControlMessage;
+      try {
+        reliableMessage = ReliableControlMessageSchema.parse({
+          ...message,
+          messageId,
+        });
+      } catch (error) {
+        reject(
+          new ControlTransportError(
+            ControlTransportErrorCode.INVALID_RELIABLE_MESSAGE,
+            "The provided message is not a valid reliable control message",
+            {
+              cause:
+                error instanceof Error
+                  ? error
+                  : new ControlTransportError(
+                      ControlTransportErrorCode.UNKNOWN_ERROR,
+                      "An unknown error occurred",
+                    ),
+            },
+          ),
+        );
+
+        return;
+      }
+
+      this.nextMessageId = createMessageId(messageId + 1);
+
+      const sentAt = performance.now();
+
+      const pendingMessage: PendingMessage = {
+        message: reliableMessage,
+        sentAt,
+        retryCount: 0,
+        nextRetryAt: sentAt + this.config.ackTimeout,
+        resolve,
+        reject,
+      };
+
+      this.pendingMessages.set(messageId, pendingMessage);
+
+      if (!this.sendRaw(reliableMessage)) {
+        this.pendingMessages.delete(messageId);
+
+        reject(
+          new ControlTransportError(
+            ControlTransportErrorCode.SEND_FAILED,
+            "An error occurred while sending a reliable message through the channel",
+            { messageId },
+          ),
+        );
+
+        return;
+      }
     });
-
-    this.nextMessageId = createMessageId(messageId + 1);
-
-    const sentAt = performance.now();
-
-    const promise = new Promise<MessageId>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-
-    const pendingMessage: PendingMessage = {
-      message: reliableMessage,
-      sentAt,
-      retryCount: 0,
-      nextRetryAt: sentAt + this.config.ackTimeout,
-      resolve,
-      reject,
-    };
-
-    this.pendingMessages.set(messageId, pendingMessage);
-
-    if (!this.sendRaw(reliableMessage)) {
-      this.pendingMessages.delete(messageId);
-
-      throw new Error("Error occurred while sending reliable message through the channel");
-    }
-
-    return promise;
   }
 
   private handleAckMessage(message: AckMessage) {
@@ -146,21 +185,30 @@ export class ControlTransport {
         if (pendingMessage.retryCount + 1 > this.config.maxRetries) {
           this.pendingMessages.delete(messageId);
 
-          const error = new Error(
+          const error = new ControlTransportError(
+            ControlTransportErrorCode.MAX_RETRIES_EXCEEDED,
             `Sending the message ${messageId} failed after ${this.config.maxRetries}`,
+            { messageId },
           );
 
           pendingMessage.reject(error);
+
+          return;
         }
 
         try {
           this.retrySend(messageId);
         } catch (error) {
-          if (error instanceof Error) {
-            pendingMessage.reject(error);
-          } else {
-            pendingMessage.reject(new Error("An unknown error occurred"));
-          }
+          pendingMessage.reject(
+            error instanceof ControlTransportError
+              ? error
+              : new ControlTransportError(
+                  ControlTransportErrorCode.UNKNOWN_ERROR,
+                  "An unknown error occurred",
+                ),
+          );
+
+          return;
         }
       }
     });
@@ -170,7 +218,11 @@ export class ControlTransport {
     const pendingMessage = this.pendingMessages.get(messageId);
 
     if (!pendingMessage) {
-      throw new Error("Pending message disappeared while trying to resend it");
+      throw new ControlTransportError(
+        ControlTransportErrorCode.PENDING_DISAPPEARED,
+        "The pending message disappeared while trying to resend it",
+        { messageId },
+      );
     }
 
     const nextRetryDelay = this.config.ackTimeout * 2 ** (pendingMessage.retryCount + 1);
@@ -184,13 +236,20 @@ export class ControlTransport {
     if (!this.sendRaw(pendingMessage.message)) {
       this.pendingMessages.delete(messageId);
 
-      throw new Error("Error occurred while resending reliable message through the channel");
+      throw new ControlTransportError(
+        ControlTransportErrorCode.SEND_FAILED_ON_RESEND,
+        "An error occurred while resending a reliable message through the control data channel",
+        { messageId },
+      );
     }
   }
 
   public handleMessage(message: AnyControlMessage) {
     if (this.isDisposed) {
-      throw new Error("Object is already disposed");
+      throw new ControlTransportError(
+        ControlTransportErrorCode.TRANSPORT_DISPOSED,
+        "Object is already disposed",
+      );
     }
 
     if (message.type === "ack") {
@@ -225,7 +284,11 @@ export class ControlTransport {
     };
 
     if (!this.sendRaw(ackMessage)) {
-      throw new Error("Could not send ACK message for " + acknowledgedMessageId);
+      throw new ControlTransportError(
+        ControlTransportErrorCode.ACK_SEND_FAILED,
+        `Could not send ACK message for ${acknowledgedMessageId}`,
+        { messageId: acknowledgedMessageId },
+      );
     }
   }
 
@@ -234,10 +297,17 @@ export class ControlTransport {
       return;
     }
 
+    this.isDisposed = true;
+
     clearTimeout(this.retryTimer);
 
     this.pendingMessages.forEach((pendingMessage) => {
-      pendingMessage.reject(new Error("Transport disposed before the ACK was received"));
+      pendingMessage.reject(
+        new ControlTransportError(
+          ControlTransportErrorCode.TRANSPORT_DISPOSED,
+          "Transport disposed before the ACK was received",
+        ),
+      );
     });
 
     this.pendingMessages.clear();
