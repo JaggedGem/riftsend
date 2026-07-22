@@ -21,6 +21,7 @@ import {
   type PeerErrorMessage,
 } from "@riftsend/protocol";
 import { type Room } from "@riftsend/shared";
+import { SignalingClientError, SignalingClientErrorCode } from "./errors";
 
 type SignalingClientEvents = {
   connected: PeerIdMessage["payload"];
@@ -275,18 +276,36 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    */
   sendJoinRoom(role: "sender" | "receiver", roomId?: string, joinCode?: string): void {
     if (!this.peerId) {
-      throw new Error("Cannot join room: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendJoinRoom",
+        "Cannot join room: peerId is not set",
+      );
     }
 
     let payload: JoinRoomPayload;
     if (roomId) {
       const parsed = RoomIdZod.safeParse(roomId);
-      if (!parsed.success) throw new Error("Invalid room ID");
+
+      if (!parsed.success) {
+        throw new SignalingClientError(
+          SignalingClientErrorCode.INVALID_ROOM_ID,
+          "sendJoinRoom",
+          "Invalid room ID",
+        );
+      }
 
       payload = { method: "id", roomId: parsed.data, role };
     } else if (joinCode) {
       const parsed = JoinCodeZod.safeParse(joinCode);
-      if (!parsed.success) throw new Error("Invalid join code");
+
+      if (!parsed.success) {
+        throw new SignalingClientError(
+          SignalingClientErrorCode.INVALID_JOIN_CODE,
+          "sendJoinRoom",
+          "Invalid join code",
+        );
+      }
 
       payload = { method: "code", joinCode: parsed.data, role };
     } else {
@@ -305,7 +324,11 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
   /** Sends a `leave-room` message for the currently joined room. */
   sendLeaveRoom(): void {
     if (!this.peerId) {
-      throw new Error("Cannot leave room: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendLeaveRoom",
+        "Cannot leave room: peerId is not set",
+      );
     }
 
     if (!this.room) {
@@ -318,6 +341,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
       from: this.peerId,
       payload: null,
     };
+
     this.send(leaveRoomMessage);
   }
 
@@ -341,15 +365,27 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    */
   sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Cannot send offer: WebSocket is not open");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_CONNECTED,
+        "sendOffer",
+        "Cannot send offer: WebSocket is not open",
+      );
     }
 
     if (!this.peerId) {
-      throw new Error("Cannot send offer: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendOffer",
+        "Cannot send offer: peerId is not set",
+      );
     }
 
     if (!description.sdp) {
-      throw new Error("Cannot send offer: description.sdp is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.INVALID_SDP,
+        "sendOffer",
+        "Cannot send offer: description.sdp is not set",
+      );
     }
 
     const offerMessage: OfferMessage = {
@@ -374,15 +410,27 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    */
   sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Cannot send answer: WebSocket is not open");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_CONNECTED,
+        "sendAnswer",
+        "Cannot send answer: WebSocket is not open",
+      );
     }
 
     if (!this.peerId) {
-      throw new Error("Cannot send answer: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendAnswer",
+        "Cannot send answer: peerId is not set",
+      );
     }
 
     if (!description.sdp) {
-      throw new Error("Cannot send answer: description.sdp is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.INVALID_SDP,
+        "sendAnswer",
+        "Cannot send answer: description.sdp is not set",
+      );
     }
 
     const answerMessage: AnswerMessage = {
@@ -410,11 +458,19 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    */
   sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Cannot send ICE candidate: WebSocket is not open");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_CONNECTED,
+        "sendIceCandidate",
+        "Cannot send ICE candidate: WebSocket is not open",
+      );
     }
 
     if (!this.peerId) {
-      throw new Error("Cannot send ICE candidate: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendIceCandidate",
+        "Cannot send ICE candidate: peerId is not set",
+      );
     }
 
     const iceCandidateMessage: IceCandidateMessage = {
@@ -441,11 +497,19 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    */
   sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Cannot send error: WebSocket is not open");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_CONNECTED,
+        "sendError",
+        "Cannot send error: WebSocket is not open",
+      );
     }
 
     if (!this.peerId) {
-      throw new Error("Cannot send error: peerId is not set");
+      throw new SignalingClientError(
+        SignalingClientErrorCode.NOT_JOINED,
+        "sendError",
+        "Cannot send error: peerId is not set",
+      );
     }
 
     const errorMessage: PeerErrorMessage = {
