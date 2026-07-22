@@ -57,11 +57,9 @@ export class ControlTransport {
     }, this.config.retryCheckInterval);
   };
 
-  public send(message: Extract<ControlMessage, { type: ReliableTypeName }>): Promise<MessageId>;
-  public send(message: Exclude<ControlMessage, { type: ReliableTypeName }>): Promise<void>;
-  public send(message: ControlMessage): Promise<MessageId | void> {
+  public send(message: ControlMessage) {
     if (isReliableMessage(message)) {
-      return this.sendReliable(message);
+      this.sendReliable(message);
     }
 
     if (!this.sendRaw(message)) {
@@ -76,9 +74,7 @@ export class ControlTransport {
     return Promise.resolve();
   }
 
-  private sendReliable(
-    message: Extract<ControlMessage, { type: ReliableTypeName }>,
-  ): Promise<MessageId> {
+  private sendReliable(message: Extract<ControlMessage, { type: ReliableTypeName }>) {
     return new Promise((resolve, reject) => {
       if (this.isDisposed) {
         reject(
@@ -244,7 +240,7 @@ export class ControlTransport {
     }
   }
 
-  public handleMessage(message: AnyControlMessage) {
+  public handleMessage = (message: AnyControlMessage) => {
     if (this.isDisposed) {
       throw new ControlTransportError(
         ControlTransportErrorCode.TRANSPORT_DISPOSED,
@@ -262,7 +258,7 @@ export class ControlTransport {
     } else {
       this.onMessage(message);
     }
-  }
+  };
 
   private handleReliableMessage(message: ReliableControlMessage) {
     if (this.seenMessageIds.has(message.messageId)) {
