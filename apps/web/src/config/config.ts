@@ -1,4 +1,5 @@
 import { ProtocolVersionSchema, type ProtocolVersion } from "@riftsend/protocol";
+import { MissingEnvError } from "./envError";
 
 /**
  * Reads a required `import.meta.env` variable.
@@ -9,7 +10,7 @@ import { ProtocolVersionSchema, type ProtocolVersion } from "@riftsend/protocol"
 const requireEnv = (key: string): string => {
   const value = import.meta.env[key];
   if (!value) {
-    throw new Error(`Missing ${key}`);
+    throw new MissingEnvError(key);
   }
   return value;
 };
@@ -24,7 +25,7 @@ const requireEnv = (key: string): string => {
 const requireBooleanEnv = (key: string): boolean => {
   const value = import.meta.env[key];
   if (value === undefined || value === null) {
-    throw new Error(`Missing ${key}`);
+    throw new MissingEnvError(key);
   }
   return value === "true";
 };
