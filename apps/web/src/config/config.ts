@@ -29,7 +29,7 @@ const requireBooleanEnv = (key: string): boolean => {
   return value === "true";
 };
 
-let _config: {
+export type Config = {
   signalingUrl: string;
   protocolVersion: ProtocolVersion;
   clientVersion: string;
@@ -42,7 +42,9 @@ let _config: {
   maxRetries: number;
   maxRetryDelay: number;
   maxPendingMessages: number;
-} | null = null;
+};
+
+let _config: Config | null = null;
 
 /**
  * Returns the singleton app configuration, populated from Vite environment variables.

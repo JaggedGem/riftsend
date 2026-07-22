@@ -1,11 +1,10 @@
-import { getConfig } from "@/config/config";
+import { type Config } from "@/config/config";
 import {
   ReliableControlMessageSchema,
   type AckMessage,
   type ControlMessage,
   type ReliableControlMessage,
   type AnyControlMessage,
-  type ProtocolVersion,
   type ReliableTypeName,
   reliableTypeNames,
 } from "@riftsend/protocol";
@@ -36,7 +35,6 @@ const isReliableMessage = (
 };
 
 export class ControlTransport {
-  private readonly config;
   private nextMessageId = createMessageId(0);
   private readonly pendingMessages = new Map<MessageId, PendingMessage>();
   private retryTimer: number | undefined = undefined;
@@ -44,12 +42,10 @@ export class ControlTransport {
   private readonly seenMessageIds = new Set<MessageId>();
 
   constructor(
-    private readonly protocolVersion: ProtocolVersion,
+    private readonly config: Config,
     private readonly sendRaw: (message: unknown) => boolean,
     private readonly onMessage: (message: ControlMessage) => void,
   ) {
-    this.config = getConfig();
-
     this.scheduleCheck();
   }
 
@@ -224,7 +220,7 @@ export class ControlTransport {
   private sendAckMessage(acknowledgedMessageId: MessageId) {
     const ackMessage: AckMessage = {
       type: "ack",
-      protocolVersion: this.protocolVersion,
+      protocolVersion: this.config.protocolVersion,
       acknowledgedMessageId,
     };
 
