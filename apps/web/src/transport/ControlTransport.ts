@@ -116,7 +116,7 @@ export class ControlTransport {
     if (!this.sendRaw(reliableMessage)) {
       this.pendingMessages.delete(messageId);
 
-      throw new Error("Error occured while sending reliable message through the channel");
+      throw new Error("Error occurred while sending reliable message through the channel");
     }
 
     return promise;
@@ -159,7 +159,7 @@ export class ControlTransport {
           if (error instanceof Error) {
             pendingMessage.reject(error);
           } else {
-            pendingMessage.reject(new Error("An unknown error occured"));
+            pendingMessage.reject(new Error("An unknown error occurred"));
           }
         }
       }
@@ -170,7 +170,7 @@ export class ControlTransport {
     const pendingMessage = this.pendingMessages.get(messageId);
 
     if (!pendingMessage) {
-      throw new Error("Pending message dissapeared while trying to resend it");
+      throw new Error("Pending message disappeared while trying to resend it");
     }
 
     const nextRetryDelay = this.config.ackTimeout * 2 ** (pendingMessage.retryCount + 1);
@@ -184,7 +184,7 @@ export class ControlTransport {
     if (!this.sendRaw(pendingMessage.message)) {
       this.pendingMessages.delete(messageId);
 
-      throw new Error("Error occured while resending reliable message through the channel");
+      throw new Error("Error occurred while resending reliable message through the channel");
     }
   }
 
