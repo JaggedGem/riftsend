@@ -1,6 +1,11 @@
 import { WebSocket } from "ws";
 import type { ErrorMessage, PeerIdMessage } from "@riftsend/protocol";
 import type { PeerId, SessionToken, SignalingErrorCode } from "@riftsend/shared";
+import {
+  TestCloseTimeoutError,
+  TestConnectionTimeoutError,
+  TestMessageTimeoutError,
+} from "./errors.js";
 
 export type MessageType =
   | "peer-id"
@@ -95,7 +100,7 @@ export class TestClient {
     const client = new TestClient(ws);
 
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("WebSocket connection timeout")), 5000);
+      const timeout = setTimeout(() => reject(new TestConnectionTimeoutError(5000)), 5000);
       ws.on("open", () => {
         clearTimeout(timeout);
         resolve();
@@ -184,7 +189,7 @@ export class TestClient {
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.cleanup(type, listener);
-        reject(new Error(`Timeout waiting for message type "${type}" after ${timeoutMs}ms`));
+        reject(new TestMessageTimeoutError(type, timeoutMs));
       }, timeoutMs);
 
       const listener = (msg: ServerMessage) => {
@@ -229,9 +234,7 @@ export class TestClient {
 
       const timeout = setTimeout(() => {
         this.cleanup(type, check);
-        reject(
-          new Error(`Timeout waiting for matched message type "${type}" after ${timeoutMs}ms`),
-        );
+        reject(new TestMessageTimeoutError(type, timeoutMs));
       }, timeoutMs);
 
       if (!this.listeners.has(type)) {
@@ -260,7 +263,7 @@ export class TestClient {
 
     return new Promise<ServerMessage>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error(`Timeout waiting for matching message after ${timeoutMs}ms`));
+        reject(new TestMessageTimeoutError("matching", timeoutMs));
       }, timeoutMs);
 
       const catchAll = (msg: ServerMessage) => {
@@ -290,10 +293,7 @@ export class TestClient {
     const result = await Promise.race([
       this.closePromise,
       new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Timeout waiting for close after ${timeoutMs}ms`)),
-          timeoutMs,
-        ),
+        setTimeout(() => reject(new TestCloseTimeoutError(timeoutMs)), timeoutMs),
       ),
     ]);
     return result;
