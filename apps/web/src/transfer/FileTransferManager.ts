@@ -299,7 +299,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @param message
    * @returns
    */
-  private handleBatchResponseMessage(message: BatchResponse) {
+  private async handleBatchResponseMessage(message: BatchResponse) {
     const batchOffer = this.pendingOutgoingBatches.get(message.batchId);
 
     if (!batchOffer) {
@@ -322,7 +322,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return [file];
     });
 
-    const transfers = this.mapTransfers(message.batchId, acceptedFiles);
+    const transfers = await this.mapTransfers(message.batchId, acceptedFiles);
 
     transfers.forEach((transfer) => {
       this.sendQueue.enqueue(transfer);
@@ -335,56 +335,53 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  private mapTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
-    const transfers: OutgoingFileTransfer[] = [];
+  private async mapTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
+    const transfers = this.createTransfers(acceptedFiles);
 
-    const transferMappingsMessage = this.buildTransferMappings(batchId, acceptedFiles, transfers);
+    const transferMappingsMessage = this.buildTransferMappings(batchId, transfers);
 
-    this.sendControlMessageWithRetry(
+    await this.sendControlMessageWithRetry(
       transferMappingsMessage,
       "sending the transfer mappings",
     ).catch((error) => {
       this.emit("error", error);
     });
 
-    this.pendingOutgoingBatches.delete(batchId);
-
     return transfers;
   }
 
   private buildTransferMappings(
     batchId: BatchId,
-    acceptedFiles: PendingOutgoingFile[],
     transfers: OutgoingFileTransfer[],
   ): BatchTransferMappings {
-    const mappings = acceptedFiles.map((pendingFile) => {
-      const mapping = {
-        fileId: pendingFile.offer.fileId,
-        transferId: this.allocateTransferId(),
-      };
-
-      const outgoingFileTransfer = new OutgoingFileTransfer(
-        this.connection,
-        this.config.protocolVersion,
-        new BrowserFileSource(pendingFile.file, mapping.fileId),
-        mapping.transferId,
-      );
-
-      this.registerTransfer(outgoingFileTransfer);
-
-      transfers.push(outgoingFileTransfer);
-
-      return mapping;
-    });
-
-    const transferMappingsMessage: BatchTransferMappings = {
+    const transferMappings: BatchTransferMappings = {
       type: "batch-transfer-mappings",
       protocolVersion: this.config.protocolVersion,
       batchId,
-      mappings,
+      mappings: transfers.map((transfer) => ({
+        fileId: transfer.fileId,
+        transferId: transfer.id,
+      })),
     };
 
-    return transferMappingsMessage;
+    return transferMappings;
+  }
+
+  private createTransfers(acceptedFiles: PendingOutgoingFile[]): OutgoingFileTransfer[] {
+    return acceptedFiles.map((pendingFile) => {
+      const transferId = this.allocateTransferId();
+
+      const transfer = new OutgoingFileTransfer(
+        this.connection,
+        this.config.protocolVersion,
+        new BrowserFileSource(pendingFile.file, pendingFile.offer.fileId),
+        transferId,
+      );
+
+      this.registerTransfer(transfer);
+
+      return transfer;
+    });
   }
 
   /**
@@ -438,7 +435,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     const fileStartMessage: TransferStart = {
       type: "transfer-start",
       protocolVersion: this.config.protocolVersion,
-      transferId: transfer.transferId,
+      transferId: transfer.id,
     };
 
     this.sendControlMessageWithRetry(fileStartMessage, "sending transfer start").catch((error) =>
@@ -466,18 +463,18 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   }
 
   private registerTransfer(transfer: FileTransfer) {
-    this.transfers.set(transfer.transferId, transfer);
+    this.transfers.set(transfer.id, transfer);
 
     transfer.on("completed", () => {
-      this.transfers.delete(transfer.transferId);
+      this.transfers.delete(transfer.id);
     });
 
     transfer.on("failed", () => {
-      this.transfers.delete(transfer.transferId);
+      this.transfers.delete(transfer.id);
     });
 
     transfer.on("cancelled", () => {
-      this.transfers.delete(transfer.transferId);
+      this.transfers.delete(transfer.id);
     });
   }
 

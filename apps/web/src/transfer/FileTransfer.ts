@@ -35,13 +35,13 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     private readonly connection: WebRTCConnection,
     private readonly protocolVersion: number,
     private readonly fileSource: FileSource,
-    public readonly transferId: TransferId,
+    public readonly id: TransferId,
   ) {
     super();
   }
 
   private sendChunk(chunkIndex: number, payload: ArrayBuffer): boolean {
-    const chunk = buildChunk(this.protocolVersion, this.transferId, chunkIndex, payload);
+    const chunk = buildChunk(this.protocolVersion, this.id, chunkIndex, payload);
 
     return this.connection.sendData(chunk);
   }
@@ -165,13 +165,17 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   public getState(): TransferState {
     return this.state;
   }
+
+  public get fileId() {
+    return this.fileSource.id;
+  }
 }
 
 export class IncomingFileTransfer extends TypedEventEmitter<IncomingFileTransferEvents> {
   constructor(
     private readonly connection: WebRTCConnection,
     private readonly protocolVersion: number,
-    public readonly transferId: TransferId,
+    public readonly id: TransferId,
   ) {
     super();
   }
