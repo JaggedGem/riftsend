@@ -7,7 +7,6 @@ import {
   type AnyControlMessage,
   type ReliableTypeName,
   reliableTypeNames,
-  ControlMessageSchema,
   MessageIdSchema,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
@@ -18,7 +17,7 @@ type PendingMessage = {
   sentAt: DOMHighResTimeStamp;
   retryCount: number;
   nextRetryAt: number;
-  resolve: (value: MessageId) => void;
+  resolve: () => void;
   reject: (error: Error) => void;
 };
 
@@ -62,7 +61,7 @@ export class ControlTransport {
 
   public send(message: ControlMessage) {
     if (isReliableMessage(message)) {
-      this.sendReliable(message);
+      return this.sendReliable(message);
     }
 
     if (!this.sendRaw(message)) {
@@ -77,7 +76,9 @@ export class ControlTransport {
     return Promise.resolve();
   }
 
-  private sendReliable(message: Extract<ControlMessage, { type: ReliableTypeName }>) {
+  private sendReliable(
+    message: Extract<ControlMessage, { type: ReliableTypeName }>,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isDisposed) {
         reject(
@@ -168,7 +169,7 @@ export class ControlTransport {
       return;
     }
 
-    acknowledgedMessage.resolve(message.acknowledgedMessageId);
+    acknowledgedMessage.resolve();
 
     if (!this.pendingMessages.delete(message.acknowledgedMessageId)) {
       console.warn("The message id provided was not found as a pending message");
