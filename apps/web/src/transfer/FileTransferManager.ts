@@ -76,8 +76,8 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
   private nextTransferId: TransferId = createTransferId(0);
 
-  private readonly batchOffersSent = new Map<BatchId, PendingBatch>();
-  private readonly batchOffersReceived = new Map<BatchId, FileOffer[]>();
+  private readonly pendingOutgoingBatches = new Map<BatchId, PendingBatch>();
+  private readonly pendingIncomingBatches = new Map<BatchId, FileOffer[]>();
 
   private readonly sendQueue = new FileSendQueue<OutgoingFileTransfer>();
   private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
@@ -243,7 +243,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return offer;
     });
 
-    this.batchOffersSent.set(batchId, pendingBatch);
+    this.pendingOutgoingBatches.set(batchId, pendingBatch);
 
     const batchOffer: BatchOffer = {
       type: "batch-offer",
@@ -260,7 +260,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       case "batch-offer": {
         this.emit("batchOfferMessage", message);
 
-        this.batchOffersReceived.set(message.batchId, message.files);
+        this.pendingIncomingBatches.set(message.batchId, message.files);
         break;
       }
 
@@ -298,7 +298,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @returns
    */
   private handleBatchResponseMessage(message: BatchResponse) {
-    const batchOffer = this.batchOffersSent.get(message.batchId);
+    const batchOffer = this.pendingOutgoingBatches.get(message.batchId);
 
     if (!batchOffer) {
       throw new FileTransferManagerError(
@@ -326,7 +326,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       this.sendQueue.enqueue(transfer);
     });
 
-    this.batchOffersSent.delete(message.batchId);
+    this.pendingOutgoingBatches.delete(message.batchId);
   }
 
   /**
@@ -344,6 +344,8 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     ).catch((error) => {
       this.emit("error", error);
     });
+
+    this.pendingOutgoingBatches.delete(batchId);
 
     return transfers;
   }
@@ -389,7 +391,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @returns
    */
   private handleTransferMappingsMessage(message: BatchTransferMappings) {
-    const pendingBatch = this.batchOffersReceived.get(message.batchId);
+    const pendingBatch = this.pendingIncomingBatches.get(message.batchId);
 
     if (!pendingBatch) {
       throw new FileTransferManagerError(
@@ -420,6 +422,8 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         new IncomingFileTransfer(this.connection, this.config.protocolVersion, mapping.transferId),
       );
     });
+
+    this.pendingIncomingBatches.delete(message.batchId);
   }
 
   private processSendQueue = async () => {
@@ -442,4 +446,45 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     transfer.start();
   };
+
+  public async acceptFiles(batchId: BatchId, acceptedFileIds: FileId[]) {
+    const batchResponse = this.buildOfferResponse(batchId, acceptedFileIds);
+
+    await this.sendControlMessageWithRetry(batchResponse, "sending the batch response");
+  }
+
+  private buildOfferResponse(batchId: BatchId, acceptedFileIds: FileId[]) {
+    const batchOfferResponse: BatchResponse = {
+      type: "batch-response",
+      protocolVersion: this.config.protocolVersion,
+      batchId: batchId,
+      accepted: acceptedFileIds,
+    };
+
+    return batchOfferResponse;
+  }
+
+  public get pendingIncomingOffers(): ReadonlyMap<BatchId, readonly FileOffer[]> {
+    return this.pendingIncomingBatches;
+  }
+
+  public get pendingIncomingFiles(): readonly FileOffer[] {
+    return [...this.pendingIncomingBatches.values()].flat();
+  }
+
+  public get activeTransfers(): ReadonlyMap<
+    TransferId,
+    OutgoingFileTransfer | IncomingFileTransfer
+  > {
+    return this.transfers;
+  }
+
+  public get pendingOutgoingOffers(): ReadonlyMap<BatchId, readonly FileOffer[]> {
+    return new Map(
+      [...this.pendingOutgoingBatches.entries()].map(([batchId, files]) => [
+        batchId,
+        [...files.values()].map(({ offer }) => offer),
+      ]),
+    );
+  }
 }
