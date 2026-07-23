@@ -1,5 +1,5 @@
-import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import { Queue } from "@/queue/Queue";
+import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
+import { Queue } from "@/queue/Queue.js";
 
 type FileSendQueueEvents = {
   available: void;

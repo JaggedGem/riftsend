@@ -1,15 +1,16 @@
-import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import type { WebRTCConnection } from "@/webrtc/WebRTCConnection";
-import type { FileSource } from "./FileSource";
-import { buildChunk } from "@riftsend/protocol";
+import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
+import type { WebRTCConnection } from "@/webrtc/WebRTCConnection.js";
+import type { FileSource } from "./FileSource.js";
+import { buildChunk, type FileOffer } from "@riftsend/protocol";
 import type { TransferId } from "@riftsend/shared";
-import { TransferSendError, TransferStateError } from "./errors";
+import { TransferSendError, TransferStateError } from "./errors.js";
+import type { FileSink } from "./FileSink.js";
 
 type FileTransferEvents = {
   started: void;
   progress: { bytesSent: number; totalBytes: number; bytesPerSecond: number };
   completed: void;
-  failed: { error: Error };
+  failed: { error: unknown };
   cancelled: void;
   paused: void;
   resumed: void;
@@ -152,7 +153,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
       this.state = "failed";
 
-      this.emit("failed", { error: error instanceof Error ? error : new Error(String(error)) });
+      this.emit("failed", { error });
 
       return;
     }
@@ -169,13 +170,27 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   public get fileId() {
     return this.fileSource.id;
   }
+
+  public fail(error: unknown) {
+    this.state = "failed";
+
+    this.emit("failed", { error });
+  }
 }
 
 export class IncomingFileTransfer extends TypedEventEmitter<IncomingFileTransferEvents> {
   constructor(
+    // todo: remove all of the ignores when actually implemented but damn it's ugly
+
+    // @ts-expect-error not implemented yet
     private readonly connection: WebRTCConnection,
+    // @ts-expect-error not implemented yet
     private readonly protocolVersion: number,
     public readonly id: TransferId,
+    // @ts-expect-error not implemented yet
+    private readonly metadata: FileOffer,
+    // @ts-expect-error not implemented yet
+    private readonly sink: FileSink,
   ) {
     super();
   }

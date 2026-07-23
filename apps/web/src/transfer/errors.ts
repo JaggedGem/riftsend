@@ -1,4 +1,4 @@
-import type { TransferState } from "./FileTransfer";
+import type { TransferState } from "./FileTransfer.js";
 
 export enum FileTransferManagerErrorCode {
   UNKNOWN_ERROR = "TR_MGR_UNKNOWN_ERROR",
@@ -6,6 +6,7 @@ export enum FileTransferManagerErrorCode {
   UNKNOWN_BATCH = "TR_MGR_UNKNOWN_BATCH",
   UNKNOWN_FILE_ID = "TR_MGR_UNKNOWN_FILE_ID",
   UNSUPPORTED_MESSAGE = "TR_MGR_UNSUPPORTED_MESSAGE",
+  EMPTY_FILE_SEND_QUEUE = "TR_MGR_EMPTY_FILE_SEND_QUEUE",
 }
 
 export class FileTransferManagerError extends Error {

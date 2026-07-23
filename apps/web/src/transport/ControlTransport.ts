@@ -1,4 +1,4 @@
-import { type Config } from "@/config/config";
+import { type Config } from "@/config/config.js";
 import {
   ReliableControlMessageSchema,
   type AckMessage,
@@ -10,7 +10,7 @@ import {
   MessageIdSchema,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
-import { ControlTransportError, ControlTransportErrorCode } from "./errors";
+import { ControlTransportError, ControlTransportErrorCode } from "./errors.js";
 
 type PendingMessage = {
   message: ReliableControlMessage;

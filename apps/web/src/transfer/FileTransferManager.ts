@@ -24,6 +24,7 @@ import { BrowserFileSource } from "./BrowserFileSource.js";
 import { ControlTransport } from "@/transport/ControlTransport.js";
 import { FileTransferManagerError, FileTransferManagerErrorCode } from "./errors.js";
 import { ControlTransportError, ControlTransportErrorCode } from "@/transport/errors.js";
+import { BrowserFileSink } from "./BrowserFileSink.js";
 
 type PendingOutgoingFile = {
   offer: FileOffer;
@@ -64,6 +65,12 @@ const isFatal = (error: unknown): error is FatalError => {
 };
 
 type FileTransfer = OutgoingFileTransfer | IncomingFileTransfer;
+
+type TransferMapping = {
+  fileId: FileId;
+  transferId: TransferId;
+};
+
 /**
  * Manages file transfers over a WebRTC data channel.
  *
@@ -77,6 +84,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
   private nextTransferId: TransferId = createTransferId(0);
 
+  // todo: add expiration/cancellation for both maps
   private readonly pendingOutgoingBatches = new Map<BatchId, PendingBatch>();
   private readonly pendingIncomingBatches = new Map<BatchId, FileOffer[]>();
 
@@ -84,6 +92,12 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   private readonly transfers = new Map<TransferId, FileTransfer>();
 
   private readonly controlTransport: ControlTransport;
+
+  private readonly handleSendQueueAvailable = () => {
+    this.processSendQueue().catch((error) => {
+      this.emit("error", error);
+    });
+  };
 
   constructor(connection: WebRTCConnection) {
     super();
@@ -98,11 +112,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     this.connection.on("controlChannelMessage", this.controlTransport.handleMessage);
 
-    this.sendQueue.on("available", () => {
-      this.processSendQueue().catch((error) => {
-        this.emit("error", error);
-      });
-    });
+    this.sendQueue.on("available", this.handleSendQueueAvailable);
   }
 
   /**
@@ -303,24 +313,36 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     const batchOffer = this.pendingOutgoingBatches.get(message.batchId);
 
     if (!batchOffer) {
-      throw new FileTransferManagerError(
-        FileTransferManagerErrorCode.UNKNOWN_BATCH,
-        "The batch response received does not reference a sent batch offer",
+      this.emit(
+        "error",
+        new FileTransferManagerError(
+          FileTransferManagerErrorCode.UNKNOWN_BATCH,
+          "The batch response received does not reference a sent batch offer",
+        ),
       );
+
+      return;
     }
 
-    const acceptedFiles = message.accepted.flatMap((fileId) => {
+    const acceptedFiles = message.accepted.reduce<PendingOutgoingFile[]>((acc, fileId) => {
       const file = batchOffer.get(fileId);
 
       if (!file) {
-        throw new FileTransferManagerError(
-          FileTransferManagerErrorCode.UNKNOWN_FILE_ID,
-          `Peer accepted unknown file ${fileId}`,
+        this.emit(
+          "error",
+          new FileTransferManagerError(
+            FileTransferManagerErrorCode.UNKNOWN_FILE_ID,
+            `Peer accepted unknown file ${fileId}`,
+          ),
         );
+
+        return acc;
       }
 
-      return [file];
-    });
+      acc.push(file);
+
+      return acc;
+    }, []);
 
     const transfers = await this.mapTransfers(message.batchId, acceptedFiles);
 
@@ -336,40 +358,51 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * @param batchId
    */
   private async mapTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
-    const transfers = this.createTransfers(acceptedFiles);
+    const mappings = this.createMappings(
+      acceptedFiles.map((pendingFile) => pendingFile.offer.fileId),
+    );
 
-    const transferMappingsMessage = this.buildTransferMappings(batchId, transfers);
+    const transferMappingsMessage = this.buildTransferMappings(batchId, mappings);
 
     await this.sendControlMessageWithRetry(
       transferMappingsMessage,
       "sending the transfer mappings",
-    ).catch((error) => {
-      this.emit("error", error);
-    });
+    );
+
+    const transfers = this.createTransfers(acceptedFiles, mappings);
 
     return transfers;
   }
 
   private buildTransferMappings(
     batchId: BatchId,
-    transfers: OutgoingFileTransfer[],
+    mappings: TransferMapping[],
   ): BatchTransferMappings {
     const transferMappings: BatchTransferMappings = {
       type: "batch-transfer-mappings",
       protocolVersion: this.config.protocolVersion,
       batchId,
-      mappings: transfers.map((transfer) => ({
-        fileId: transfer.fileId,
-        transferId: transfer.id,
-      })),
+      mappings,
     };
 
     return transferMappings;
   }
 
-  private createTransfers(acceptedFiles: PendingOutgoingFile[]): OutgoingFileTransfer[] {
+  private createTransfers(
+    acceptedFiles: PendingOutgoingFile[],
+    mappings: TransferMapping[],
+  ): OutgoingFileTransfer[] {
+    const transferIds = new Map(mappings.map(({ fileId, transferId }) => [fileId, transferId]));
+
     return acceptedFiles.map((pendingFile) => {
-      const transferId = this.allocateTransferId();
+      const transferId = transferIds.get(pendingFile.offer.fileId);
+
+      if (!transferId) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.UNKNOWN_FILE_ID,
+          `Received an accepted file "${pendingFile.offer.fileId}" without a corresponding transfer mapping. The transfer cannot be initialized.`,
+        );
+      }
 
       const transfer = new OutgoingFileTransfer(
         this.connection,
@@ -384,6 +417,12 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     });
   }
 
+  private createMappings(acceptedFileIds: FileId[]): TransferMapping[] {
+    return acceptedFileIds.map((fileId) => {
+      return { fileId, transferId: this.allocateTransferId() };
+    });
+  }
+
   /**
    * Receiver function
    * @param message
@@ -395,54 +434,79 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     if (!pendingBatch) {
       throw new FileTransferManagerError(
         FileTransferManagerErrorCode.UNKNOWN_BATCH,
-        "The batch reffered to in the transfer mappings was not sent",
+        "The batch referenced by the transfer mappings does not exist",
       );
     }
 
+    const filesById: Map<FileId, FileOffer> = new Map(
+      pendingBatch.map((file) => [file.fileId, file]),
+    );
+
+    try {
+      this.validateTransferMappings(filesById, message.mappings);
+    } catch (error) {
+      this.emit("error", error);
+
+      return;
+    }
+
     message.mappings.forEach((mapping) => {
-      const incomingFile = pendingBatch.find(
-        (pendingFile) => pendingFile.fileId === mapping.fileId,
-      );
-
-      if (!incomingFile) {
-        this.emit(
-          "error",
-          new FileTransferManagerError(
-            FileTransferManagerErrorCode.UNKNOWN_FILE_ID,
-            "No file with the specified file id exists in the referenced batch",
-          ),
-        );
-
-        return;
-      }
-
       this.registerTransfer(
-        new IncomingFileTransfer(this.connection, this.config.protocolVersion, mapping.transferId),
+        new IncomingFileTransfer(
+          this.connection,
+          this.config.protocolVersion,
+          mapping.transferId,
+          filesById.get(mapping.fileId)!, // has ! added because it is validated at runtime with validateTransferMappings
+          new BrowserFileSink(),
+        ),
       );
     });
 
     this.pendingIncomingBatches.delete(message.batchId);
   }
 
-  private processSendQueue = async () => {
-    const transfer = this.sendQueue.dequeue();
-
-    if (!transfer) {
-      console.warn("Cannot process send queue: queue is empty");
-      return;
+  private validateTransferMappings(
+    pendingFiles: Map<FileId, FileOffer>,
+    mappings: TransferMapping[],
+  ) {
+    for (const mapping of mappings) {
+      if (!pendingFiles.has(mapping.fileId)) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.UNKNOWN_FILE_ID,
+          "No file with the specified file id exists in the referenced batch",
+        );
+      }
     }
+  }
 
-    const fileStartMessage: TransferStart = {
-      type: "transfer-start",
-      protocolVersion: this.config.protocolVersion,
-      transferId: transfer.id,
-    };
+  private processSendQueue = async () => {
+    while (!this.sendQueue.isEmpty) {
+      const transfer = this.sendQueue.dequeue();
 
-    this.sendControlMessageWithRetry(fileStartMessage, "sending transfer start").catch((error) =>
-      this.emit("error", error),
-    );
+      if (!transfer) {
+        throw new FileTransferManagerError(
+          FileTransferManagerErrorCode.EMPTY_FILE_SEND_QUEUE,
+          "Cannot process send queue: queue is empty",
+        );
+      }
 
-    transfer.start();
+      const fileStartMessage: TransferStart = {
+        type: "transfer-start",
+        protocolVersion: this.config.protocolVersion,
+        transferId: transfer.id,
+      };
+
+      try {
+        await this.sendControlMessageWithRetry(fileStartMessage, "sending transfer start");
+      } catch (error) {
+        transfer.fail(error);
+
+        continue;
+      }
+
+      // todo: wait for transfer-started before starting the transfer
+      transfer.start();
+    }
   };
 
   public async acceptFiles(batchId: BatchId, acceptedFileIds: FileId[]) {
@@ -476,6 +540,20 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     transfer.on("cancelled", () => {
       this.transfers.delete(transfer.id);
     });
+  }
+
+  public dispose() {
+    this.pendingOutgoingBatches.clear();
+    this.pendingIncomingBatches.clear();
+    this.transfers.clear();
+
+    this.controlTransport.dispose();
+
+    this.connection.off("controlChannelMessage", this.controlTransport.handleMessage);
+
+    this.sendQueue.off("available", this.handleSendQueueAvailable);
+
+    this.clearAll();
   }
 
   public get pendingIncomingOffers(): ReadonlyMap<BatchId, readonly FileOffer[]> {

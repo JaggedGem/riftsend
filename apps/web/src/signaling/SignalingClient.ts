@@ -1,5 +1,5 @@
-import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import { getConfig } from "@/config/config";
+import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
+import { getConfig } from "@/config/config.js";
 import {
   SignalingMessageSchema,
   type HelloMessage,
@@ -21,7 +21,7 @@ import {
   type PeerErrorMessage,
 } from "@riftsend/protocol";
 import { type Room } from "@riftsend/shared";
-import { SignalingClientError, SignalingClientErrorCode } from "./errors";
+import { SignalingClientError, SignalingClientErrorCode } from "./errors.js";
 
 type SignalingClientEvents = {
   connected: PeerIdMessage["payload"];
