@@ -255,7 +255,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return batchOffer;
   }
 
-  private handleControlChannelMessage(message: ControlMessage) {
+  private handleControlChannelMessage = (message: ControlMessage) => {
     switch (message.type) {
       case "batch-offer": {
         this.emit("batchOfferMessage", message);
@@ -290,7 +290,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         break;
       }
     }
-  }
+  };
 
   /**
    * Sender function

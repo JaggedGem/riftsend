@@ -232,7 +232,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * @returns true if the message was sent, or false if the channel was not open
    */
-  sendControl(data: unknown): boolean {
+  sendControl = (data: unknown): boolean => {
     if (!this.controlChannel || this.controlChannel.readyState !== "open") {
       console.warn("Control channel not open, cannot send control message");
       return false;
@@ -240,7 +240,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
     this.controlChannel.send(JSON.stringify(data));
     return true;
-  }
+  };
 
   /** Returns `true` when both data and control channels are open and ready. */
   isReady(): boolean {
