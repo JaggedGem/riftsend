@@ -33,7 +33,7 @@ const CONTROL_CHANNEL_LABEL = "riftsend-control";
 
 type WebRTCConnectionEvents = {
   dataChannelOpen: RTCDataChannel;
-  dataChannelMessage: unknown;
+  dataChannelMessage: ArrayBuffer;
   dataChannelClose: void;
   controlChannelOpen: RTCDataChannel;
   controlChannelMessage: AnyControlMessage;
