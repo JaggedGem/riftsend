@@ -380,8 +380,6 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       } else {
         this.handleDataChannelMessage(event.data);
       }
-
-      this.emit(`${type}ChannelMessage`, event.data);
     };
 
     channel.onopen = () => {
@@ -412,12 +410,15 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
   private handleDataChannelMessage(data: ArrayBuffer): void {
     console.log("Received data channel message:", data.byteLength, "bytes");
+
+    this.emit("dataChannelMessage", data);
   }
 
-  private handleControlChannelMessage(data: unknown): void {
-    const message = AnyControlMessageSchema.safeParse(data);
+  private handleControlChannelMessage(data: string): void {
+    const message = AnyControlMessageSchema.safeParse(JSON.parse(data));
 
     if (!message.success) {
+      // todo: implement actual errors
       console.warn("Received unknown control channel message");
       return;
     }
