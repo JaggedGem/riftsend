@@ -112,11 +112,12 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
 
     this.ws.onclose = (event) => {
       const sanitizedReason = event.reason.slice(0, 256);
+
       this.emit("disconnected", {
         code: event.code,
         reason: sanitizedReason,
       });
-      this.clearAll();
+
       this.ws = null;
     };
 
