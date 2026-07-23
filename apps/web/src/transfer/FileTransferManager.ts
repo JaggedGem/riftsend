@@ -320,11 +320,13 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return [file];
     });
 
-    const transferIds = this.mapTransfers(message.batchId, acceptedFiles);
+    const transfers = this.mapTransfers(message.batchId, acceptedFiles);
 
-    transferIds.forEach((transferId) => {
-      this.sendQueue.enqueue(transferId);
+    transfers.forEach((transfer) => {
+      this.sendQueue.enqueue(transfer);
     });
+
+    this.batchOffersSent.delete(message.batchId);
   }
 
   /**
