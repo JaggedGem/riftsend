@@ -220,14 +220,17 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   }
 
   public async offerFiles(files: File[]) {
-    const batchOffer = this.buildBatchOffer(files);
+    const pendingBatch: PendingBatch = new Map();
+
+    const batchOffer = this.buildBatchOffer(files, pendingBatch);
 
     await this.sendControlMessageWithRetry(batchOffer, "sending the batch offer");
+
+    this.pendingOutgoingBatches.set(batchOffer.batchId, pendingBatch);
   }
 
-  private buildBatchOffer(files: File[]): BatchOffer {
+  private buildBatchOffer(files: File[], pendingBatch: PendingBatch): BatchOffer {
     const batchId = getBatchId();
-    const pendingBatch: PendingBatch = new Map();
 
     const fileOffers: FileOffer[] = files.map((file) => {
       const offer: FileOffer = {
@@ -243,8 +246,6 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
       return offer;
     });
-
-    this.pendingOutgoingBatches.set(batchId, pendingBatch);
 
     const batchOffer: BatchOffer = {
       type: "batch-offer",
