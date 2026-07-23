@@ -63,6 +63,7 @@ const isFatal = (error: unknown): error is FatalError => {
   );
 };
 
+type FileTransfer = OutgoingFileTransfer | IncomingFileTransfer;
 /**
  * Manages file transfers over a WebRTC data channel.
  *
@@ -80,7 +81,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   private readonly pendingIncomingBatches = new Map<BatchId, FileOffer[]>();
 
   private readonly sendQueue = new FileSendQueue<OutgoingFileTransfer>();
-  private readonly transfers = new Map<TransferId, OutgoingFileTransfer | IncomingFileTransfer>();
+  private readonly transfers = new Map<TransferId, FileTransfer>();
 
   private readonly controlTransport: ControlTransport;
 
@@ -368,7 +369,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         mapping.transferId,
       );
 
-      this.transfers.set(mapping.transferId, outgoingFileTransfer);
+      this.registerTransfer(outgoingFileTransfer);
 
       transfers.push(outgoingFileTransfer);
 
@@ -417,8 +418,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
         return;
       }
 
-      this.transfers.set(
-        mapping.transferId,
+      this.registerTransfer(
         new IncomingFileTransfer(this.connection, this.config.protocolVersion, mapping.transferId),
       );
     });
@@ -464,6 +464,22 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return batchOfferResponse;
   }
 
+  private registerTransfer(transfer: FileTransfer) {
+    this.transfers.set(transfer.transferId, transfer);
+
+    transfer.on("completed", () => {
+      this.transfers.delete(transfer.transferId);
+    });
+
+    transfer.on("failed", () => {
+      this.transfers.delete(transfer.transferId);
+    });
+
+    transfer.on("cancelled", () => {
+      this.transfers.delete(transfer.transferId);
+    });
+  }
+
   public get pendingIncomingOffers(): ReadonlyMap<BatchId, readonly FileOffer[]> {
     return this.pendingIncomingBatches;
   }
@@ -472,10 +488,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return [...this.pendingIncomingBatches.values()].flat();
   }
 
-  public get activeTransfers(): ReadonlyMap<
-    TransferId,
-    OutgoingFileTransfer | IncomingFileTransfer
-  > {
+  public get activeTransfers(): ReadonlyMap<TransferId, FileTransfer> {
     return this.transfers;
   }
 
