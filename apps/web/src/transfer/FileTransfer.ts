@@ -29,7 +29,8 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private bytesSent: number = 0;
   private lastProgressEmit = 0;
   private cancelController = new AbortController();
-  private startedAt: number | undefined;
+  private startedAt?: number;
+  private activeTimeMs = 0;
   private nextChunkIndex = 0;
 
   constructor(
@@ -68,8 +69,9 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     this.lastProgressEmit = now;
 
-    const elapsed = (now - this.startedAt) / 1000;
-    const bytesPerSecond = this.bytesSent / elapsed;
+    const elapsed = this.activeTimeMs + (this.startedAt !== undefined ? now - this.startedAt : 0);
+
+    const bytesPerSecond = elapsed === 0 ? 0 : this.bytesSent / (elapsed / 1000);
 
     this.emit("progress", {
       bytesSent: this.bytesSent,
@@ -93,6 +95,11 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   public pause() {
     if (this.state !== "running") {
       throw new TransferStateError("running", this.state, "pause");
+    }
+    if (this.startedAt) {
+      this.activeTimeMs += Date.now() - this.startedAt;
+
+      this.startedAt = undefined;
     }
 
     this.state = "paused";
