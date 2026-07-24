@@ -57,10 +57,6 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   }
 
   private emitProgress() {
-    if (this.state !== "running" || !this.startedAt) {
-      throw new Error("Cannot emit progress if transfer hasn't started already");
-    }
-
     const now = Date.now();
 
     if (now - this.lastProgressEmit < PROGRESS_EVENTS_DELAY) {
