@@ -67,6 +67,10 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     const elapsed = this.activeTimeMs + (this.startedAt !== undefined ? now - this.startedAt : 0);
 
+    if (elapsed < PROGRESS_EVENTS_DELAY) {
+      return;
+    }
+
     const bytesPerSecond = elapsed === 0 ? 0 : this.bytesSent / (elapsed / 1000);
 
     this.emit("progress", {
