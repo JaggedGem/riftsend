@@ -34,12 +34,36 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
     this.listeners[type]?.delete(handler);
   }
 
+  private invokeHandlers<T>(handlers: Iterable<EventHandler<T>>, payload: T): readonly unknown[] {
+    const errors: unknown[] = [];
+
+    for (const handler of handlers) {
+      try {
+        handler(payload);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    return errors;
+  }
+
   protected emit<K extends keyof WithBaseEvents<EventMap>>(
     type: K,
     payload: WithBaseEvents<EventMap>[K],
   ): void {
-    this.listeners[type]?.forEach((handler) => {
-      handler(payload);
-    });
+    const listeners = this.listeners[type];
+
+    if (!listeners) {
+      return;
+    }
+
+    const errors = this.invokeHandlers([...listeners], payload);
+
+    if (errors.length > 0) {
+      queueMicrotask(() => {
+        throw new AggregateError(errors, `Event "${String(type)}" handler execution failed`);
+      });
+    }
   }
 }
