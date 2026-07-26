@@ -26,6 +26,7 @@ export class FileTransferManagerError extends Error {
 export enum TransferErrorCode {
   WRONG_STATE = "XFER_WRONG_STATE",
   CHANNEL_CLOSED = "XFER_CHANNEL_CLOSED",
+  BUFFER_MISMATCH = "XFER_BUFFER_MISMATCH",
 }
 
 export class TransferStateError extends Error {
@@ -58,5 +59,15 @@ export class TransferSendError extends Error {
     this.code = TransferErrorCode.CHANNEL_CLOSED;
     this.chunkIndex = chunkIndex;
     this.name = "TransferSendError";
+  }
+}
+
+export class TransferBufferMismatchError extends Error {
+  readonly code = TransferErrorCode.BUFFER_MISMATCH;
+  readonly chunkIndex: number;
+  constructor(chunkIndex: number) {
+    super(`Buffered chunk index does not match the expected chunk index.`);
+    this.chunkIndex = chunkIndex;
+    this.name = "TransferBufferMismatchError";
   }
 }

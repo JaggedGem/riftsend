@@ -1,9 +1,9 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import type { WebRTCConnection } from "@/webrtc/WebRTCConnection.js";
-import type { FileSource } from "./FileSource.js";
+import type { FileChunk, FileSource } from "./FileSource.js";
 import { buildChunk, type FileOffer } from "@riftsend/protocol";
 import type { TransferId } from "@riftsend/shared";
-import { TransferSendError, TransferStateError } from "./errors.js";
+import { TransferBufferMismatchError, TransferSendError, TransferStateError } from "./errors.js";
 import type { FileSink } from "./FileSink.js";
 
 type FileTransferEvents = {
@@ -32,6 +32,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private startedAt?: number;
   private activeTimeMs = 0;
   private nextChunkIndex = 0;
+  private bufferedChunk?: FileChunk;
 
   constructor(
     private readonly connection: WebRTCConnection,
@@ -96,6 +97,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     if (this.state !== "running") {
       throw new TransferStateError("running", this.state, "pause");
     }
+
     if (this.startedAt) {
       this.activeTimeMs += Date.now() - this.startedAt;
 
@@ -123,6 +125,18 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     void this.run(true);
   }
 
+  private commitChunk(rawChunk: FileChunk) {
+    if (!this.sendChunk(rawChunk.index, rawChunk.data)) {
+      throw new TransferSendError(rawChunk.index);
+    }
+
+    this.bytesSent += rawChunk.data.byteLength;
+
+    this.nextChunkIndex = rawChunk.index + 1;
+
+    this.emitProgress();
+  }
+
   private async run(firstRun: boolean) {
     this.state = "running";
 
@@ -135,23 +149,32 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.startedAt = Date.now();
 
     try {
+      if (!firstRun && this.bufferedChunk) {
+        if (this.bufferedChunk.index !== this.nextChunkIndex) {
+          throw new TransferBufferMismatchError(this.bufferedChunk.index);
+        }
+
+        const bufferedChunk = this.bufferedChunk;
+        this.bufferedChunk = undefined;
+
+        this.commitChunk(bufferedChunk);
+      }
+
       for await (const rawChunk of this.fileSource.readChunks(
         this.nextChunkIndex,
         this.cancelController.signal,
       )) {
-        if (this.isCancelled() || this.isPaused()) {
+        if (this.isCancelled()) {
           return;
         }
 
-        if (!this.sendChunk(rawChunk.index, rawChunk.data)) {
-          throw new TransferSendError(rawChunk.index);
+        if (this.isPaused()) {
+          this.bufferedChunk = rawChunk;
+
+          return;
         }
 
-        this.bytesSent += rawChunk.data.byteLength;
-
-        this.nextChunkIndex = rawChunk.index + 1;
-
-        this.emitProgress();
+        this.commitChunk(rawChunk);
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
