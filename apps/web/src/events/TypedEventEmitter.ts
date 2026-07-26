@@ -55,6 +55,12 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
     const listeners = this.listeners[type];
 
     if (!listeners) {
+      if (String(type) === "error") {
+        queueMicrotask(() => {
+          throw payload instanceof Error ? payload : new Error(String(payload));
+        });
+      }
+
       return;
     }
 
