@@ -404,7 +404,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       });
     }
 
-    if (this.pc.connectionState === "disconnected") {
+    if (this.pc.connectionState === "disconnected" || this.pc.connectionState === "closed") {
       this.dataReady = false;
       this.controlReady = false;
     }
