@@ -18,18 +18,14 @@ export class BrowserFileSource implements FileSource {
     let byteOffset = startChunk * CHUNK_SIZE;
     let index = startChunk;
 
-    if (byteOffset >= this.file.size) {
-      return;
-    }
-
     while (byteOffset < this.file.size) {
-      abortSignal?.throwIfAborted();
-
       const binaryChunk = this.file.slice(byteOffset, byteOffset + CHUNK_SIZE);
 
+      const data = await binaryChunk.arrayBuffer();
+
       abortSignal?.throwIfAborted();
 
-      yield { index, data: await binaryChunk.arrayBuffer() };
+      yield { index, data };
 
       byteOffset += CHUNK_SIZE;
       index++;
