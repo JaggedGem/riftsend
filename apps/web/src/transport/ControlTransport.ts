@@ -16,18 +16,20 @@ import { ControlTransportError, ControlTransportErrorCode } from "./errors.js";
  * Represents a reliable control message that is awaiting acknowledgment.
  *
  * Stores the message along with metadata needed for retry tracking and
- * promise resolution.
+ * promise resolution. The timestamp fields (`firstSentAt`, `lastSentAt`,
+ * `nextRetryAt`) start as `undefined` and are populated asynchronously
+ * once the underlying `sendRaw` promise resolves.
  */
 type PendingMessage = {
   /** The reliable control message that was sent and is awaiting an ACK. */
   message: ReliableControlMessage;
-  /** The high-resolution timestamp (from `performance.now()`) when the message was first sent. */
+  /** The high-resolution timestamp (from `performance.now()`) when the message was first sent, or `undefined` until `sendRaw` resolves. */
   firstSentAt: DOMHighResTimeStamp | undefined;
-  /** The high-resolution timestamp (from `performance.now()`) when the message was last sent (including retries). */
+  /** The high-resolution timestamp (from `performance.now()`) when the message was last sent (including retries), or `undefined` until `sendRaw` resolves. */
   lastSentAt: DOMHighResTimeStamp | undefined;
   /** The number of times this message has been retried so far. */
   retryCount: number;
-  /** The timestamp at which the next retry attempt is allowed. */
+  /** The timestamp at which the next retry attempt is allowed, or `undefined` until `sendRaw` resolves. */
   nextRetryAt: number | undefined;
   /** Resolves the promise associated with sending this message, called when the ACK is received. */
   resolve: () => void;
@@ -101,8 +103,8 @@ export class ControlTransport {
    *
    * @param config Application configuration containing retry/timeout tuning values.
    * @param sendRaw Function that sends a raw message over the underlying channel.
-   *   Returns a promise that resolves if the messsage was sent successfully (after waiting for the buffer to drain),
-   *   or rejects if an error has occurred
+   *   Returns a promise that resolves if the message was sent successfully (after waiting for the buffer to drain),
+   *   or rejects if an error has occurred.
    * @param onMessage Callback invoked when a non-reliable control message is received,
    *   or when a reliable message's ACK has been processed and the original message is
    *   forwarded for application handling.
@@ -181,7 +183,7 @@ export class ControlTransport {
    * @returns A promise that resolves when the message has been sent, or rejects
    *   if the send fails.
    * @throws {ControlTransportError} With code `SEND_FAILED` if the underlying
-   *   `sendRaw` call throws or returns a falsy value.
+   *   `sendRaw` call throws or rejects.
    */
   public async send(message: ControlMessage) {
     try {
@@ -206,6 +208,10 @@ export class ControlTransport {
    *
    * The message is assigned a unique `messageId`, validated against
    * `ReliableControlMessageSchema`, and added to the pending messages map.
+   * The message is then sent via `sendRaw`. Once `sendRaw` resolves, the
+   * timestamps (`firstSentAt`, `lastSentAt`, `nextRetryAt`) are populated
+   * and the retry deadline is set to `sentAt + ackTimeout`.
+   *
    * A retry timer is scheduled automatically by the periodic `checkPendingMessages`
    * loop. If the ACK is received, the returned promise resolves. If the message
    * exceeds `maxRetries` or the transport is disposed, the promise rejects.
@@ -220,8 +226,8 @@ export class ControlTransport {
    *   of pending messages has reached `maxPendingMessages`.
    * @throws {ControlTransportError} With code `INVALID_RELIABLE_MESSAGE` if the
    *   message fails `ReliableControlMessageSchema` validation.
-   * @throws {ControlTransportError} With code `SEND_FAILED` if `sendRaw` returns
-   *   a falsy value when sending the reliable message.
+   * @throws {ControlTransportError} With code `SEND_FAILED` (asynchronously, via
+   *   promise rejection) if `sendRaw` rejects when sending the reliable message.
    */
   private sendReliable(
     message: Extract<ControlMessage, { type: ReliableTypeName }>,
@@ -342,6 +348,10 @@ export class ControlTransport {
    * Iterates over all pending reliable messages and retries any that have
    * exceeded their `nextRetryAt` deadline.
    *
+   * Messages with undefined timestamps (`firstSentAt`, `lastSentAt`, or
+   * `nextRetryAt`) are skipped — these are messages whose initial `sendRaw`
+   * call has not yet resolved.
+   *
    * Messages that exceed `maxRetries` are removed from the pending map and
    * their associated promise is rejected with `MAX_RETRIES_EXCEEDED`.
    * Messages that are still within the retry limit are resent via `retrySend`.
@@ -392,9 +402,13 @@ export class ControlTransport {
   }
 
   /**
-   * Retries sending a pending reliable message by incrementing its retry count,
-   * updating its next retry deadline with exponential backoff, and re-sending
-   * it via `sendRaw`.
+   * Retries sending a pending reliable message.
+   *
+   * Resets the retry deadline to `undefined` (so the message is skipped by
+   * `checkPendingMessages` until the resend completes), then calls `sendRaw`
+   * to re-send the message. Once `sendRaw` resolves successfully, the retry
+   * count is incremented and the next retry deadline is set with exponential
+   * backoff.
    *
    * The retry delay is calculated as `ackTimeout * 2^(retryCount + 1)`, capped
    * at `maxRetryDelay`.
@@ -403,8 +417,8 @@ export class ControlTransport {
    * @throws {ControlTransportError} With code `PENDING_DISAPPEARED` if the
    *   message is no longer found in the pending map (likely already resolved
    *   or rejected).
-   * @throws {ControlTransportError} With code `SEND_FAILED_ON_RESEND` if
-   *   `sendRaw` returns a falsy value when attempting to resend the message.
+   * @throws {ControlTransportError} With code `SEND_FAILED_ON_RESEND` (asynchronously,
+   *   via promise rejection) if `sendRaw` rejects when attempting to resend the message.
    */
   private retrySend(messageId: MessageId) {
     const pendingMessage = this.pendingMessages.get(messageId);
@@ -458,6 +472,7 @@ export class ControlTransport {
    * - All other messages are forwarded directly to `onMessage`.
    *
    * @param message The incoming control message of any type.
+   * @returns A promise that resolves once the message has been fully processed.
    * @throws {ControlTransportError} With code `TRANSPORT_DISPOSED` if the
    *   transport has already been disposed.
    */
@@ -490,6 +505,8 @@ export class ControlTransport {
    * stripped) is forwarded to `onMessage`.
    *
    * @param message The reliable control message received from the remote peer.
+   * @returns A promise that resolves once the ACK has been sent and the message
+   *   has been forwarded to `onMessage`.
    */
   private async handleReliableMessage(message: ReliableControlMessage) {
     if (this.seenMessageIds.has(message.messageId)) {
@@ -508,8 +525,9 @@ export class ControlTransport {
    * a reliable control message.
    *
    * @param acknowledgedMessageId The ID of the message being acknowledged.
+   * @returns A promise that resolves when the ACK has been sent successfully.
    * @throws {ControlTransportError} With code `ACK_SEND_FAILED` if `sendRaw`
-   *   returns a falsy value when sending the ACK.
+   *   rejects when sending the ACK.
    */
   private async sendAckMessage(acknowledgedMessageId: MessageId): Promise<void> {
     const ackMessage: AckMessage = {
