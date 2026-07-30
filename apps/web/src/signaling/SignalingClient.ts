@@ -355,6 +355,9 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
       this.ws.close(code, reason);
       this.ws = null;
     }
+
+    this.peerId = null;
+    this.room = null;
   }
 
   /**
