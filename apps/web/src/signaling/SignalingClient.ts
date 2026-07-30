@@ -179,10 +179,8 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
           break;
         }
 
-        this.room.members[msg.payload.peerId] = {
-          peerId: msg.payload.peerId,
-          joinedAt: msg.payload.joinedAt,
-        };
+        this.room.members[msg.payload.peerId].peerId = msg.payload.peerId;
+        this.room.members[msg.payload.peerId].joinedAt = msg.payload.joinedAt;
 
         this.emit("room-peer-joined", {
           peerId: msg.payload.peerId,
