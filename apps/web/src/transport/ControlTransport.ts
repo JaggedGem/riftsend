@@ -22,11 +22,13 @@ type PendingMessage = {
   /** The reliable control message that was sent and is awaiting an ACK. */
   message: ReliableControlMessage;
   /** The high-resolution timestamp (from `performance.now()`) when the message was first sent. */
-  sentAt: DOMHighResTimeStamp;
+  firstSentAt: DOMHighResTimeStamp | undefined;
+  /** The high-resolution timestamp (from `performance.now()`) when the message was last sent (including retries). */
+  lastSentAt: DOMHighResTimeStamp | undefined;
   /** The number of times this message has been retried so far. */
   retryCount: number;
   /** The timestamp at which the next retry attempt is allowed. */
-  nextRetryAt: number;
+  nextRetryAt: number | undefined;
   /** Resolves the promise associated with sending this message, called when the ACK is received. */
   resolve: () => void;
   /** Rejects the promise associated with sending this message, called when the message fails or is discarded. */
@@ -277,32 +279,37 @@ export class ControlTransport {
 
       this.nextMessageId = createMessageId(messageId + 1);
 
-      const sentAt = performance.now();
-
       const pendingMessage: PendingMessage = {
         message: reliableMessage,
-        sentAt,
+        firstSentAt: undefined,
+        lastSentAt: undefined,
         retryCount: 0,
-        nextRetryAt: sentAt + this.config.ackTimeout,
+        nextRetryAt: undefined,
         resolve,
         reject,
       };
 
       this.pendingMessages.set(messageId, pendingMessage);
 
-      if (!this.sendRaw(reliableMessage)) {
-        this.pendingMessages.delete(messageId);
+      this.sendRaw(reliableMessage)
+        .then(() => {
+          const sentAt = performance.now();
 
-        reject(
-          new ControlTransportError(
-            ControlTransportErrorCode.SEND_FAILED,
-            "An error occurred while sending a reliable message through the channel",
-            { messageId },
-          ),
-        );
+          pendingMessage.firstSentAt = sentAt;
+          pendingMessage.lastSentAt = sentAt;
+          pendingMessage.nextRetryAt = sentAt + this.config.ackTimeout;
+        })
+        .catch((error) => {
+          this.pendingMessages.delete(messageId);
 
-        return;
-      }
+          reject(
+            new ControlTransportError(
+              ControlTransportErrorCode.SEND_FAILED,
+              "An error occurred while sending a reliable message through the channel",
+              { messageId, cause: error },
+            ),
+          );
+        });
     });
   }
 
@@ -343,6 +350,14 @@ export class ControlTransport {
     const now = performance.now();
 
     this.pendingMessages.forEach((pendingMessage, messageId) => {
+      if (
+        !pendingMessage.firstSentAt ||
+        !pendingMessage.lastSentAt ||
+        !pendingMessage.nextRetryAt
+      ) {
+        return;
+      }
+
       if (now >= pendingMessage.nextRetryAt) {
         if (pendingMessage.retryCount + 1 > this.config.maxRetries) {
           this.pendingMessages.delete(messageId);
@@ -404,21 +419,32 @@ export class ControlTransport {
 
     const nextRetryDelay = this.config.ackTimeout * 2 ** (pendingMessage.retryCount + 1);
 
-    this.pendingMessages.set(messageId, {
-      ...pendingMessage,
-      retryCount: pendingMessage.retryCount + 1,
-      nextRetryAt: performance.now() + Math.min(nextRetryDelay, this.config.maxRetryDelay),
-    });
+    pendingMessage.nextRetryAt = undefined;
+    pendingMessage.lastSentAt = undefined;
 
-    if (!this.sendRaw(pendingMessage.message)) {
-      this.pendingMessages.delete(messageId);
+    this.sendRaw(pendingMessage.message)
+      .then(() => {
+        if (!this.pendingMessages.has(messageId)) {
+          return;
+        }
 
-      throw new ControlTransportError(
-        ControlTransportErrorCode.SEND_FAILED_ON_RESEND,
-        "An error occurred while resending a reliable message through the control data channel",
-        { messageId },
-      );
-    }
+        const sentAt = performance.now();
+
+        pendingMessage.retryCount++;
+        pendingMessage.nextRetryAt = sentAt + Math.min(nextRetryDelay, this.config.maxRetryDelay);
+        pendingMessage.lastSentAt = sentAt;
+      })
+      .catch((error) => {
+        this.pendingMessages.delete(messageId);
+
+        pendingMessage.reject(
+          new ControlTransportError(
+            ControlTransportErrorCode.SEND_FAILED_ON_RESEND,
+            "An error occurred while resending a reliable message through the control data channel",
+            { messageId, cause: error },
+          ),
+        );
+      });
   }
 
   /**
@@ -465,12 +491,12 @@ export class ControlTransport {
    *
    * @param message The reliable control message received from the remote peer.
    */
-  private handleReliableMessage(message: ReliableControlMessage) {
+  private async handleReliableMessage(message: ReliableControlMessage) {
     if (this.seenMessageIds.has(message.messageId)) {
       return;
     }
 
-    this.sendAckMessage(message.messageId);
+    await this.sendAckMessage(message.messageId);
 
     this.seenMessageIds.add(message.messageId);
 
@@ -485,18 +511,20 @@ export class ControlTransport {
    * @throws {ControlTransportError} With code `ACK_SEND_FAILED` if `sendRaw`
    *   returns a falsy value when sending the ACK.
    */
-  private sendAckMessage(acknowledgedMessageId: MessageId) {
+  private async sendAckMessage(acknowledgedMessageId: MessageId): Promise<void> {
     const ackMessage: AckMessage = {
       type: "ack",
       protocolVersion: this.config.protocolVersion,
       acknowledgedMessageId,
     };
 
-    if (!this.sendRaw(ackMessage)) {
+    try {
+      await this.sendRaw(ackMessage);
+    } catch (error) {
       throw new ControlTransportError(
         ControlTransportErrorCode.ACK_SEND_FAILED,
         `Could not send ACK message for ${acknowledgedMessageId}`,
-        { messageId: acknowledgedMessageId },
+        { messageId: acknowledgedMessageId, cause: error },
       );
     }
   }
