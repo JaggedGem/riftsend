@@ -90,7 +90,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     this.cancelController.abort();
 
-    this.emit("cancelled", undefined);
+    this.emit("cancelled");
   }
 
   public pause() {
@@ -106,7 +106,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     this.state = "paused";
 
-    this.emit("paused", undefined);
+    this.emit("paused");
   }
 
   public resume() {
@@ -141,9 +141,9 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     this.state = "running";
 
     if (firstRun) {
-      this.emit("started", undefined);
+      this.emit("started");
     } else {
-      this.emit("resumed", undefined);
+      this.emit("resumed");
     }
 
     this.startedAt = Date.now();
@@ -190,7 +190,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 
     this.state = "completed";
 
-    this.emit("completed", undefined);
+    this.emit("completed");
   }
 
   public getState(): TransferState {

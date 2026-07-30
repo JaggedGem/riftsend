@@ -14,7 +14,7 @@ export class FileSendQueue<T> extends TypedEventEmitter<FileSendQueueEvents> {
     this.queue.enqueue(...items);
 
     if (wasEmpty && !this.queue.isEmpty) {
-      this.emit("available", undefined);
+      this.emit("available");
     }
   }
 

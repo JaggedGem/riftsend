@@ -4,6 +4,14 @@ type BaseEvents = { error: unknown };
 
 type WithBaseEvents<EventMap extends Record<string, unknown>> = EventMap & BaseEvents;
 
+type VoidEventKeys<EventMap extends Record<string, unknown>> = {
+  [K in keyof WithBaseEvents<EventMap>]: WithBaseEvents<EventMap>[K] extends void ? K : never;
+}[keyof WithBaseEvents<EventMap>];
+
+type PayloadEventKeys<EventMap extends Record<string, unknown>> = {
+  [K in keyof WithBaseEvents<EventMap>]: WithBaseEvents<EventMap>[K] extends void ? never : K;
+}[keyof WithBaseEvents<EventMap>];
+
 export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>> {
   private listeners: {
     [K in keyof WithBaseEvents<EventMap>]?: Set<EventHandler<WithBaseEvents<EventMap>[K]>>;
@@ -48,9 +56,14 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
     return errors;
   }
 
-  protected emit<K extends keyof WithBaseEvents<EventMap>>(
+  protected emit<K extends VoidEventKeys<EventMap>>(type: K): void;
+  protected emit<K extends PayloadEventKeys<EventMap>>(
     type: K,
     payload: WithBaseEvents<EventMap>[K],
+  ): void;
+  protected emit<K extends PayloadEventKeys<EventMap>>(
+    type: K,
+    payload?: WithBaseEvents<EventMap>[K],
   ): void {
     const listeners = this.listeners[type];
 
@@ -64,7 +77,7 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
       return;
     }
 
-    const errors = this.invokeHandlers([...listeners], payload);
+    const errors = this.invokeHandlers([...listeners], payload as WithBaseEvents<EventMap>[K]);
 
     if (errors.length > 0) {
       queueMicrotask(() => {
