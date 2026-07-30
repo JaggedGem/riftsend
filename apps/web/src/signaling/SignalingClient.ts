@@ -455,13 +455,21 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
   public sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
     const { peerId } = this.getSendContext("send offer");
 
+    if (!candidate.candidate) {
+      throw new SignalingClientError(
+        SignalingClientErrorCode.INVALID_CANDIDATE,
+        "send ice candidate",
+        "Cannot send ICE candidate: candidate string is missing",
+      );
+    }
+
     const iceCandidateMessage: IceCandidateMessage = {
       type: "ice-candidate",
       from: peerId,
       to,
       payload: {
         candidate: {
-          candidate: candidate.candidate ?? "",
+          candidate: candidate.candidate,
           sdpMid: candidate.sdpMid ?? null,
           sdpMLineIndex: candidate.sdpMLineIndex ?? null,
           usernameFragment: candidate.usernameFragment ?? undefined,
