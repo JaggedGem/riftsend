@@ -1,9 +1,9 @@
 export enum SignalingClientErrorCode {
-  NOT_CONNECTED = "SIG_NOT_CONNECTED",
-  NOT_JOINED = "SIG_NOT_JOINED",
-  INVALID_SDP = "SIG_INVALID_SDP",
-  INVALID_ROOM_ID = "SIG_INVALID_ROOM_ID",
-  INVALID_JOIN_CODE = "SIG_INVALID_JOIN_CODE",
+  NOT_CONNECTED = "signaling_client.not_connected",
+  NOT_JOINED = "signaling_client.not_joined",
+  INVALID_SDP = "signaling_client.invalid_sdp",
+  INVALID_ROOM_ID = "signaling_client.invalid_room_id",
+  INVALID_JOIN_CODE = "signaling_client.invalid_join_code",
 }
 
 export class SignalingClientError extends Error {

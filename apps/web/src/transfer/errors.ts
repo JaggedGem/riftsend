@@ -1,12 +1,12 @@
 import type { TransferState } from "./FileTransfer.js";
 
 export enum FileTransferManagerErrorCode {
-  UNKNOWN_ERROR = "TR_MGR_UNKNOWN_ERROR",
-  FATAL_ERROR = "TR_MGR_FATAL_ERROR",
-  UNKNOWN_BATCH = "TR_MGR_UNKNOWN_BATCH",
-  UNKNOWN_FILE_ID = "TR_MGR_UNKNOWN_FILE_ID",
-  UNSUPPORTED_MESSAGE = "TR_MGR_UNSUPPORTED_MESSAGE",
-  EMPTY_FILE_SEND_QUEUE = "TR_MGR_EMPTY_FILE_SEND_QUEUE",
+  UNKNOWN_ERROR = "file_transfer_manager.unknown_error",
+  FATAL_ERROR = "file_transfer_manager.fatal_error",
+  UNKNOWN_BATCH = "file_transfer_manager.unknown_batch",
+  UNKNOWN_FILE_ID = "file_transfer_manager.unknown_file_id",
+  UNSUPPORTED_MESSAGE = "file_transfer_manager.unsupported_message",
+  EMPTY_FILE_SEND_QUEUE = "file_transfer_manager.empty_file_send_queue",
 }
 
 export class FileTransferManagerError extends Error {
@@ -24,9 +24,9 @@ export class FileTransferManagerError extends Error {
 }
 
 export enum TransferErrorCode {
-  WRONG_STATE = "XFER_WRONG_STATE",
-  CHANNEL_CLOSED = "XFER_CHANNEL_CLOSED",
-  BUFFER_MISMATCH = "XFER_BUFFER_MISMATCH",
+  WRONG_STATE = "transfer.wrong_state",
+  CHANNEL_CLOSED = "transfer.channel_closed",
+  BUFFER_MISMATCH = "transfer.buffer_mismatch",
 }
 
 export class TransferStateError extends Error {

@@ -1,10 +1,10 @@
 export enum WebRTCConnectionErrorCode {
-  UNKNOWN_ERROR = "WRTC_CONN_UNKNOWN_ERROR",
-  UNSTABLE_SIGNALING = "WRTC_CONN_UNSTABLE_SIGNALING",
-  NEGOTIATION_ALREADY_STARTED = "WRTC_CONN_NEGOTIATION_ALREADY_STARTED",
-  CHANNEL_ALREADY_OPEN = "WRTC_CONN_CHANNEL_ALREADY_OPEN",
-  PEER_CONNECTION_CLOSED = "WRTC_CONN_PEER_CONNECTION_CLOSED",
-  NEGOTIATION_ERROR = "WRTC_CONN_NEGOTIATION_ERROR",
+  UNKNOWN_ERROR = "webrtc_connection.unknown_error",
+  UNSTABLE_SIGNALING = "webrtc_connection.unstable_signaling",
+  NEGOTIATION_ALREADY_STARTED = "webrtc_connection.negotiation_already_started",
+  CHANNEL_ALREADY_OPEN = "webrtc_connection.channel_already_open",
+  PEER_CONNECTION_CLOSED = "webrtc_connection.peer_connection_closed",
+  NEGOTIATION_ERROR = "webrtc_connection.negotiation_error",
 }
 
 export class WebRTCConnectionError extends Error {

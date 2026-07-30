@@ -1,15 +1,15 @@
 import type { MessageId } from "@riftsend/shared";
 
 export enum ControlTransportErrorCode {
-  TRANSPORT_DISPOSED = "CTRL_DISPOSED",
-  SEND_FAILED = "CTRL_SEND_FAILED",
-  QUEUE_LIMIT_REACHED = "CTRL_QUEUE_LIMIT",
-  SEND_FAILED_ON_RESEND = "CTRL_RESEND_FAILED",
-  ACK_SEND_FAILED = "CTRL_ACK_SEND_FAILED",
-  PENDING_DISAPPEARED = "CTRL_PENDING_DISAPPEARED",
-  MAX_RETRIES_EXCEEDED = "CTRL_MAX_RETRIES",
-  UNKNOWN_ERROR = "CTRL_UNKNOWN_ERROR",
-  INVALID_RELIABLE_MESSAGE = "CTRL_INVALID_RELIABLE_MESSAGE",
+  TRANSPORT_DISPOSED = "control_transport.disposed",
+  SEND_FAILED = "control_transport.send_failed",
+  QUEUE_LIMIT_REACHED = "control_transport.queue_limit",
+  SEND_FAILED_ON_RESEND = "control_transport.resend_failed",
+  ACK_SEND_FAILED = "control_transport.ack_send_failed",
+  PENDING_DISAPPEARED = "control_transport.pending_disappeared",
+  MAX_RETRIES_EXCEEDED = "control_transport.max_retries",
+  UNKNOWN_ERROR = "control_transport.unknown_error",
+  INVALID_RELIABLE_MESSAGE = "control_transport.invalid_reliable_message",
 }
 
 export class ControlTransportError extends Error {
