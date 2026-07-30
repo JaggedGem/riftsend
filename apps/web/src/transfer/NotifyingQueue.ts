@@ -1,11 +1,11 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { Queue } from "@/queue/Queue.js";
 
-type FileSendQueueEvents = {
+type NotifyingQueueEvents = {
   available: void;
 };
 
-export class FileSendQueue<T> extends TypedEventEmitter<FileSendQueueEvents> {
+export class NotifyingQueue<T> extends TypedEventEmitter<NotifyingQueueEvents> {
   private queue = new Queue<T>();
 
   public enqueue(...items: T[]): void {

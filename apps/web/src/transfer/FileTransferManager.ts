@@ -17,7 +17,7 @@ import {
   type TransferId,
   createTransferId,
 } from "@riftsend/shared";
-import { FileSendQueue } from "./FileSendQueue.js";
+import { NotifyingQueue } from "./NotifyingQueue.js";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
 import { BrowserFileSource } from "./BrowserFileSource.js";
@@ -62,7 +62,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   private readonly pendingOutgoingBatches = new Map<BatchId, PendingBatch>();
   private readonly pendingIncomingBatches = new Map<BatchId, FileOffer[]>();
 
-  private readonly sendQueue = new FileSendQueue<OutgoingFileTransfer>();
+  private readonly sendQueue = new NotifyingQueue<OutgoingFileTransfer>();
   private readonly transfers = new Map<TransferId, FileTransfer>();
 
   private readonly controlTransport: ControlTransport;
