@@ -2,6 +2,7 @@ import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "@/signaling/SignalingClient.js";
 import { AnyControlMessageSchema, type AnyControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
+import { WebRTCConnectionError, WebRTCConnectionErrorCode } from "./errors";
 
 /**
  * Default STUN servers used for NAT traversal.
@@ -75,6 +76,8 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
 
+  private negotiationInProgress = false;
+
   constructor(signaling: SignalingClient, remotePeer: PeerId) {
     super();
 
@@ -96,23 +99,71 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * Call this on the **sender** side after the peer is known.
    * The receiver side will receive the offer via {@link handleOffer}.
+   *
+   * @throws the error that occurred when setting everything up (rethrows)
    */
   async initiateConnection(): Promise<void> {
-    this.dataChannel = this.pc.createDataChannel(DATA_CHANNEL_LABEL, {
-      ordered: false,
-      maxRetransmits: 0,
-    });
-    this.setupDataChannel(this.dataChannel, "data");
+    if (this.pc.signalingState !== "stable") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.UNSTABLE_SIGNALING,
+        "Cannot initiate negotiation while signaling state is not stable",
+      );
+    }
 
-    this.controlChannel = this.pc.createDataChannel(CONTROL_CHANNEL_LABEL, {
-      ordered: true,
-    });
-    this.setupDataChannel(this.controlChannel, "control");
+    if (this.negotiationInProgress) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.NEGOTIATION_ALREADY_STARTED,
+        "Cannot initiate negotiation while already negotiating",
+      );
+    }
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
+    if (this.dataChannel || this.controlChannel) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.CHANNEL_ALREADY_OPEN,
+        "Cannot initiate the data/control channel if it is already open",
+      );
+    }
 
-    this.signaling.sendOffer(this.remotePeer, offer);
+    if (this.pc.connectionState === "closed") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.PEER_CONNECTION_CLOSED,
+        "Cannot initiate negotiation if the peer connection is closed",
+      );
+    }
+
+    this.negotiationInProgress = true;
+
+    try {
+      this.dataChannel = this.pc.createDataChannel(DATA_CHANNEL_LABEL, {
+        ordered: false,
+        maxRetransmits: 0,
+      });
+      this.setupDataChannel(this.dataChannel, "data");
+
+      this.controlChannel = this.pc.createDataChannel(CONTROL_CHANNEL_LABEL, {
+        ordered: true,
+      });
+      this.setupDataChannel(this.controlChannel, "control");
+
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
+
+      this.signaling.sendOffer(this.remotePeer, offer);
+    } catch (error) {
+      this.dataChannel?.close();
+      this.controlChannel?.close();
+
+      this.dataChannel = undefined;
+      this.controlChannel = undefined;
+
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.NEGOTIATION_ERROR,
+        "An error occurred while negotiating",
+        { cause: error },
+      );
+    } finally {
+      this.negotiationInProgress = false;
+    }
   }
 
   /**
