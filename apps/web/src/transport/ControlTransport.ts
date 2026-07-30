@@ -23,6 +23,8 @@ import { ControlTransportError, ControlTransportErrorCode } from "./errors.js";
 type PendingMessage = {
   /** The reliable control message that was sent and is awaiting an ACK. */
   message: ReliableControlMessage;
+
+  // todo: implement statistics
   /** The high-resolution timestamp (from `performance.now()`) when the message was first sent, or `undefined` until `sendRaw` resolves. */
   firstSentAt: DOMHighResTimeStamp | undefined;
   /** The high-resolution timestamp (from `performance.now()`) when the message was last sent (including retries), or `undefined` until `sendRaw` resolves. */
@@ -93,6 +95,8 @@ export class ControlTransport {
   private retryTimer: number | undefined = undefined;
   /** Flag indicating whether the transport has been disposed. */
   private isDisposed = false;
+
+  // todo: prune the set
   /** Set of message IDs that have already been seen (to deduplicate incoming reliable messages). */
   private readonly seenMessageIds = new Set<MessageId>();
 
@@ -338,10 +342,7 @@ export class ControlTransport {
 
     acknowledgedMessage.resolve();
 
-    if (!this.pendingMessages.delete(message.acknowledgedMessageId)) {
-      console.warn("The message id provided was not found as a pending message");
-      return;
-    }
+    this.pendingMessages.delete(message.acknowledgedMessageId);
   }
 
   /**
