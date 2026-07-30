@@ -4,7 +4,7 @@ import {
   ControlMessageSchema,
   buildChunk,
   CHUNK_FORMAT,
-  type FileStart,
+  type TransferStart,
 } from "../index.js";
 
 describe("protocol schemas", () => {
@@ -40,13 +40,13 @@ describe("protocol schemas", () => {
 
   it("parses control messages through the discriminated union", () => {
     const parsed = ControlMessageSchema.parse({
-      type: "file-start",
+      type: "transfer-start",
       protocolVersion: 1,
-      fileId: "123e4567-e89b-42d3-a456-426614174002",
+      transferId: 1,
     });
 
-    expect(parsed.type).toBe("file-start");
-    expect((parsed as FileStart).fileId).toBe("123e4567-e89b-42d3-a456-426614174002");
+    expect(parsed.type).toBe("transfer-start");
+    expect((parsed as TransferStart).transferId).toBe(1);
   });
 });
 
