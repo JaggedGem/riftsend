@@ -8,7 +8,7 @@ import {
   type FileOffer,
   type TransferStart,
 } from "@riftsend/protocol";
-import { getConfig } from "@/config/config.js";
+import { getProtocolConfig } from "@/config/config.js";
 import {
   getBatchId,
   getFileId,
@@ -54,7 +54,7 @@ type TransferMapping = {
  */
 export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEvents> {
   private readonly connection: WebRTCConnection;
-  private readonly config = getConfig();
+  private readonly config = getProtocolConfig();
 
   private nextTransferId: TransferId = createTransferId(0);
 
@@ -79,7 +79,6 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     this.connection = connection;
 
     this.controlTransport = new ControlTransport(
-      this.config,
       this.connection.sendControl,
       this.handleControlChannelMessage,
     );

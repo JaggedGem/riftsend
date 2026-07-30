@@ -1,5 +1,5 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
-import { getConfig } from "@/config/config.js";
+import { getClientInfoConfig, getProtocolConfig, getSignalingConfig } from "@/config/config.js";
 import {
   SignalingMessageSchema,
   type HelloMessage,
@@ -80,21 +80,23 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
       this.ws = null;
     }
 
-    this.ws = new WebSocket(getConfig().signalingUrl);
+    this.ws = new WebSocket(getSignalingConfig().signalingUrl);
 
     this.ws.onopen = () => {
-      const cfg = getConfig();
+      const clientInfoConfig = getClientInfoConfig();
+      const protocolConfig = getProtocolConfig();
+
       const helloMessage: HelloMessage = {
         type: "hello",
         from: resume ? peerId! : null,
         sessionToken: resume ? sessionToken! : null,
-        protocolVersion: cfg.protocolVersion,
-        clientVersion: cfg.clientVersion,
+        protocolVersion: protocolConfig.protocolVersion,
+        clientVersion: clientInfoConfig.clientVersion,
         payload: {
-          name: cfg.clientName,
-          platform: cfg.clientPlatform,
-          supportResume: cfg.supportResume,
-          supportChunkAck: cfg.supportChunkAck,
+          name: clientInfoConfig.clientName,
+          platform: clientInfoConfig.clientPlatform,
+          supportResume: protocolConfig.supportResume,
+          supportChunkAck: protocolConfig.supportChunkAck,
         },
       };
 

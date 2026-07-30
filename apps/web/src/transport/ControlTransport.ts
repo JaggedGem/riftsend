@@ -1,4 +1,8 @@
-import { type Config } from "@/config/config.js";
+import {
+  getProtocolConfig,
+  getReliableTransportConfig,
+  type ReliableTransportConfig,
+} from "@/config/config.js";
 import {
   ReliableControlMessageSchema,
   type AckMessage,
@@ -8,6 +12,7 @@ import {
   type ReliableTypeName,
   reliableTypeNames,
   MessageIdSchema,
+  type ProtocolVersion,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
 import { ControlTransportError, ControlTransportErrorCode } from "./errors.js";
@@ -100,6 +105,10 @@ export class ControlTransport {
   /** Set of message IDs that have already been seen (to deduplicate incoming reliable messages). */
   private readonly seenMessageIds = new Set<MessageId>();
 
+  private readonly config: ReliableTransportConfig;
+
+  private readonly protocolVersion: ProtocolVersion;
+
   /**
    * Creates a new `ControlTransport` instance.
    *
@@ -114,10 +123,12 @@ export class ControlTransport {
    *   forwarded for application handling.
    */
   public constructor(
-    private readonly config: Config,
     private readonly sendRaw: (message: unknown) => Promise<void>,
     private readonly onMessage: (message: ControlMessage) => void,
   ) {
+    this.config = getReliableTransportConfig();
+    this.protocolVersion = getProtocolConfig().protocolVersion;
+
     this.scheduleCheck();
   }
 
@@ -533,7 +544,7 @@ export class ControlTransport {
   private async sendAckMessage(acknowledgedMessageId: MessageId): Promise<void> {
     const ackMessage: AckMessage = {
       type: "ack",
-      protocolVersion: this.config.protocolVersion,
+      protocolVersion: this.protocolVersion,
       acknowledgedMessageId,
     };
 

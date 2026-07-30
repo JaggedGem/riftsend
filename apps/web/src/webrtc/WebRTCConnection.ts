@@ -3,7 +3,7 @@ import { SignalingClient } from "@/signaling/SignalingClient.js";
 import { AnyControlMessageSchema, type AnyControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { WebRTCConnectionError, WebRTCConnectionErrorCode } from "./errors";
-import { getConfig } from "@/config/config";
+import { getWebRTCTransportConfig } from "@/config/config";
 
 /**
  * Default STUN servers used for NAT traversal.
@@ -67,7 +67,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   private readonly signaling: SignalingClient;
   private readonly remotePeer: PeerId;
   private readonly cleanupFns: (() => void)[] = [];
-  private readonly config = getConfig();
+  private readonly config = getWebRTCTransportConfig();
 
   private controlChannel?: RTCDataChannel;
   private dataChannel?: RTCDataChannel;
