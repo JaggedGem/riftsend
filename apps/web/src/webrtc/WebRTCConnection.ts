@@ -298,6 +298,13 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   public async sendData(data: ArrayBuffer): Promise<void> {
     const channel = this.dataChannel;
 
+    if (data.byteLength > this.config.dataChannelHighWatermark) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
+        `Cannot send data message if it is bigger than ${this.config.dataChannelHighWatermark} bytes`,
+      );
+    }
+
     if (!channel || channel.readyState !== "open") {
       throw new WebRTCConnectionError(
         WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
@@ -305,7 +312,9 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       );
     }
 
-    await this.waitForBufferDrain(channel);
+    if (channel.bufferedAmount > this.config.dataChannelHighWatermark) {
+      await this.waitForBufferDrain(channel);
+    }
 
     if (channel.readyState !== "open") {
       throw new WebRTCConnectionError(
@@ -315,7 +324,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     }
 
     try {
-      channel.send(JSON.stringify(data));
+      channel.send(data);
     } catch (error) {
       throw new WebRTCConnectionError(
         WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,

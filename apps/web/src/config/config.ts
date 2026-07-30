@@ -56,6 +56,7 @@ export type Config = {
   // WebRTC Connection Transport
   sendBufferDrainTimeoutMs: number;
   controlChannelHighWatermark: number;
+  dataChannelHighWatermark: number;
 };
 
 let _config: Config | null = null;
@@ -91,6 +92,7 @@ export const getConfig = () => {
       // WebRTC Connection Transport
       sendBufferDrainTimeoutMs: requireIntEnv("SEND_BUFFER_DRAIN_TIMEOUT_MS"),
       controlChannelHighWatermark: requireIntEnv("CONTROL_CHANNEL_HIGH_WATERMARK"),
+      dataChannelHighWatermark: requireIntEnv("DATA_CHANNEL_HIGH_WATERMARK"),
     };
   }
   return _config;
