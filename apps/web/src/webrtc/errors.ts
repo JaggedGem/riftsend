@@ -9,6 +9,7 @@ export enum WebRTCConnectionErrorCode {
   INVALID_OFFER = "webrtc_connection.invalid_offer",
   CONTROL_CHANNEL_ERROR = "webrtc_connection.control_channel_error",
   DATA_CHANNEL_ERROR = "webrtc_connection.data_channel_error",
+  BUFFER_DRAIN_TIMEOUT = "webrtc_connection.buffer_drain_timeout",
 }
 
 export class WebRTCConnectionError extends Error {

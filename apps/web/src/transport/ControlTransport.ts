@@ -46,7 +46,7 @@ export class ControlTransport {
 
   public constructor(
     private readonly config: Config,
-    private readonly sendRaw: (message: unknown) => boolean,
+    private readonly sendRaw: (message: unknown) => Promise<void>,
     private readonly onMessage: (message: ControlMessage) => void,
   ) {
     this.scheduleCheck();
@@ -59,21 +59,22 @@ export class ControlTransport {
     }, this.config.retryCheckInterval);
   };
 
-  public send(message: ControlMessage) {
-    if (isReliableMessage(message)) {
-      return this.sendReliable(message);
-    }
+  public async send(message: ControlMessage) {
+    try {
+      if (isReliableMessage(message)) {
+        await this.sendReliable(message);
 
-    if (!this.sendRaw(message)) {
-      return Promise.reject(
-        new ControlTransportError(
-          ControlTransportErrorCode.SEND_FAILED,
-          "An error occurred while sending a message through the channel",
-        ),
+        return;
+      }
+
+      await this.sendRaw(message);
+    } catch (error) {
+      throw new ControlTransportError(
+        ControlTransportErrorCode.SEND_FAILED,
+        "An error occurred while sending a message through the channel",
+        { cause: error },
       );
     }
-
-    return Promise.resolve();
   }
 
   private sendReliable(

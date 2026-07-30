@@ -50,6 +50,9 @@ export type Config = {
 
   // Transfer Manager Transport
   sendRetryDelay: number;
+
+  // WebRTC Connection Transport
+  sendBufferDrainTimeoutMs: number;
 };
 
 let _config: Config | null = null;
@@ -81,6 +84,9 @@ export const getConfig = () => {
 
       // Transfer Manager Transport
       sendRetryDelay: parseInt(requireEnv("SEND_RETRY_DELAY")),
+
+      // WebRTC Connection Transport
+      sendBufferDrainTimeoutMs: parseInt(requireEnv("SEND_BUFFER_DRAIN_TIMEOUT_MS")),
     };
   }
   return _config;

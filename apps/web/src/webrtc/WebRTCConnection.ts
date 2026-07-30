@@ -3,6 +3,7 @@ import { SignalingClient } from "@/signaling/SignalingClient.js";
 import { AnyControlMessageSchema, type AnyControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { WebRTCConnectionError, WebRTCConnectionErrorCode } from "./errors";
+import { getConfig } from "@/config/config";
 
 /**
  * Default STUN servers used for NAT traversal.
@@ -66,6 +67,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   private readonly signaling: SignalingClient;
   private readonly remotePeer: PeerId;
   private readonly cleanupFns: (() => void)[] = [];
+  private readonly config = getConfig();
 
   private controlChannel?: RTCDataChannel;
   private dataChannel?: RTCDataChannel;
@@ -303,19 +305,100 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     return true;
   }
 
-  /**
-   * Sends a JSON string over the ordered control channel.
-   *
-   * @returns true if the message was sent, or false if the channel was not open
-   */
-  public sendControl = (data: unknown): boolean => {
-    if (!this.controlChannel || this.controlChannel.readyState !== "open") {
-      console.warn("Control channel not open, cannot send control message");
-      return false;
+  private async waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
+    if (channel.bufferedAmount <= channel.bufferedAmountLowThreshold) {
+      return;
     }
 
-    this.controlChannel.send(JSON.stringify(data));
-    return true;
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+
+        reject(
+          new WebRTCConnectionError(
+            WebRTCConnectionErrorCode.BUFFER_DRAIN_TIMEOUT,
+            `Timed out waiting for the control channel buffer to drain below the low threshold after ${this.config.sendBufferDrainTimeoutMs} ms`,
+          ),
+        );
+      }, this.config.sendBufferDrainTimeoutMs);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+
+        channel.removeEventListener("bufferedamountlow", onBufferedAmountLow);
+        channel.removeEventListener("close", onClose);
+        channel.removeEventListener("error", onError);
+      };
+
+      const onBufferedAmountLow = () => {
+        cleanup();
+        resolve();
+      };
+
+      const onClose = () => {
+        cleanup();
+        reject(
+          new WebRTCConnectionError(
+            WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+            "Control channel closed unexpectedly while waiting for the buffer to drain",
+          ),
+        );
+      };
+
+      const onError = (event: Event) => {
+        cleanup();
+        reject(
+          new WebRTCConnectionError(
+            WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+            "An unexpected error occurred while waiting for the buffer to drain",
+            {
+              cause: event instanceof RTCErrorEvent ? event.error : event,
+            },
+          ),
+        );
+      };
+
+      channel.addEventListener("bufferedamountlow", onBufferedAmountLow);
+      channel.addEventListener("close", onClose);
+      channel.addEventListener("error", onError);
+    });
+  }
+
+  /**
+   * Sends a JSON message over the ordered control channel.
+   *
+   * Waits for channel backpressure to clear before sending.
+   *
+   * @throws WebRTCConnectionError if the channel is unavailable or sending fails.
+   */
+  public sendControl = async (data: unknown): Promise<void> => {
+    const channel = this.controlChannel;
+
+    if (!channel || channel.readyState !== "open") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+        "Cannot send control message if the channel is not setup or open",
+      );
+    }
+
+    await this.waitForBufferDrain(channel);
+
+    if (channel.readyState !== "open") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+        "Cannot send control message if the channel is not open",
+      );
+    }
+
+    try {
+      channel.send(JSON.stringify(data));
+    } catch (error) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+        "An error occurred while trying to send the control message",
+        { cause: error },
+      );
+    }
   };
 
   /** Returns `true` when both data and control channels are open and ready. */
