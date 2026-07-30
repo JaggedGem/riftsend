@@ -295,14 +295,34 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * @returns true if the message was sent, or false if the channel was not open
    */
-  public sendData(data: ArrayBuffer): boolean {
-    if (!this.dataChannel || this.dataChannel.readyState !== "open") {
-      console.warn("Data channel not open, cannot send data");
-      return false;
+  public async sendData(data: ArrayBuffer): Promise<void> {
+    const channel = this.dataChannel;
+
+    if (!channel || channel.readyState !== "open") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
+        "Cannot send data message if the channel is not setup or open",
+      );
     }
 
-    this.dataChannel.send(data);
-    return true;
+    await this.waitForBufferDrain(channel);
+
+    if (channel.readyState !== "open") {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
+        "Cannot send data message if the channel is not open",
+      );
+    }
+
+    try {
+      channel.send(JSON.stringify(data));
+    } catch (error) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
+        "An error occurred while trying to send the data message",
+        { cause: error },
+      );
+    }
   }
 
   private async waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
@@ -317,7 +337,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
         reject(
           new WebRTCConnectionError(
             WebRTCConnectionErrorCode.BUFFER_DRAIN_TIMEOUT,
-            `Timed out waiting for the control channel buffer to drain below the low threshold after ${this.config.sendBufferDrainTimeoutMs} ms`,
+            `Timed out waiting for the channel buffer to drain below the low threshold after ${this.config.sendBufferDrainTimeoutMs} ms`,
           ),
         );
       }, this.config.sendBufferDrainTimeoutMs);
@@ -340,7 +360,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
         reject(
           new WebRTCConnectionError(
             WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
-            "Control channel closed unexpectedly while waiting for the buffer to drain",
+            "The channel closed unexpectedly while waiting for the buffer to drain",
           ),
         );
       };

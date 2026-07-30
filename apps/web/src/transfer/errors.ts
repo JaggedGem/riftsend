@@ -61,8 +61,13 @@ export class TransferSendError extends Error {
   readonly code: TransferErrorCode.CHANNEL_CLOSED;
   readonly chunkIndex: number;
 
-  public constructor(chunkIndex: number) {
-    super(`Cannot send chunk ${chunkIndex}: data channel is not open`);
+  public constructor(
+    chunkIndex: number,
+    options?: {
+      cause?: unknown;
+    },
+  ) {
+    super(`Cannot send chunk ${chunkIndex}: data channel is not open`, { cause: options?.cause });
 
     this.code = TransferErrorCode.CHANNEL_CLOSED;
     this.chunkIndex = chunkIndex;

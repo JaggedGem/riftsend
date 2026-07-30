@@ -43,7 +43,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     super();
   }
 
-  private sendChunk(chunkIndex: number, payload: ArrayBuffer): boolean {
+  private sendChunk(chunkIndex: number, payload: ArrayBuffer): Promise<void> {
     const chunk = buildChunk(this.protocolVersion, this.id, chunkIndex, payload);
 
     return this.connection.sendData(chunk);
@@ -125,9 +125,11 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
     void this.run(true);
   }
 
-  private commitChunk(rawChunk: FileChunk) {
-    if (!this.sendChunk(rawChunk.index, rawChunk.data)) {
-      throw new TransferSendError(rawChunk.index);
+  private async commitChunk(rawChunk: FileChunk) {
+    try {
+      await this.sendChunk(rawChunk.index, rawChunk.data);
+    } catch (error) {
+      throw new TransferSendError(rawChunk.index, { cause: error });
     }
 
     this.bytesSent += rawChunk.data.byteLength;
@@ -157,7 +159,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
         const bufferedChunk = this.bufferedChunk;
         this.bufferedChunk = undefined;
 
-        this.commitChunk(bufferedChunk);
+        await this.commitChunk(bufferedChunk);
       }
 
       for await (const rawChunk of this.fileSource.readChunks(
@@ -174,7 +176,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
           return;
         }
 
-        this.commitChunk(rawChunk);
+        await this.commitChunk(rawChunk);
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
