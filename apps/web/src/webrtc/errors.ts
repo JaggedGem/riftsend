@@ -5,6 +5,10 @@ export enum WebRTCConnectionErrorCode {
   CHANNEL_ALREADY_OPEN = "webrtc_connection.channel_already_open",
   PEER_CONNECTION_CLOSED = "webrtc_connection.peer_connection_closed",
   NEGOTIATION_ERROR = "webrtc_connection.negotiation_error",
+  ICE_CANDIDATE_FAILED = "webrtc_connection.ice_candidate_failed",
+  INVALID_OFFER = "webrtc_connection.invalid_offer",
+  CONTROL_CHANNEL_ERROR = "webrtc_connection.control_channel_error",
+  DATA_CHANNEL_ERROR = "webrtc_connection.data_channel_error",
 }
 
 export class WebRTCConnectionError extends Error {

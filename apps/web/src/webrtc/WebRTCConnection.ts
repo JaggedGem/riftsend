@@ -206,13 +206,20 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     try {
       await this.pc.setRemoteDescription(offer);
       this.remoteDescriptionSet = true;
-      this.flushPendingIceCandidates();
+      await this.flushPendingIceCandidates();
     } catch (error) {
+      const wrappedError = new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.INVALID_OFFER,
+        "Failed to accept remote offer",
+        { cause: error },
+      );
+
       this.signaling.sendError(this.remotePeer, {
-        message: "Failed to accept remote offer",
+        message: wrappedError.message,
         code: WebRTCPeerErrorCode.INVALID_OFFER,
       });
-      console.error("Error setting remote description:", error);
+
+      this.emit("error", wrappedError);
       return;
     }
 
@@ -222,11 +229,18 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
       this.signaling.sendAnswer(this.remotePeer, answer);
     } catch (error) {
+      const wrappedError = new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.NEGOTIATION_ERROR,
+        "Failed to create or send answer",
+        { cause: error },
+      );
+
       this.signaling.sendError(this.remotePeer, {
-        message: "Failed to create or send answer",
+        message: wrappedError.message,
         code: WebRTCPeerErrorCode.NEGOTIATION_FAILED,
       });
-      console.error("Error creating or sending answer:", error);
+
+      this.emit("error", wrappedError);
     }
   }
 
@@ -237,7 +251,26 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(answer);
     this.remoteDescriptionSet = true;
-    this.flushPendingIceCandidates();
+    await this.flushPendingIceCandidates();
+  }
+
+  private async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    try {
+      await this.pc.addIceCandidate(candidate);
+    } catch (error) {
+      const wrappedError = new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.ICE_CANDIDATE_FAILED,
+        "Failed to process ICE candidate",
+        { cause: error },
+      );
+
+      this.emit("error", wrappedError);
+
+      void this.signaling.sendError(this.remotePeer, {
+        message: wrappedError.message,
+        code: WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED,
+      });
+    }
   }
 
   /**
@@ -252,15 +285,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       return;
     }
 
-    try {
-      await this.pc.addIceCandidate(candidate);
-    } catch (error) {
-      this.signaling.sendError(this.remotePeer, {
-        message: "Failed to process ICE candidate",
-        code: WebRTCPeerErrorCode.ICE_CANDIDATE_FAILED,
-      });
-      console.error("Error adding ICE candidate:", error);
-    }
+    await this.addIceCandidate(candidate);
   }
 
   /**
@@ -407,12 +432,20 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     }
 
     channel.onerror = (error) => {
-      console.error(`${type === "control" ? "Control" : "Data"} channel error:`, error);
+      const wrappedError = new WebRTCConnectionError(
+        type === "control"
+          ? WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR
+          : WebRTCConnectionErrorCode.DATA_CHANNEL_ERROR,
+        `${type === "control" ? "Control" : "Data"} channel error`,
+        { cause: error },
+      );
 
       this.signaling.sendError(this.remotePeer, {
-        message: `${type === "control" ? "Control" : "Data"} channel error`,
+        message: wrappedError.message,
         code: WebRTCPeerErrorCode.CONNECTION_FAILED,
       });
+
+      this.emit("error", wrappedError);
     };
 
     channel.onclose = () => {
@@ -448,14 +481,12 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    * Adds all queued ICE candidates to the peer connection.
    * Called once the remote description is set.
    */
-  private flushPendingIceCandidates(): void {
+  private async flushPendingIceCandidates(): Promise<void> {
     const candidates = this.pendingIceCandidates;
     this.pendingIceCandidates = [];
 
     for (const candidate of candidates) {
-      this.pc.addIceCandidate(candidate).catch((error) => {
-        console.error("Error adding queued ICE candidate:", error);
-      });
+      await this.addIceCandidate(candidate);
     }
   }
 
