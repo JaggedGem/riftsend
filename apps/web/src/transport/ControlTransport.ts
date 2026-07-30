@@ -461,7 +461,7 @@ export class ControlTransport {
    * @throws {ControlTransportError} With code `TRANSPORT_DISPOSED` if the
    *   transport has already been disposed.
    */
-  public handleMessage = (message: AnyControlMessage) => {
+  public handleMessage = async (message: AnyControlMessage) => {
     if (this.isDisposed) {
       throw new ControlTransportError(
         ControlTransportErrorCode.TRANSPORT_DISPOSED,
@@ -475,7 +475,7 @@ export class ControlTransport {
     }
 
     if (hasMessageId(message)) {
-      this.handleReliableMessage(message);
+      await this.handleReliableMessage(message);
     } else {
       this.onMessage(message);
     }
