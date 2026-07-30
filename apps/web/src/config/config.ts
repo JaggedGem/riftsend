@@ -30,6 +30,8 @@ const requireBooleanEnv = (key: string): boolean => {
   return value === "true";
 };
 
+const requireIntEnv = (key: string) => parseInt(requireEnv(key), 10);
+
 export type Config = {
   signalingUrl: string;
 
@@ -53,6 +55,7 @@ export type Config = {
 
   // WebRTC Connection Transport
   sendBufferDrainTimeoutMs: number;
+  controlChannelHighWatermark: number;
 };
 
 let _config: Config | null = null;
@@ -68,7 +71,7 @@ export const getConfig = () => {
       signalingUrl: requireEnv("SIGNALING_SERVER_URL"),
 
       // Initial Negotiation (general)
-      protocolVersion: ProtocolVersionSchema.parse(parseInt(requireEnv("PROTOCOL_VERSION"), 10)),
+      protocolVersion: ProtocolVersionSchema.parse(requireIntEnv("PROTOCOL_VERSION")),
       clientVersion: requireEnv("SIGNALING_CLIENT_VERSION"),
       clientName: requireEnv("SIGNALING_CLIENT_NAME"),
       clientPlatform: requireEnv("SIGNALING_CLIENT_PLATFORM"),
@@ -76,17 +79,18 @@ export const getConfig = () => {
       supportChunkAck: requireBooleanEnv("SIGNALING_CLIENT_SUPPORT_CHUNK_ACK"),
 
       // Reliable Transport
-      ackTimeout: parseInt(requireEnv("ACK_TIMEOUT")),
-      retryCheckInterval: parseInt(requireEnv("RETRY_CHECK_INTERVAL")),
-      maxRetries: parseInt(requireEnv("MAX_RETRIES")),
-      maxRetryDelay: parseInt(requireEnv("MAX_RETRY_DELAY")),
-      maxPendingMessages: parseInt(requireEnv("MAX_PENDING_MESSAGES")),
+      ackTimeout: requireIntEnv("ACK_TIMEOUT"),
+      retryCheckInterval: requireIntEnv("RETRY_CHECK_INTERVAL"),
+      maxRetries: requireIntEnv("MAX_RETRIES"),
+      maxRetryDelay: requireIntEnv("MAX_RETRY_DELAY"),
+      maxPendingMessages: requireIntEnv("MAX_PENDING_MESSAGES"),
 
       // Transfer Manager Transport
-      sendRetryDelay: parseInt(requireEnv("SEND_RETRY_DELAY")),
+      sendRetryDelay: requireIntEnv("SEND_RETRY_DELAY"),
 
       // WebRTC Connection Transport
-      sendBufferDrainTimeoutMs: parseInt(requireEnv("SEND_BUFFER_DRAIN_TIMEOUT_MS")),
+      sendBufferDrainTimeoutMs: requireIntEnv("SEND_BUFFER_DRAIN_TIMEOUT_MS"),
+      controlChannelHighWatermark: requireIntEnv("CONTROL_CHANNEL_HIGH_WATERMARK"),
     };
   }
   return _config;

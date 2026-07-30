@@ -381,6 +381,11 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       channel.addEventListener("bufferedamountlow", onBufferedAmountLow);
       channel.addEventListener("close", onClose);
       channel.addEventListener("error", onError);
+
+      if (channel.bufferedAmount <= channel.bufferedAmountLowThreshold) {
+        cleanup();
+        resolve();
+      }
     });
   }
 
@@ -394,6 +399,15 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   public sendControl = async (data: unknown): Promise<void> => {
     const channel = this.controlChannel;
 
+    const message = JSON.stringify(data);
+
+    if (new TextEncoder().encode(message).length > this.config.controlChannelHighWatermark) {
+      throw new WebRTCConnectionError(
+        WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
+        `Cannot send control message if it is bigger than ${this.config.controlChannelHighWatermark} bytes`,
+      );
+    }
+
     if (!channel || channel.readyState !== "open") {
       throw new WebRTCConnectionError(
         WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
@@ -401,7 +415,9 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       );
     }
 
-    await this.waitForBufferDrain(channel);
+    if (channel.bufferedAmount > this.config.controlChannelHighWatermark) {
+      await this.waitForBufferDrain(channel);
+    }
 
     if (channel.readyState !== "open") {
       throw new WebRTCConnectionError(
@@ -411,7 +427,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     }
 
     try {
-      channel.send(JSON.stringify(data));
+      channel.send(message);
     } catch (error) {
       throw new WebRTCConnectionError(
         WebRTCConnectionErrorCode.CONTROL_CHANNEL_ERROR,
