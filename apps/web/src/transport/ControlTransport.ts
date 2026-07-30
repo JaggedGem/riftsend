@@ -37,31 +37,6 @@ const isReliableMessage = (
   return reliableTypeNames.has(message.type);
 };
 
-type RetryableError = ControlTransportError & {
-  code: ControlTransportErrorCode.QUEUE_LIMIT_REACHED | ControlTransportErrorCode.SEND_FAILED;
-};
-
-const isRetryable = (error: unknown): error is RetryableError => {
-  return (
-    error instanceof ControlTransportError &&
-    (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED ||
-      error.code === ControlTransportErrorCode.SEND_FAILED)
-  );
-};
-
-type FatalError = ControlTransportError & {
-  code:
-    ControlTransportErrorCode.TRANSPORT_DISPOSED | ControlTransportErrorCode.MAX_RETRIES_EXCEEDED;
-};
-
-const isFatal = (error: unknown): error is FatalError => {
-  return (
-    error instanceof ControlTransportError &&
-    (error.code === ControlTransportErrorCode.TRANSPORT_DISPOSED ||
-      error.code === ControlTransportErrorCode.MAX_RETRIES_EXCEEDED)
-  );
-};
-
 export class ControlTransport {
   private nextMessageId = createMessageId(0);
   private readonly pendingMessages = new Map<MessageId, PendingMessage>();
@@ -88,29 +63,23 @@ export class ControlTransport {
     try {
       await this.send(message);
     } catch (error) {
-      if (isFatal(error)) {
-        throw new ControlTransportError(
-          ControlTransportErrorCode.FATAL_ERROR,
-          `A fatal error occurred while ${operationDescription}`,
-          { cause: error },
-        );
+      if (error instanceof ControlTransportError) {
+        if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
+          return new Promise((resolve, reject) => {
+            setTimeout(() => {
+              this.sendWithRetry(message, operationDescription).then(resolve, reject);
+            }, this.config.sendRetryDelay);
+          });
+        }
+
+        throw error;
       }
 
-      if (!isRetryable(error)) {
-        throw new ControlTransportError(
-          ControlTransportErrorCode.UNKNOWN_ERROR,
-          `An unexpected error occurred while ${operationDescription}`,
-          { cause: error },
-        );
-      }
-
-      if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
-        return new Promise((resolve, reject) => {
-          setTimeout(() => {
-            this.sendWithRetry(message, operationDescription).then(resolve, reject);
-          }, this.config.sendRetryDelay);
-        });
-      }
+      throw new ControlTransportError(
+        ControlTransportErrorCode.UNKNOWN_ERROR,
+        "An unknown error occurred while sending a control message with retry",
+        { cause: error },
+      );
     }
   }
 
