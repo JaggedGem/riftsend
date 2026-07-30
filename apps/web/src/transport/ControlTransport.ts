@@ -386,7 +386,7 @@ export class ControlTransport {
 
           const error = new ControlTransportError(
             ControlTransportErrorCode.MAX_RETRIES_EXCEEDED,
-            `Sending the message ${messageId} failed after ${this.config.maxRetries}`,
+            `Sending the message ${messageId} failed after ${this.config.maxRetries} tries`,
             { messageId },
           );
 

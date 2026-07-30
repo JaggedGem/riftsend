@@ -218,7 +218,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       return acc;
     }, []);
 
-    const transfers = await this.mapTransfers(message.batchId, acceptedFiles);
+    const transfers = await this.initializeTransfers(message.batchId, acceptedFiles);
 
     transfers.forEach((transfer) => {
       this.sendQueue.enqueue(transfer);
@@ -231,12 +231,12 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    * Sender function
    * @param batchId
    */
-  private async mapTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
+  private async initializeTransfers(batchId: BatchId, acceptedFiles: PendingOutgoingFile[]) {
     const mappings = this.createMappings(
       acceptedFiles.map((pendingFile) => pendingFile.offer.fileId),
     );
 
-    const transferMappingsMessage = this.buildTransferMappings(batchId, mappings);
+    const transferMappingsMessage = this.createTransferMappingsMessage(batchId, mappings);
 
     await this.controlTransport.sendWithRetry(
       transferMappingsMessage,
@@ -248,7 +248,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     return transfers;
   }
 
-  private buildTransferMappings(
+  private createTransferMappingsMessage(
     batchId: BatchId,
     mappings: TransferMapping[],
   ): BatchTransferMappings {

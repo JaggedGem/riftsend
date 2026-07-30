@@ -12,8 +12,11 @@ export class SignalingClientError extends Error {
     public readonly code: SignalingClientErrorCode,
     public readonly operation: string,
     message: string,
+    options?: {
+      cause?: unknown;
+    },
   ) {
-    super(message);
+    super(message, { cause: options?.cause });
 
     this.name = "SignalingClientError";
   }
