@@ -44,7 +44,7 @@ export class ControlTransport {
   private isDisposed = false;
   private readonly seenMessageIds = new Set<MessageId>();
 
-  constructor(
+  public constructor(
     private readonly config: Config,
     private readonly sendRaw: (message: unknown) => boolean,
     private readonly onMessage: (message: ControlMessage) => void,

@@ -99,7 +99,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
     });
   };
 
-  constructor(connection: WebRTCConnection) {
+  public constructor(connection: WebRTCConnection) {
     super();
 
     this.connection = connection;

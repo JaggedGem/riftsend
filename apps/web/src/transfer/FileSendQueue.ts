@@ -8,7 +8,7 @@ type FileSendQueueEvents = {
 export class FileSendQueue<T> extends TypedEventEmitter<FileSendQueueEvents> {
   private queue = new Queue<T>();
 
-  enqueue(...items: T[]): void {
+  public enqueue(...items: T[]): void {
     const wasEmpty = this.queue.isEmpty;
 
     this.queue.enqueue(...items);
@@ -18,19 +18,19 @@ export class FileSendQueue<T> extends TypedEventEmitter<FileSendQueueEvents> {
     }
   }
 
-  dequeue(): T | undefined {
+  public dequeue(): T | undefined {
     return this.queue.dequeue();
   }
 
-  peek(): T | undefined {
+  public peek(): T | undefined {
     return this.queue.peek();
   }
 
-  get size() {
+  public get size() {
     return this.queue.size;
   }
 
-  get isEmpty() {
+  public get isEmpty() {
     return this.queue.isEmpty;
   }
 }

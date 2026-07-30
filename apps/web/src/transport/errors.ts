@@ -15,7 +15,7 @@ export enum ControlTransportErrorCode {
 export class ControlTransportError extends Error {
   public readonly messageId?: MessageId;
 
-  constructor(
+  public constructor(
     public readonly code: ControlTransportErrorCode,
     message: string,
     options?: {

@@ -60,8 +60,8 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
   private peerId: PeerId | null = null;
   private room: Room | null = null;
 
-  connect(resume: false): void;
-  connect(resume: true, peerId: PeerId, sessionToken: SessionToken): void;
+  public connect(resume: false): void;
+  public connect(resume: true, peerId: PeerId, sessionToken: SessionToken): void;
   /**
    * Opens a WebSocket connection to the signaling server.
    *
@@ -70,7 +70,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * @param resume - When `true`, attempts to resume a previous session using
    *   the provided peerId and sessionToken.
    */
-  connect(resume: boolean = false, peerId?: PeerId, sessionToken?: SessionToken): void {
+  public connect(resume: boolean = false, peerId?: PeerId, sessionToken?: SessionToken): void {
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onerror = null;
@@ -275,7 +275,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * - `roomId` provided → joins an existing room by ID.
    * - `joinCode` provided (no roomId) → joins by human-readable code.
    */
-  sendJoinRoom(role: "sender" | "receiver", roomId?: string, joinCode?: string): void {
+  public sendJoinRoom(role: "sender" | "receiver", roomId?: string, joinCode?: string): void {
     if (!this.peerId) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_JOINED,
@@ -323,7 +323,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
   }
 
   /** Sends a `leave-room` message for the currently joined room. */
-  sendLeaveRoom(): void {
+  public sendLeaveRoom(): void {
     if (!this.peerId) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_JOINED,
@@ -352,7 +352,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * @param code - WebSocket close code (default: 1000).
    * @param reason - Human-readable reason (default: "Client disconnect").
    */
-  disconnect(code: number = 1000, reason: string = "Client disconnect"): void {
+  public disconnect(code: number = 1000, reason: string = "Client disconnect"): void {
     if (this.ws) {
       this.ws.close(code, reason);
       this.ws = null;
@@ -364,7 +364,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    *
    * @throws If the WebSocket is not open or the offer has no SDP.
    */
-  sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
+  public sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_CONNECTED,
@@ -409,7 +409,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    *
    * @throws If the WebSocket is not open or the answer has no SDP.
    */
-  sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
+  public sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_CONNECTED,
@@ -457,7 +457,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    *
    * @throws If the WebSocket is not open or peerId is not set.
    */
-  sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
+  public sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_CONNECTED,
@@ -496,7 +496,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    *
    * @throws If the WebSocket is not open or peerId is not set.
    */
-  sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
+  public sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_CONNECTED,

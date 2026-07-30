@@ -2,11 +2,11 @@ export class Queue<T> {
   private items: T[] = [];
   private head = 0;
 
-  enqueue(...items: T[]) {
+  public enqueue(...items: T[]) {
     this.items.push(...items);
   }
 
-  dequeue(): T | undefined {
+  public dequeue(): T | undefined {
     if (this.head >= this.items.length) {
       return undefined;
     }
@@ -21,15 +21,15 @@ export class Queue<T> {
     return item;
   }
 
-  peek(): T | undefined {
+  public peek(): T | undefined {
     return this.items[this.head];
   }
 
-  get size() {
+  public get size() {
     return this.items.length - this.head;
   }
 
-  get isEmpty() {
+  public get isEmpty() {
     return this.size === 0;
   }
 }

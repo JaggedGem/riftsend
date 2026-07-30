@@ -34,7 +34,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
   private nextChunkIndex = 0;
   private bufferedChunk?: FileChunk;
 
-  constructor(
+  public constructor(
     private readonly connection: WebRTCConnection,
     private readonly protocolVersion: number,
     private readonly fileSource: FileSource,
@@ -209,7 +209,7 @@ export class OutgoingFileTransfer extends TypedEventEmitter<OutgoingFileTransfer
 }
 
 export class IncomingFileTransfer extends TypedEventEmitter<IncomingFileTransferEvents> {
-  constructor(
+  public constructor(
     // todo: remove all of the ignores when actually implemented but damn it's ugly
 
     // @ts-expect-error not implemented yet

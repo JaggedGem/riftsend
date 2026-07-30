@@ -17,15 +17,15 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
     [K in keyof WithBaseEvents<EventMap>]?: Set<EventHandler<WithBaseEvents<EventMap>[K]>>;
   } = {};
 
-  clearAll(): void {
+  public clearAll(): void {
     this.listeners = {};
   }
 
-  clear<K extends keyof WithBaseEvents<EventMap>>(type: K): void {
+  public clear<K extends keyof WithBaseEvents<EventMap>>(type: K): void {
     delete this.listeners[type];
   }
 
-  on<K extends keyof WithBaseEvents<EventMap>>(
+  public on<K extends keyof WithBaseEvents<EventMap>>(
     type: K,
     handler: EventHandler<WithBaseEvents<EventMap>[K]>,
   ): () => void {
@@ -35,7 +35,7 @@ export abstract class TypedEventEmitter<EventMap extends Record<string, unknown>
     return () => this.off(type, handler);
   }
 
-  off<K extends keyof WithBaseEvents<EventMap>>(
+  public off<K extends keyof WithBaseEvents<EventMap>>(
     type: K,
     handler: EventHandler<WithBaseEvents<EventMap>[K]>,
   ): void {

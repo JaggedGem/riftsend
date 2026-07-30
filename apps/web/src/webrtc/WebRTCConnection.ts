@@ -78,7 +78,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
   private negotiationInProgress = false;
 
-  constructor(signaling: SignalingClient, remotePeer: PeerId) {
+  public constructor(signaling: SignalingClient, remotePeer: PeerId) {
     super();
 
     this.pc = new RTCPeerConnection({
@@ -102,7 +102,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * @throws the error that occurred when setting everything up (rethrows)
    */
-  async initiateConnection(): Promise<void> {
+  public async initiateConnection(): Promise<void> {
     if (this.pc.signalingState !== "stable") {
       throw new WebRTCConnectionError(
         WebRTCConnectionErrorCode.UNSTABLE_SIGNALING,
@@ -172,7 +172,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    * Handles glare (simultaneous offers), rolls back non-stable states, and
    * responds with an SDP answer.
    */
-  async handleOffer(offer: RTCSessionDescriptionInit): Promise<void> {
+  public async handleOffer(offer: RTCSessionDescriptionInit): Promise<void> {
     if (offer.type !== "offer" || !offer.sdp) {
       this.signaling.sendError(this.remotePeer, {
         message: "Invalid offer: missing or malformed SDP",
@@ -248,7 +248,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    * Sets the remote SDP description from the peer's answer and flushes any
    * ICE candidates that arrived before the description was set.
    */
-  async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
+  public async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(answer);
     this.remoteDescriptionSet = true;
     await this.flushPendingIceCandidates();
@@ -279,7 +279,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    * If the remote description is not yet set, the candidate is queued and will
    * be flushed once the description arrives.
    */
-  async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+  public async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     if (!this.remoteDescriptionSet) {
       this.pendingIceCandidates.push(candidate);
       return;
@@ -293,7 +293,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * @returns true if the message was sent, or false if the channel was not open
    */
-  sendData(data: ArrayBuffer): boolean {
+  public sendData(data: ArrayBuffer): boolean {
     if (!this.dataChannel || this.dataChannel.readyState !== "open") {
       console.warn("Data channel not open, cannot send data");
       return false;
@@ -308,7 +308,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
    *
    * @returns true if the message was sent, or false if the channel was not open
    */
-  sendControl = (data: unknown): boolean => {
+  public sendControl = (data: unknown): boolean => {
     if (!this.controlChannel || this.controlChannel.readyState !== "open") {
       console.warn("Control channel not open, cannot send control message");
       return false;
@@ -319,7 +319,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   };
 
   /** Returns `true` when both data and control channels are open and ready. */
-  isReady(): boolean {
+  public isReady(): boolean {
     return (
       this.dataReady &&
       this.dataChannel?.readyState === "open" &&
@@ -331,7 +331,7 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
   /**
    * Tears down the peer connection and unsubscribes from signaling events.
    */
-  close(): void {
+  public close(): void {
     this.dataReady = false;
     this.controlReady = false;
 
@@ -540,11 +540,11 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     this.emit("controlChannelMessage", message.data);
   }
 
-  getDataChannel(): RTCDataChannel | undefined {
+  public getDataChannel(): RTCDataChannel | undefined {
     return this.dataChannel;
   }
 
-  getControlChannel(): RTCDataChannel | undefined {
+  public getControlChannel(): RTCDataChannel | undefined {
     return this.controlChannel;
   }
 }

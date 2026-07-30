@@ -7,7 +7,7 @@ export enum SignalingClientErrorCode {
 }
 
 export class SignalingClientError extends Error {
-  constructor(
+  public constructor(
     public readonly code: SignalingClientErrorCode,
     public readonly method: string,
     message: string,

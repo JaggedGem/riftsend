@@ -12,7 +12,7 @@ export enum WebRTCConnectionErrorCode {
 }
 
 export class WebRTCConnectionError extends Error {
-  constructor(
+  public constructor(
     public readonly code: WebRTCConnectionErrorCode,
     message: string,
     options?: {

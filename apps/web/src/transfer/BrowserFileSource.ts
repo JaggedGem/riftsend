@@ -6,7 +6,7 @@ export class BrowserFileSource implements FileSource {
   public readonly name;
   public readonly size;
 
-  constructor(
+  public constructor(
     private readonly file: File,
     public readonly id: FileId,
   ) {
@@ -14,7 +14,7 @@ export class BrowserFileSource implements FileSource {
     this.size = file.size;
   }
 
-  async *readChunks(startChunk = 0, abortSignal?: AbortSignal): AsyncGenerator<FileChunk> {
+  public async *readChunks(startChunk = 0, abortSignal?: AbortSignal): AsyncGenerator<FileChunk> {
     let byteOffset = startChunk * CHUNK_SIZE;
     let index = startChunk;
 

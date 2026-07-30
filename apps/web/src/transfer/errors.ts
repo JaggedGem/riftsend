@@ -10,7 +10,7 @@ export enum FileTransferManagerErrorCode {
 }
 
 export class FileTransferManagerError extends Error {
-  constructor(
+  public constructor(
     public readonly code: FileTransferManagerErrorCode,
     message: string,
     options?: {
@@ -33,10 +33,16 @@ export class TransferStateError extends Error {
   readonly code: TransferErrorCode.WRONG_STATE;
   readonly expectedState: TransferState | TransferState[];
   readonly actualState: TransferState;
-  constructor(expected: TransferState | TransferState[], actual: TransferState, operation: string) {
+
+  public constructor(
+    expected: TransferState | TransferState[],
+    actual: TransferState,
+    operation: string,
+  ) {
     super(
       `Cannot ${operation} the transfer if it is not ${Array.isArray(expected) ? TransferStateError.formatStates(expected) : expected}`,
     );
+
     this.code = TransferErrorCode.WRONG_STATE;
     this.expectedState = expected;
     this.actualState = actual;
@@ -54,8 +60,10 @@ export class TransferStateError extends Error {
 export class TransferSendError extends Error {
   readonly code: TransferErrorCode.CHANNEL_CLOSED;
   readonly chunkIndex: number;
-  constructor(chunkIndex: number) {
+
+  public constructor(chunkIndex: number) {
     super(`Cannot send chunk ${chunkIndex}: data channel is not open`);
+
     this.code = TransferErrorCode.CHANNEL_CLOSED;
     this.chunkIndex = chunkIndex;
     this.name = "TransferSendError";
@@ -65,8 +73,10 @@ export class TransferSendError extends Error {
 export class TransferBufferMismatchError extends Error {
   readonly code = TransferErrorCode.BUFFER_MISMATCH;
   readonly chunkIndex: number;
-  constructor(chunkIndex: number) {
+
+  public constructor(chunkIndex: number) {
     super(`Buffered chunk index does not match the expected chunk index.`);
+
     this.chunkIndex = chunkIndex;
     this.name = "TransferBufferMismatchError";
   }
