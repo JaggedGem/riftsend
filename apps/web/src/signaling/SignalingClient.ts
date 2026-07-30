@@ -360,27 +360,35 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
     this.room = null;
   }
 
-  /**
-   * Sends a WebRTC SDP offer to a remote peer via the signaling relay.
-   *
-   * @throws If the WebSocket is not open or the offer has no SDP.
-   */
-  public sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
+  private getSendContext(operation: string): { peerId: PeerId } {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_CONNECTED,
-        "sendOffer",
-        "Cannot send offer: WebSocket is not open",
+        operation,
+        `Cannot ${operation}: WebSocket is not open`,
       );
     }
 
     if (!this.peerId) {
       throw new SignalingClientError(
         SignalingClientErrorCode.NOT_JOINED,
-        "sendOffer",
-        "Cannot send offer: peerId is not set",
+        operation,
+        `Cannot ${operation}: peerId is not set`,
       );
     }
+
+    return {
+      peerId: this.peerId,
+    };
+  }
+
+  /**
+   * Sends a WebRTC SDP offer to a remote peer via the signaling relay.
+   *
+   * @throws If the WebSocket is not open or the offer has no SDP.
+   */
+  public sendOffer(to: PeerId, description: RTCSessionDescriptionInit): void {
+    const { peerId } = this.getSendContext("send offer");
 
     if (!description.sdp) {
       throw new SignalingClientError(
@@ -392,7 +400,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
 
     const offerMessage: OfferMessage = {
       type: "offer",
-      from: this.peerId,
+      from: peerId,
       to,
       payload: {
         description: {
@@ -411,21 +419,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * @throws If the WebSocket is not open or the answer has no SDP.
    */
   public sendAnswer(to: PeerId, description: RTCSessionDescriptionInit): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_CONNECTED,
-        "sendAnswer",
-        "Cannot send answer: WebSocket is not open",
-      );
-    }
-
-    if (!this.peerId) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_JOINED,
-        "sendAnswer",
-        "Cannot send answer: peerId is not set",
-      );
-    }
+    const { peerId } = this.getSendContext("send answer");
 
     if (!description.sdp) {
       throw new SignalingClientError(
@@ -437,7 +431,7 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
 
     const answerMessage: AnswerMessage = {
       type: "answer",
-      from: this.peerId,
+      from: peerId,
       to,
       payload: {
         description: {
@@ -459,25 +453,11 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * @throws If the WebSocket is not open or peerId is not set.
    */
   public sendIceCandidate(to: PeerId, candidate: RTCIceCandidateInit): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_CONNECTED,
-        "sendIceCandidate",
-        "Cannot send ICE candidate: WebSocket is not open",
-      );
-    }
-
-    if (!this.peerId) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_JOINED,
-        "sendIceCandidate",
-        "Cannot send ICE candidate: peerId is not set",
-      );
-    }
+    const { peerId } = this.getSendContext("send offer");
 
     const iceCandidateMessage: IceCandidateMessage = {
       type: "ice-candidate",
-      from: this.peerId,
+      from: peerId,
       to,
       payload: {
         candidate: {
@@ -498,25 +478,11 @@ export class SignalingClient extends TypedEventEmitter<SignalingClientEvents> {
    * @throws If the WebSocket is not open or peerId is not set.
    */
   public sendError(to: PeerId, error: PeerErrorMessage["payload"]): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_CONNECTED,
-        "sendError",
-        "Cannot send error: WebSocket is not open",
-      );
-    }
-
-    if (!this.peerId) {
-      throw new SignalingClientError(
-        SignalingClientErrorCode.NOT_JOINED,
-        "sendError",
-        "Cannot send error: peerId is not set",
-      );
-    }
+    const { peerId } = this.getSendContext("send offer");
 
     const errorMessage: PeerErrorMessage = {
       type: "peer-error",
-      from: this.peerId,
+      from: peerId,
       to,
       payload: error,
     };
