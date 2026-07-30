@@ -2,7 +2,6 @@ import type { TransferState } from "./FileTransfer.js";
 
 export enum FileTransferManagerErrorCode {
   UNKNOWN_ERROR = "file_transfer_manager.unknown_error",
-  FATAL_ERROR = "file_transfer_manager.fatal_error",
   UNKNOWN_BATCH = "file_transfer_manager.unknown_batch",
   UNKNOWN_FILE_ID = "file_transfer_manager.unknown_file_id",
   UNSUPPORTED_MESSAGE = "file_transfer_manager.unsupported_message",

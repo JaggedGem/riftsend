@@ -667,12 +667,4 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
     this.emit("controlChannelMessage", message.data);
   }
-
-  public getDataChannel(): RTCDataChannel | undefined {
-    return this.dataChannel;
-  }
-
-  public getControlChannel(): RTCDataChannel | undefined {
-    return this.controlChannel;
-  }
 }

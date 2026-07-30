@@ -10,6 +10,7 @@ export enum ControlTransportErrorCode {
   MAX_RETRIES_EXCEEDED = "control_transport.max_retries",
   UNKNOWN_ERROR = "control_transport.unknown_error",
   INVALID_RELIABLE_MESSAGE = "control_transport.invalid_reliable_message",
+  FATAL_ERROR = "control_transport.fatal_error",
 }
 
 export class ControlTransportError extends Error {

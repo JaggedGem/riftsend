@@ -23,7 +23,6 @@ import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
 import { BrowserFileSource } from "./BrowserFileSource.js";
 import { ControlTransport } from "@/transport/ControlTransport.js";
 import { FileTransferManagerError, FileTransferManagerErrorCode } from "./errors.js";
-import { ControlTransportError, ControlTransportErrorCode } from "@/transport/errors.js";
 import { BrowserFileSink } from "./BrowserFileSink.js";
 
 type PendingOutgoingFile = {
@@ -37,31 +36,6 @@ type FileTransferManagerEvents = {
   batchOfferMessage: BatchOffer;
   batchResponseMessage: BatchResponse;
   batchTransferMappingsMessage: BatchTransferMappings;
-};
-
-type RetryableError = ControlTransportError & {
-  code: ControlTransportErrorCode.QUEUE_LIMIT_REACHED | ControlTransportErrorCode.SEND_FAILED;
-};
-
-const isRetryable = (error: unknown): error is RetryableError => {
-  return (
-    error instanceof ControlTransportError &&
-    (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED ||
-      error.code === ControlTransportErrorCode.SEND_FAILED)
-  );
-};
-
-type FatalError = ControlTransportError & {
-  code:
-    ControlTransportErrorCode.TRANSPORT_DISPOSED | ControlTransportErrorCode.MAX_RETRIES_EXCEEDED;
-};
-
-const isFatal = (error: unknown): error is FatalError => {
-  return (
-    error instanceof ControlTransportError &&
-    (error.code === ControlTransportErrorCode.TRANSPORT_DISPOSED ||
-      error.code === ControlTransportErrorCode.MAX_RETRIES_EXCEEDED)
-  );
 };
 
 type FileTransfer = OutgoingFileTransfer | IncomingFileTransfer;
@@ -122,105 +96,6 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
    */
   // onFileReceived(handler: (file: ArrayBuffer, name: string) => void) {}
 
-  /**
-   * Sends a control message over the control data channel, transparently
-   * retrying on recoverable transport conditions and surfacing unrecoverable
-   * conditions as a thrown {@link FileTransferManagerError}.
-   *
-   * Retry behavior by {@link ControlTransportErrorCode}:
-   * - `QUEUE_LIMIT_REACHED` — the transport's internal send queue is full.
-   *   Retries after `config.sendRetryDelay` milliseconds.
-   * - `SEND_FAILED` — the underlying data channel is under backpressure.
-   *   Retries once the channel's `bufferedamountlow` event fires, provided
-   *   the control channel is still open and genuinely under backpressure;
-   *   otherwise this is treated as fatal (see below).
-   *
-   * All other conditions are treated as fatal and result in a thrown
-   * {@link FileTransferManagerError}:
-   * - `isFatal(error)` is true (`TRANSPORT_DISPOSED` / `MAX_RETRIES_EXCEEDED`).
-   * - `isRetryable(error)` is false for any other unrecognized error shape.
-   * - The control channel closed or is missing while attempting to recover
-   *   from a `SEND_FAILED` error.
-   * - A `SEND_FAILED` error occurred despite the channel not actually being
-   *   under backpressure (an unexpected transport state).
-   *
-   * @param message - The control message to send.
-   * @param operationDescription - A short, human-readable description of the
-   *   operation being performed (e.g. `"sending the batch offer"`), used to
-   *   build descriptive error messages without duplicating message text at
-   *   each call site.
-   * @returns A promise that resolves once the message has been successfully
-   *   sent. Never resolves with a value; rejects on fatal failure.
-   * @throws {FileTransferManagerError} With code `FATAL_ERROR` if the
-   *   transport is disposed, retries are exhausted, the control channel
-   *   closes unexpectedly, or the channel is in an unexpected state.
-   * @throws {FileTransferManagerError} With code `UNKNOWN_ERROR` if the
-   *   underlying error is not a recognized {@link ControlTransportError}.
-   */
-  private async sendControlMessageWithRetry(
-    message: ControlMessage,
-    operationDescription: string,
-  ): Promise<void> {
-    try {
-      await this.controlTransport.send(message);
-    } catch (error) {
-      if (isFatal(error)) {
-        throw new FileTransferManagerError(
-          FileTransferManagerErrorCode.FATAL_ERROR,
-          `A fatal error occurred while ${operationDescription}`,
-          { cause: error },
-        );
-      }
-
-      if (!isRetryable(error)) {
-        throw new FileTransferManagerError(
-          FileTransferManagerErrorCode.UNKNOWN_ERROR,
-          `An unexpected error occurred while ${operationDescription}`,
-          { cause: error },
-        );
-      }
-
-      if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
-        return new Promise((resolve, reject) => {
-          setTimeout(() => {
-            this.sendControlMessageWithRetry(message, operationDescription).then(resolve, reject);
-          }, this.config.sendRetryDelay);
-        });
-      }
-
-      // error.code === ControlTransportErrorCode.SEND_FAILED
-      const controlChannel = this.connection.getControlChannel();
-
-      if (!controlChannel || controlChannel.readyState !== "open") {
-        throw new FileTransferManagerError(
-          FileTransferManagerErrorCode.FATAL_ERROR,
-          `The control data channel closed unexpectedly while ${operationDescription}`,
-          { cause: error },
-        );
-      }
-
-      if (controlChannel.bufferedAmount < controlChannel.bufferedAmountLowThreshold) {
-        throw new FileTransferManagerError(
-          FileTransferManagerErrorCode.FATAL_ERROR,
-          `The message could not be sent while ${operationDescription}, even though the control channel was not under backpressure`,
-          { cause: error },
-        );
-      }
-
-      return new Promise((resolve, reject) => {
-        const retryOnBufferedAmountLow = () => {
-          controlChannel.removeEventListener("bufferedamountlow", retryOnBufferedAmountLow);
-
-          this.sendControlMessageWithRetry(message, operationDescription).then(resolve, reject);
-        };
-
-        controlChannel.addEventListener("bufferedamountlow", retryOnBufferedAmountLow, {
-          once: true,
-        });
-      });
-    }
-  }
-
   private allocateTransferId(): TransferId {
     const id = this.nextTransferId;
 
@@ -234,7 +109,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const batchOffer = this.buildBatchOffer(files, pendingBatch);
 
-    await this.sendControlMessageWithRetry(batchOffer, "sending the batch offer");
+    await this.controlTransport.sendWithRetry(batchOffer, "sending the batch offer");
 
     this.pendingOutgoingBatches.set(batchOffer.batchId, pendingBatch);
   }
@@ -364,7 +239,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const transferMappingsMessage = this.buildTransferMappings(batchId, mappings);
 
-    await this.sendControlMessageWithRetry(
+    await this.controlTransport.sendWithRetry(
       transferMappingsMessage,
       "sending the transfer mappings",
     );
@@ -497,7 +372,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       };
 
       try {
-        await this.sendControlMessageWithRetry(fileStartMessage, "sending transfer start");
+        await this.controlTransport.sendWithRetry(fileStartMessage, "sending transfer start");
       } catch (error) {
         transfer.fail(error);
 
@@ -512,7 +387,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   public async acceptFiles(batchId: BatchId, acceptedFileIds: FileId[]) {
     const batchResponse = this.buildOfferResponse(batchId, acceptedFileIds);
 
-    await this.sendControlMessageWithRetry(batchResponse, "sending the batch response");
+    await this.controlTransport.sendWithRetry(batchResponse, "sending the batch response");
   }
 
   private buildOfferResponse(batchId: BatchId, acceptedFileIds: FileId[]) {
