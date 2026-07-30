@@ -320,7 +320,12 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
 
   /** Returns `true` when both data and control channels are open and ready. */
   isReady(): boolean {
-    return this.dataReady && this.controlReady;
+    return (
+      this.dataReady &&
+      this.dataChannel?.readyState === "open" &&
+      this.controlReady &&
+      this.controlChannel?.readyState === "open"
+    );
   }
 
   /**
@@ -420,6 +425,35 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     }
   }
 
+  private updateChannelState(channel: RTCDataChannel, type: "data" | "control"): void {
+    const isOpen = channel.readyState === "open";
+    const isClosed = channel.readyState === "closing" || channel.readyState === "closed";
+
+    const isReady = type === "data" ? this.dataReady : this.controlReady;
+
+    if (isOpen && !isReady) {
+      if (type === "data") {
+        this.dataReady = true;
+        this.emit("dataChannelOpen", channel);
+      } else {
+        this.controlReady = true;
+        this.emit("controlChannelOpen", channel);
+      }
+
+      return;
+    }
+
+    if (isClosed && isReady) {
+      if (type === "data") {
+        this.dataReady = false;
+        this.emit("dataChannelClose");
+      } else {
+        this.controlReady = false;
+        this.emit("controlChannelClose");
+      }
+    }
+  }
+
   /**
    * Wires up data channel event handlers (open, close, message, error).
    *
@@ -449,13 +483,17 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
     };
 
     channel.onclose = () => {
-      if (type === "data") {
-        this.dataReady = false;
-      } else {
-        this.controlReady = false;
-      }
+      this.updateChannelState(channel, type);
 
-      this.emit(`${type}ChannelClose`, undefined);
+      if (type === "data") {
+        if (this.dataChannel === channel) {
+          this.dataChannel = undefined;
+        }
+      } else {
+        if (this.controlChannel === channel) {
+          this.controlChannel = undefined;
+        }
+      }
     };
 
     channel.onmessage = (event) => {
@@ -466,15 +504,9 @@ export class WebRTCConnection extends TypedEventEmitter<WebRTCConnectionEvents> 
       }
     };
 
-    channel.onopen = () => {
-      if (type === "data") {
-        this.dataReady = true;
-      } else {
-        this.controlReady = true;
-      }
+    channel.onopen = () => this.updateChannelState(channel, type);
 
-      this.emit(`${type}ChannelOpen`, channel);
-    };
+    this.updateChannelState(channel, type);
   }
 
   /**
