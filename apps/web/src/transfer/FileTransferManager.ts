@@ -22,7 +22,7 @@ import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
 import { OutgoingFileTransfer, IncomingFileTransfer } from "./FileTransfer.js";
 import { BrowserFileSource } from "./BrowserFileSource.js";
 import { ControlTransport } from "@/transport/ControlTransport.js";
-import { FileTransferManagerError, FileTransferManagerErrorCode } from "./errors.js";
+import { FileTransferManagerError, FileTransferManagerErrorCode } from "./FileTransferErrors.js";
 import { BrowserFileSink } from "./BrowserFileSink.js";
 
 type PendingOutgoingFile = {

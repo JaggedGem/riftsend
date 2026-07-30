@@ -15,7 +15,7 @@ import {
   type ProtocolVersion,
 } from "@riftsend/protocol";
 import { createMessageId, type MessageId } from "@riftsend/shared";
-import { ControlTransportError, ControlTransportErrorCode } from "./errors.js";
+import { ControlTransportError, ControlTransportErrorCode } from "./ControlTransportErrors.js";
 
 /**
  * Represents a reliable control message that is awaiting acknowledgment.

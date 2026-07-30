@@ -21,7 +21,7 @@ import {
   type PeerErrorMessage,
 } from "@riftsend/protocol";
 import { type Room } from "@riftsend/shared";
-import { SignalingClientError, SignalingClientErrorCode } from "./errors.js";
+import { SignalingClientError, SignalingClientErrorCode } from "./SignalingErrors.js";
 
 type SignalingClientEvents = {
   connected: PeerIdMessage["payload"];

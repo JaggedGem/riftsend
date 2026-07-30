@@ -3,7 +3,11 @@ import type { WebRTCConnection } from "@/webrtc/WebRTCConnection.js";
 import type { FileChunk, FileSource } from "./FileSource.js";
 import { buildChunk, type FileOffer } from "@riftsend/protocol";
 import type { TransferId } from "@riftsend/shared";
-import { TransferBufferMismatchError, TransferSendError, TransferStateError } from "./errors.js";
+import {
+  TransferBufferMismatchError,
+  TransferSendError,
+  TransferStateError,
+} from "./FileTransferErrors.js";
 import type { FileSink } from "./FileSink.js";
 
 type FileTransferEvents = {

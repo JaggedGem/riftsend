@@ -1,5 +1,5 @@
 import { ProtocolVersionSchema, type ProtocolVersion } from "@riftsend/protocol";
-import { BadEnvTypeError, MissingEnvError } from "./envError";
+import { BadEnvTypeError, MissingEnvError } from "./envError.js";
 
 /**
  * Reads a required `import.meta.env` variable.

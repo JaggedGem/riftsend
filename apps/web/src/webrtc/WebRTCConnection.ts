@@ -2,8 +2,8 @@ import { type PeerId, WebRTCPeerErrorCode } from "@riftsend/shared";
 import { SignalingClient } from "@/signaling/SignalingClient.js";
 import { AnyControlMessageSchema, type AnyControlMessage } from "@riftsend/protocol";
 import { TypedEventEmitter } from "@/events/TypedEventEmitter.js";
-import { WebRTCConnectionError, WebRTCConnectionErrorCode } from "./errors";
-import { getWebRTCTransportConfig } from "@/config/config";
+import { WebRTCConnectionError, WebRTCConnectionErrorCode } from "./WebRTCErrors.js";
+import { getWebRTCTransportConfig } from "@/config/config.js";
 
 /**
  * Default STUN servers used for NAT traversal.
