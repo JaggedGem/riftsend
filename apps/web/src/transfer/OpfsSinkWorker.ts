@@ -171,7 +171,7 @@ const readFile = (message: ReadRequest) => {
   self.postMessage(response);
 };
 
-const deleteFile = (message: DeleteRequest) => {
+const deleteFile = async (message: DeleteRequest) => {
   if (!fileHandle || !accessHandle) {
     const response: WorkerResponse<undefined> = {
       type: "error",
@@ -189,7 +189,7 @@ const deleteFile = (message: DeleteRequest) => {
 
   accessHandle.close();
 
-  root.removeEntry(fileHandle.name);
+  await root.removeEntry(fileHandle.name);
 
   fileHandle = undefined;
   accessHandle = undefined;
