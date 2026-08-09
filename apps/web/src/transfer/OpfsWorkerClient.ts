@@ -162,4 +162,19 @@ export class OpfsWorkerClient {
 
     return promise;
   }
+
+  public write(offset: number, data: ArrayBuffer): Promise<void> {
+    const { requestId, promise } = this.createRequest<void>();
+
+    const message: WorkerRequest = {
+      type: "write",
+      requestId,
+      offset,
+      data,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise;
+  }
 }
