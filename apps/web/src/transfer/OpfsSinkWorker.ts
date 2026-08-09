@@ -262,7 +262,7 @@ const handleMessage = async (event: MessageEvent) => {
     }
 
     case "delete": {
-      deleteFile(message);
+      await deleteFile(message);
 
       break;
     }
