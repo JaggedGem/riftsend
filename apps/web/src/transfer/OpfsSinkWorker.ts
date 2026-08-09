@@ -15,10 +15,11 @@ export enum OpfsSinkWorkerErrorCodes {
   SHORT_WRITE = "opfs_sink_worker.short_write",
   SHORT_READ = "opfs_sink_worker.short_read",
   INVALID_READ_RANGE = "opfs_sink_worker.invalid_read_range",
+  INITIALIZATION_FAILED = "opfs_sink_worker.initialization_failed",
+  DELETION_FAILED = "opfs_sink_worker.deletion_failed",
 }
 
-const root = await navigator.storage.getDirectory();
-
+let root: FileSystemDirectoryHandle | undefined;
 let fileHandle: FileSystemFileHandle | undefined;
 let accessHandle: FileSystemSyncAccessHandle | undefined;
 
@@ -38,9 +39,29 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  fileHandle = await root.getFileHandle(message.fileId, { create: true });
+  try {
+    root = await navigator.storage.getDirectory();
 
-  accessHandle = await fileHandle.createSyncAccessHandle();
+    fileHandle = await root.getFileHandle(message.fileId, { create: true });
+
+    accessHandle = await fileHandle.createSyncAccessHandle();
+  } catch (error) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.INITIALIZATION_FAILED,
+        message:
+          error instanceof Error
+            ? `Failed to initialize file: ${error.message}`
+            : "Failed to initialize file",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
 
   accessHandle.truncate(message.fileSize);
 
@@ -195,7 +216,7 @@ const readFile = (message: ReadRequest) => {
 };
 
 const deleteFile = async (message: DeleteRequest) => {
-  if (!fileHandle || !accessHandle) {
+  if (!fileHandle || !accessHandle || !root) {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
@@ -212,7 +233,25 @@ const deleteFile = async (message: DeleteRequest) => {
 
   accessHandle.close();
 
-  await root.removeEntry(fileHandle.name);
+  try {
+    await root.removeEntry(fileHandle.name);
+  } catch (error) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.DELETION_FAILED,
+        message:
+          error instanceof Error
+            ? `Failed to delete file: ${error.message}`
+            : "Failed to delete file",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
 
   fileHandle = undefined;
   accessHandle = undefined;
@@ -304,3 +343,6 @@ const handleMessage = async (event: MessageEvent) => {
 };
 
 self.addEventListener("message", handleMessage);
+self.addEventListener("error", (event) => {
+  console.error(event.error);
+});

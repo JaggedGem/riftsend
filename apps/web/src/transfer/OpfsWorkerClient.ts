@@ -1,3 +1,4 @@
+import { TypedEventEmitter } from "@/events/TypedEventEmitter";
 import type { FileId } from "@riftsend/shared";
 
 export type RequestId = number & { readonly __brand: unique symbol };
@@ -67,14 +68,22 @@ type PendingResponse<T> = {
   reject: (reason?: unknown) => void;
 };
 
-export class OpfsWorkerClient {
+type OfpsWorkerClientEvents = {
+  workerDead: void;
+};
+
+export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> {
   private readonly worker = new Worker("./OpfsSinkWorker.ts");
 
   private nextRequestId = createRequestId(0);
   private readonly pendingRequests = new Map<RequestId, PendingResponse<unknown>>();
 
   constructor() {
+    super();
+
     this.worker.addEventListener("message", this.handleWorkerMessage);
+    this.worker.addEventListener("error", this.handleError);
+    this.worker.addEventListener("messageerror", this.handleError);
   }
 
   private createRequest<T>(): { requestId: RequestId; promise: Promise<T> } {
@@ -147,6 +156,23 @@ export class OpfsWorkerClient {
 
     request.reject(message.error);
   }
+
+  private handleError = (event: Event) => {
+    this.pendingRequests.forEach((pendingResponse) => {
+      pendingResponse.reject(
+        // todo: revisit errors
+        new Error("An unhandled error occurred in the OPFS worker", {
+          cause: event instanceof ErrorEvent ? event.error : undefined,
+        }),
+      );
+    });
+
+    this.pendingRequests.clear();
+
+    this.worker.terminate();
+
+    this.emit("workerDead");
+  };
 
   public initialize(fileId: FileId, fileSize: number): Promise<void> {
     const { requestId, promise } = this.createRequest<void>();
