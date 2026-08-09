@@ -1,4 +1,5 @@
 import type {
+  CloseRequest,
   DeleteRequest,
   GetSizeRequest,
   InitializeRequest,
@@ -179,6 +180,33 @@ const deleteFile = (message: DeleteRequest) => {
   self.postMessage(response);
 };
 
+const closeFile = (message: CloseRequest) => {
+  if (!accessHandle) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
+        message: "Worker was not initialized",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
+
+  accessHandle.close();
+
+  const response: WorkerResponse<void> = {
+    type: "success",
+    requestId: message.requestId,
+    result: undefined,
+  };
+
+  self.postMessage(response);
+};
+
 const handleMessage = async (event: MessageEvent) => {
   const message = event.data as WorkerRequest;
 
@@ -211,6 +239,17 @@ const handleMessage = async (event: MessageEvent) => {
       deleteFile(message);
 
       break;
+    }
+
+    case "close": {
+      closeFile(message);
+
+      break;
+    }
+
+    default: {
+      // todo: revisit this (might not even need to throw)
+      throw new Error("Invalid message received");
     }
   }
 };
