@@ -28,6 +28,8 @@ export type GetSizeRequest = {
 export type ReadRequest = {
   type: "read";
   requestId: RequestId;
+  offset?: number;
+  length?: number;
 };
 
 export type DeleteRequest = {

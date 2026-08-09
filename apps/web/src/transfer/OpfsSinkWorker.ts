@@ -1,6 +1,7 @@
 import type {
   GetSizeRequest,
   InitializeRequest,
+  ReadRequest,
   WorkerRequest,
   WorkerResponse,
   WriteRequest,
@@ -107,6 +108,43 @@ const getFileSize = (message: GetSizeRequest) => {
   self.postMessage(response);
 };
 
+const readFile = (message: ReadRequest) => {
+  if (!accessHandle) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
+        message: "Worker was not initialized",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
+
+  const fileOffset = message.offset ?? 0;
+
+  const bufferLength = message.length ?? accessHandle.getSize() - fileOffset;
+
+  const buffer = new ArrayBuffer(bufferLength);
+
+  const read = accessHandle.read(buffer, { at: fileOffset });
+
+  if (read !== bufferLength) {
+    throw new Error("Didn't read enough bytes");
+  }
+
+  const response: WorkerResponse<ArrayBuffer> = {
+    type: "success",
+    requestId: message.requestId,
+    result: buffer,
+  };
+
+  self.postMessage(response);
+};
+
 const handleMessage = async (event: MessageEvent) => {
   const message = event.data as WorkerRequest;
 
@@ -125,6 +163,12 @@ const handleMessage = async (event: MessageEvent) => {
 
     case "getSize": {
       getFileSize(message);
+
+      break;
+    }
+
+    case "read": {
+      readFile(message);
 
       break;
     }
