@@ -198,6 +198,9 @@ const closeFile = (message: CloseRequest) => {
 
   accessHandle.close();
 
+  accessHandle = undefined;
+  fileHandle = undefined;
+
   const response: WorkerResponse<void> = {
     type: "success",
     requestId: message.requestId,
