@@ -78,12 +78,20 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   private nextRequestId = createRequestId(0);
   private readonly pendingRequests = new Map<RequestId, PendingResponse<unknown>>();
 
+  private isDisposed = false;
+
   constructor() {
     super();
 
     this.worker.addEventListener("message", this.handleWorkerMessage);
     this.worker.addEventListener("error", this.handleError);
     this.worker.addEventListener("messageerror", this.handleError);
+  }
+
+  private assertAlive(): void {
+    if (this.isDisposed) {
+      throw new Error("OPFS worker client is no longer available");
+    }
   }
 
   private createRequest<T>(): { requestId: RequestId; promise: Promise<T> } {
@@ -157,24 +165,41 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     request.reject(message.error);
   }
 
-  private handleError = (event: Event) => {
-    this.pendingRequests.forEach((pendingResponse) => {
-      pendingResponse.reject(
-        // todo: revisit errors
-        new Error("An unhandled error occurred in the OPFS worker", {
-          cause: event instanceof ErrorEvent ? event.error : undefined,
-        }),
-      );
-    });
+  private die(error: Error, emitWorkerDead: boolean): void {
+    if (this.isDisposed) {
+      return;
+    }
+
+    this.isDisposed = true;
+
+    for (const pendingResponse of this.pendingRequests.values()) {
+      pendingResponse.reject(error);
+    }
 
     this.pendingRequests.clear();
 
+    this.worker.removeEventListener("message", this.handleWorkerMessage);
+    this.worker.removeEventListener("error", this.handleError);
+    this.worker.removeEventListener("messageerror", this.handleError);
+
     this.worker.terminate();
 
-    this.emit("workerDead");
+    if (emitWorkerDead) {
+      this.emit("workerDead");
+    }
+  }
+
+  private handleError = (event: Event) => {
+    const error = new Error("An unhandled error occurred in the OPFS worker", {
+      cause: event instanceof ErrorEvent ? event.error : undefined,
+    });
+
+    this.die(error, true);
   };
 
   public initialize(fileId: FileId, fileSize: number): Promise<void> {
+    this.assertAlive();
+
     const { requestId, promise } = this.createRequest<void>();
 
     const message: WorkerRequest = {
@@ -190,6 +215,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public write(offset: number, data: ArrayBuffer): Promise<void> {
+    this.assertAlive();
+
     const { requestId, promise } = this.createRequest<void>();
 
     const message: WorkerRequest = {
@@ -205,6 +232,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public getSize(): Promise<number> {
+    this.assertAlive();
+
     const { requestId, promise } = this.createRequest<number>();
 
     const message: WorkerRequest = {
@@ -218,6 +247,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public read(offset?: number, length?: number): Promise<ArrayBuffer> {
+    this.assertAlive();
+
     const { requestId, promise } = this.createRequest<ArrayBuffer>();
 
     const message: WorkerRequest = {
@@ -233,6 +264,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public delete(): Promise<void> {
+    this.assertAlive();
+
     const { requestId, promise } = this.createRequest<void>();
 
     const message: WorkerRequest = {
@@ -256,5 +289,9 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     this.worker.postMessage(message);
 
     return promise;
+  }
+
+  public dispose(): void {
+    this.die(new Error("OPFS worker client was disposed"), false);
   }
 }
