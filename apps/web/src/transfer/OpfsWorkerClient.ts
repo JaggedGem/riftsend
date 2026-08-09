@@ -177,4 +177,58 @@ export class OpfsWorkerClient {
 
     return promise;
   }
+
+  public getSize(): Promise<number> {
+    const { requestId, promise } = this.createRequest<number>();
+
+    const message: WorkerRequest = {
+      type: "getSize",
+      requestId,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise;
+  }
+
+  public read(offset?: number, length?: number): Promise<ArrayBuffer> {
+    const { requestId, promise } = this.createRequest<ArrayBuffer>();
+
+    const message: WorkerRequest = {
+      type: "read",
+      requestId,
+      offset,
+      length,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise;
+  }
+
+  public delete(): Promise<void> {
+    const { requestId, promise } = this.createRequest<void>();
+
+    const message: WorkerRequest = {
+      type: "delete",
+      requestId,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise;
+  }
+
+  public close(): Promise<void> {
+    const { requestId, promise } = this.createRequest<void>();
+
+    const message: WorkerRequest = {
+      type: "close",
+      requestId,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise;
+  }
 }
