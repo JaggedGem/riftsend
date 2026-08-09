@@ -1,4 +1,5 @@
 import type {
+  DeleteRequest,
   GetSizeRequest,
   InitializeRequest,
   ReadRequest,
@@ -14,6 +15,7 @@ export enum OpfsSinkWorkerErrorCodes {
 
 const root = await navigator.storage.getDirectory();
 
+let fileHandle: FileSystemFileHandle | undefined;
 let accessHandle: FileSystemSyncAccessHandle | undefined;
 
 const initializeFile = async (message: InitializeRequest) => {
@@ -32,7 +34,7 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  const fileHandle = await root.getFileHandle(message.fileId, { create: true });
+  fileHandle = await root.getFileHandle(message.fileId, { create: true });
 
   accessHandle = await fileHandle.createSyncAccessHandle();
 
@@ -145,6 +147,38 @@ const readFile = (message: ReadRequest) => {
   self.postMessage(response);
 };
 
+const deleteFile = (message: DeleteRequest) => {
+  if (!fileHandle || !accessHandle) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
+        message: "Worker was not initialized",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
+
+  accessHandle.close();
+
+  root.removeEntry(fileHandle.name);
+
+  fileHandle = undefined;
+  accessHandle = undefined;
+
+  const response: WorkerResponse<void> = {
+    type: "success",
+    requestId: message.requestId,
+    result: undefined,
+  };
+
+  self.postMessage(response);
+};
+
 const handleMessage = async (event: MessageEvent) => {
   const message = event.data as WorkerRequest;
 
@@ -169,6 +203,12 @@ const handleMessage = async (event: MessageEvent) => {
 
     case "read": {
       readFile(message);
+
+      break;
+    }
+
+    case "delete": {
+      deleteFile(message);
 
       break;
     }
