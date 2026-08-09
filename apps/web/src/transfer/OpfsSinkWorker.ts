@@ -14,6 +14,7 @@ export enum OpfsSinkWorkerErrorCodes {
   WORKER_NOT_INITIALIZED = "opfs_sink_worker.worker_not_initialized",
   SHORT_WRITE = "opfs_sink_worker.short_write",
   SHORT_READ = "opfs_sink_worker.short_read",
+  INVALID_READ_RANGE = "opfs_sink_worker.invalid_read_range",
 }
 
 const root = await navigator.storage.getDirectory();
@@ -139,9 +140,31 @@ const readFile = (message: ReadRequest) => {
     return;
   }
 
+  const fileSize = accessHandle.getSize();
+
   const fileOffset = message.offset ?? 0;
 
-  const bufferLength = message.length ?? accessHandle.getSize() - fileOffset;
+  const bufferLength = message.length ?? fileSize - fileOffset;
+
+  if (
+    fileOffset < 0 ||
+    bufferLength < 0 ||
+    fileOffset > fileSize ||
+    fileOffset + bufferLength > fileSize
+  ) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.INVALID_READ_RANGE,
+        message: `Invalid read range: offset ${fileOffset} exceeds file size ${fileSize}`,
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
 
   const buffer = new ArrayBuffer(bufferLength);
 
@@ -152,7 +175,7 @@ const readFile = (message: ReadRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
+        code: OpfsSinkWorkerErrorCodes.SHORT_READ,
         message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
       },
     };
