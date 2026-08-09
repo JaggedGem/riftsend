@@ -1,4 +1,5 @@
 import type {
+  GetSizeRequest,
   InitializeRequest,
   WorkerRequest,
   WorkerResponse,
@@ -81,6 +82,31 @@ const writeToFile = (message: WriteRequest) => {
   self.postMessage(response);
 };
 
+const getFileSize = (message: GetSizeRequest) => {
+  if (!accessHandle) {
+    const response: WorkerResponse<undefined> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
+        message: "Worker was not initialized",
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
+
+  const response: WorkerResponse<number> = {
+    type: "success",
+    requestId: message.requestId,
+    result: accessHandle.getSize(),
+  };
+
+  self.postMessage(response);
+};
+
 const handleMessage = async (event: MessageEvent) => {
   const message = event.data as WorkerRequest;
 
@@ -93,6 +119,12 @@ const handleMessage = async (event: MessageEvent) => {
 
     case "write": {
       writeToFile(message);
+
+      break;
+    }
+
+    case "getSize": {
+      getFileSize(message);
 
       break;
     }
