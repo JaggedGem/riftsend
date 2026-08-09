@@ -12,6 +12,8 @@ import type {
 export enum OpfsSinkWorkerErrorCodes {
   WORKER_ALREADY_INITIALIZED = "opfs_sink_worker.worker_already_initialized",
   WORKER_NOT_INITIALIZED = "opfs_sink_worker.worker_not_initialized",
+  SHORT_WRITE = "opfs_sink_worker.short_write",
+  SHORT_READ = "opfs_sink_worker.short_read",
 }
 
 const root = await navigator.storage.getDirectory();
@@ -71,8 +73,18 @@ const writeToFile = (message: WriteRequest) => {
   const written = accessHandle.write(message.data, { at: message.offset });
 
   if (written !== message.data.byteLength) {
-    // todo: revisit errors
-    throw new Error("Didn't write enough bytes");
+    const response: WorkerResponse<void> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
+        message: `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
   }
 
   accessHandle.flush();
@@ -136,7 +148,18 @@ const readFile = (message: ReadRequest) => {
   const read = accessHandle.read(buffer, { at: fileOffset });
 
   if (read !== bufferLength) {
-    throw new Error("Didn't read enough bytes");
+    const response: WorkerResponse<void> = {
+      type: "error",
+      requestId: message.requestId,
+      error: {
+        code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
+        message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
   }
 
   const response: WorkerResponse<ArrayBuffer> = {
