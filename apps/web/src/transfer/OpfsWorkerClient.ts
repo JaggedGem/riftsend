@@ -6,50 +6,50 @@ export const createRequestId = (requestId: number): RequestId => {
   return requestId as RequestId;
 };
 
-type InitializeRequest = {
+export type InitializeRequest = {
   type: "initialize";
   requestId: RequestId;
   fileId: FileId;
   fileSize: number;
 };
 
-type WriteRequest = {
+export type WriteRequest = {
   type: "write";
   requestId: RequestId;
   offset: number;
   data: ArrayBuffer;
 };
 
-type GetSizeRequest = {
+export type GetSizeRequest = {
   type: "getSize";
   requestId: RequestId;
 };
 
-type ReadRequest = {
+export type ReadRequest = {
   type: "read";
   requestId: RequestId;
 };
 
-type DeleteRequest = {
+export type DeleteRequest = {
   type: "delete";
   requestId: RequestId;
 };
 
-type CloseRequest = {
+export type CloseRequest = {
   type: "close";
   requestId: RequestId;
 };
 
-type WorkerRequest =
+export type WorkerRequest =
   InitializeRequest | WriteRequest | GetSizeRequest | ReadRequest | DeleteRequest | CloseRequest;
 
-type SuccessResponse<ResultType> = {
+export type SuccessResponse<ResultType> = {
   type: "success";
   requestId: RequestId;
   result: ResultType;
 };
 
-type ErrorResponse = {
+export type ErrorResponse = {
   type: "error";
   requestId: RequestId;
   error: {
@@ -58,7 +58,7 @@ type ErrorResponse = {
   };
 };
 
-type WorkerResponse<ResultType> = SuccessResponse<ResultType> | ErrorResponse;
+export type WorkerResponse<ResultType> = SuccessResponse<ResultType> | ErrorResponse;
 
 type PendingResponse<T> = {
   resolve: (value: T) => void;
