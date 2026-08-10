@@ -12,6 +12,7 @@ export type InitializeRequest = {
   requestId: RequestId;
   fileId: FileId;
   fileSize: number;
+  isResume: boolean;
 };
 
 export type WriteRequest = {
@@ -258,7 +259,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     this.die(error, true, true);
   };
 
-  public initialize(fileId: FileId, fileSize: number): Promise<void> {
+  public initialize(fileId: FileId, fileSize: number, isResume: boolean): Promise<void> {
     if (this.clientState.state !== "uninitialized") {
       throw new Error("Cannot initialize: client is already initialized");
     }
@@ -278,6 +279,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       requestId,
       fileId,
       fileSize,
+      isResume,
     };
 
     this.worker.postMessage(message);

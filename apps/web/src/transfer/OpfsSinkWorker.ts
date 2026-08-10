@@ -79,9 +79,11 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  workerState.accessHandle.truncate(message.fileSize);
+  if (!message.isResume) {
+    workerState.accessHandle.truncate(message.fileSize);
 
-  workerState.accessHandle.flush();
+    workerState.accessHandle.flush();
+  }
 
   const response: WorkerResponse<void> = {
     type: "success",
