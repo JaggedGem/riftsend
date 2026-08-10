@@ -1,5 +1,5 @@
 import type { FileOffer } from "@riftsend/protocol";
-import type { FileSink } from "./FileSink";
+import type { FileSink } from "../FileSink";
 
 export class OpfsFileSink implements FileSink<Blob> {
   static originRootDir = navigator.storage.getDirectory();
