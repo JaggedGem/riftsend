@@ -58,6 +58,7 @@ export type ErrorResponse = {
   error: {
     code: string;
     message: string;
+    cause?: string;
   };
 };
 
@@ -67,6 +68,18 @@ type PendingResponse<T> = {
   resolve: (value: T) => void;
   reject: (reason?: unknown) => void;
 };
+
+export type WorkerSinkState =
+  | { state: "uninitialized" }
+  | { state: "initializing" }
+  | {
+      state: "ready";
+      root: FileSystemDirectoryHandle;
+      fileHandle: FileSystemFileHandle;
+      accessHandle: FileSystemSyncAccessHandle;
+    }
+  | { state: "closing" }
+  | { state: "closed" };
 
 type OfpsWorkerClientEvents = {
   workerDead: void;

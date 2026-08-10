@@ -6,6 +6,7 @@ import type {
   ReadRequest,
   WorkerRequest,
   WorkerResponse,
+  WorkerSinkState,
   WriteRequest,
 } from "./OpfsWorkerClient";
 
@@ -17,20 +18,20 @@ export enum OpfsSinkWorkerErrorCodes {
   INVALID_READ_RANGE = "opfs_sink_worker.invalid_read_range",
   INITIALIZATION_FAILED = "opfs_sink_worker.initialization_failed",
   DELETION_FAILED = "opfs_sink_worker.deletion_failed",
+  WORKER_NOT_READY = "opfs_sink_worker.worker_not_ready",
 }
 
-let root: FileSystemDirectoryHandle | undefined;
-let fileHandle: FileSystemFileHandle | undefined;
-let accessHandle: FileSystemSyncAccessHandle | undefined;
+let workerState: WorkerSinkState = { state: "uninitialized" };
 
 const initializeFile = async (message: InitializeRequest) => {
-  if (accessHandle) {
+  if (workerState.state !== "uninitialized") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
         code: OpfsSinkWorkerErrorCodes.WORKER_ALREADY_INITIALIZED,
-        message: "Worker was already initialized",
+        message: "Cannot initialize file: worker has already been initialized",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -39,12 +40,16 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
+  workerState = { state: "initializing" };
+
   try {
-    root = await navigator.storage.getDirectory();
+    const root = await navigator.storage.getDirectory();
 
-    fileHandle = await root.getFileHandle(message.fileId, { create: true });
+    const fileHandle = await root.getFileHandle(message.fileId, { create: true });
 
-    accessHandle = await fileHandle.createSyncAccessHandle();
+    const accessHandle = await fileHandle.createSyncAccessHandle();
+
+    workerState = { state: "ready", root, fileHandle, accessHandle };
   } catch (error) {
     const response: WorkerResponse<undefined> = {
       type: "error",
@@ -63,9 +68,9 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  accessHandle.truncate(message.fileSize);
+  workerState.accessHandle.truncate(message.fileSize);
 
-  accessHandle.flush();
+  workerState.accessHandle.flush();
 
   const response: WorkerResponse<void> = {
     type: "success",
@@ -77,13 +82,14 @@ const initializeFile = async (message: InitializeRequest) => {
 };
 
 const writeToFile = (message: WriteRequest) => {
-  if (!accessHandle) {
+  if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
-        message: "Worker was not initialized",
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        message: "Cannot write to file: worker is not ready",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -92,7 +98,7 @@ const writeToFile = (message: WriteRequest) => {
     return;
   }
 
-  const written = accessHandle.write(message.data, { at: message.offset });
+  const written = workerState.accessHandle.write(message.data, { at: message.offset });
 
   if (written !== message.data.byteLength) {
     const response: WorkerResponse<void> = {
@@ -109,7 +115,7 @@ const writeToFile = (message: WriteRequest) => {
     return;
   }
 
-  accessHandle.flush();
+  workerState.accessHandle.flush();
 
   const response: WorkerResponse<void> = {
     type: "success",
@@ -121,13 +127,14 @@ const writeToFile = (message: WriteRequest) => {
 };
 
 const getFileSize = (message: GetSizeRequest) => {
-  if (!accessHandle) {
+  if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
-        message: "Worker was not initialized",
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        message: "Cannot get file size: worker is not ready",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -139,20 +146,21 @@ const getFileSize = (message: GetSizeRequest) => {
   const response: WorkerResponse<number> = {
     type: "success",
     requestId: message.requestId,
-    result: accessHandle.getSize(),
+    result: workerState.accessHandle.getSize(),
   };
 
   self.postMessage(response);
 };
 
 const readFile = (message: ReadRequest) => {
-  if (!accessHandle) {
+  if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
-        message: "Worker was not initialized",
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        message: "Cannot read file: worker is not ready",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -161,7 +169,7 @@ const readFile = (message: ReadRequest) => {
     return;
   }
 
-  const fileSize = accessHandle.getSize();
+  const fileSize = workerState.accessHandle.getSize();
 
   const fileOffset = message.offset ?? 0;
 
@@ -189,7 +197,7 @@ const readFile = (message: ReadRequest) => {
 
   const buffer = new ArrayBuffer(bufferLength);
 
-  const read = accessHandle.read(buffer, { at: fileOffset });
+  const read = workerState.accessHandle.read(buffer, { at: fileOffset });
 
   if (read !== bufferLength) {
     const response: WorkerResponse<void> = {
@@ -216,13 +224,14 @@ const readFile = (message: ReadRequest) => {
 };
 
 const deleteFile = async (message: DeleteRequest) => {
-  if (!fileHandle || !accessHandle || !root) {
+  if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
-        message: "Worker was not initialized",
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        message: "Cannot delete file: worker is not ready",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -230,6 +239,10 @@ const deleteFile = async (message: DeleteRequest) => {
 
     return;
   }
+
+  const { root, fileHandle, accessHandle } = workerState;
+
+  workerState = { state: "closing" };
 
   accessHandle.close();
 
@@ -253,8 +266,7 @@ const deleteFile = async (message: DeleteRequest) => {
     return;
   }
 
-  fileHandle = undefined;
-  accessHandle = undefined;
+  workerState = { state: "closed" };
 
   const response: WorkerResponse<void> = {
     type: "success",
@@ -266,13 +278,14 @@ const deleteFile = async (message: DeleteRequest) => {
 };
 
 const closeFile = (message: CloseRequest) => {
-  if (!accessHandle) {
+  if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_INITIALIZED,
-        message: "Worker was not initialized",
+        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        message: "Cannot close file: worker is not ready",
+        cause: `current state: ${workerState.state}`,
       },
     };
 
@@ -281,10 +294,13 @@ const closeFile = (message: CloseRequest) => {
     return;
   }
 
+  const { accessHandle } = workerState;
+
+  workerState = { state: "closing" };
+
   accessHandle.close();
 
-  accessHandle = undefined;
-  fileHandle = undefined;
+  workerState = { state: "closed" };
 
   const response: WorkerResponse<void> = {
     type: "success",
