@@ -69,17 +69,31 @@ type PendingResponse<T> = {
   reject: (reason?: unknown) => void;
 };
 
-export type WorkerSinkState =
-  | { state: "uninitialized" }
-  | { state: "initializing" }
+type WorkerClientState =
+  | {
+      state: "uninitialized";
+    }
+  | {
+      state: "initializing";
+      initializeRequest: {
+        requestId: RequestId;
+        pendingResponse: PendingResponse<void>;
+      };
+    }
   | {
       state: "ready";
-      root: FileSystemDirectoryHandle;
-      fileHandle: FileSystemFileHandle;
-      accessHandle: FileSystemSyncAccessHandle;
+      pendingRequests: Map<RequestId, PendingResponse<unknown>>;
     }
-  | { state: "closing" }
-  | { state: "closed" };
+  | {
+      state: "closing";
+      pendingRequests: Map<RequestId, PendingResponse<unknown>>;
+    }
+  | {
+      state: "closed";
+    }
+  | {
+      state: "errored";
+    };
 
 type OfpsWorkerClientEvents = {
   workerDead: void;
@@ -89,9 +103,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   private readonly worker = new Worker("./OpfsSinkWorker.ts");
 
   private nextRequestId = createRequestId(0);
-  private readonly pendingRequests = new Map<RequestId, PendingResponse<unknown>>();
-
-  private isDisposed = false;
+  private clientState: WorkerClientState = { state: "uninitialized" };
 
   constructor() {
     super();
@@ -101,27 +113,38 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     this.worker.addEventListener("messageerror", this.handleError);
   }
 
-  private assertAlive(): void {
-    if (this.isDisposed) {
-      throw new Error("OPFS worker client is no longer available");
+  private assertReady(
+    state: WorkerClientState,
+  ): asserts state is Extract<WorkerClientState, { state: "ready" }> {
+    if (state.state !== "ready") {
+      throw new Error("OPFS worker client is not ready", {
+        cause: `current state: ${state.state}`,
+      });
     }
   }
 
-  private createRequest<T>(): { requestId: RequestId; promise: Promise<T> } {
+  private createRequest<T>(): {
+    requestId: RequestId;
+    pendingResponse: PendingResponse<T>;
+    promise: Promise<T>;
+  } {
     const requestId = this.nextRequestId;
 
     this.nextRequestId = createRequestId(requestId + 1);
 
+    let pendingResponse!: PendingResponse<T>;
+
+    const promise = new Promise<T>((resolve, reject) => {
+      pendingResponse = {
+        resolve,
+        reject,
+      };
+    });
+
     return {
       requestId,
-      promise: new Promise<T>((resolve, reject) => {
-        this.pendingRequests.set(requestId, {
-          resolve: (value: unknown) => {
-            resolve(value as T);
-          },
-          reject,
-        });
-      }),
+      pendingResponse,
+      promise,
     };
   }
 
@@ -149,14 +172,33 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   };
 
   private handleSuccessMessage(message: SuccessResponse<unknown>) {
-    const request = this.pendingRequests.get(message.requestId);
+    if (this.clientState.state === "initializing") {
+      if (message.requestId !== this.clientState.initializeRequest.requestId) {
+        throw new Error();
+      }
+
+      this.clientState.initializeRequest.pendingResponse.resolve();
+
+      this.clientState = {
+        state: "ready",
+        pendingRequests: new Map<RequestId, PendingResponse<unknown>>(),
+      };
+
+      return;
+    }
+
+    if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
+      throw new Error();
+    }
+
+    const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
       // todo: revisit
       throw new Error();
     }
 
-    if (!this.pendingRequests.delete(message.requestId)) {
+    if (!this.clientState.pendingRequests.delete(message.requestId)) {
       throw new Error();
     }
 
@@ -164,32 +206,36 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   private handleErrorMessage(message: ErrorResponse) {
-    const request = this.pendingRequests.get(message.requestId);
+    if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
+      throw new Error();
+    }
+
+    const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
       // todo: revisit
       throw new Error();
     }
 
-    if (!this.pendingRequests.delete(message.requestId)) {
+    if (!this.clientState.pendingRequests.delete(message.requestId)) {
       throw new Error();
     }
 
     request.reject(message.error);
   }
 
-  private die(error: Error, emitWorkerDead: boolean): void {
-    if (this.isDisposed) {
+  private die(error: Error, emitWorkerDead: boolean, isError: boolean): void {
+    if (this.clientState.state !== "ready") {
       return;
     }
 
-    this.isDisposed = true;
+    this.clientState = { state: "closing", pendingRequests: this.clientState.pendingRequests };
 
-    for (const pendingResponse of this.pendingRequests.values()) {
+    for (const pendingResponse of this.clientState.pendingRequests.values()) {
       pendingResponse.reject(error);
     }
 
-    this.pendingRequests.clear();
+    this.clientState.pendingRequests.clear();
 
     this.worker.removeEventListener("message", this.handleWorkerMessage);
     this.worker.removeEventListener("error", this.handleError);
@@ -200,6 +246,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     if (emitWorkerDead) {
       this.emit("workerDead");
     }
+
+    this.clientState = { state: isError ? "errored" : "closed" };
   }
 
   private handleError = (event: Event) => {
@@ -207,13 +255,23 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       cause: event instanceof ErrorEvent ? event.error : undefined,
     });
 
-    this.die(error, true);
+    this.die(error, true, true);
   };
 
   public initialize(fileId: FileId, fileSize: number): Promise<void> {
-    this.assertAlive();
+    if (this.clientState.state !== "uninitialized") {
+      throw new Error("Cannot initialize: client is already initialized");
+    }
 
-    const { requestId, promise } = this.createRequest<void>();
+    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+
+    this.clientState = {
+      state: "initializing",
+      initializeRequest: {
+        requestId,
+        pendingResponse,
+      },
+    };
 
     const message: WorkerRequest = {
       type: "initialize",
@@ -228,9 +286,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public write(offset: number, data: ArrayBuffer): Promise<void> {
-    this.assertAlive();
+    const currentState = this.clientState;
 
-    const { requestId, promise } = this.createRequest<void>();
+    this.assertReady(currentState);
+
+    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+
+    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
 
     const message: WorkerRequest = {
       type: "write",
@@ -245,9 +307,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public getSize(): Promise<number> {
-    this.assertAlive();
+    const currentState = this.clientState;
 
-    const { requestId, promise } = this.createRequest<number>();
+    this.assertReady(currentState);
+
+    const { requestId, promise, pendingResponse } = this.createRequest<number>();
+
+    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
 
     const message: WorkerRequest = {
       type: "getSize",
@@ -260,9 +326,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public read(offset?: number, length?: number): Promise<ArrayBuffer> {
-    this.assertAlive();
+    const currentState = this.clientState;
 
-    const { requestId, promise } = this.createRequest<ArrayBuffer>();
+    this.assertReady(currentState);
+
+    const { requestId, promise, pendingResponse } = this.createRequest<ArrayBuffer>();
+
+    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
 
     const message: WorkerRequest = {
       type: "read",
@@ -277,9 +347,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public delete(): Promise<void> {
-    this.assertAlive();
+    const currentState = this.clientState;
 
-    const { requestId, promise } = this.createRequest<void>();
+    this.assertReady(currentState);
+
+    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+
+    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
 
     const message: WorkerRequest = {
       type: "delete",
@@ -292,7 +366,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public close(): Promise<void> {
-    const { requestId, promise } = this.createRequest<void>();
+    const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+
+    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
 
     const message: WorkerRequest = {
       type: "close",
@@ -305,6 +385,6 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   public dispose(): void {
-    this.die(new Error("OPFS worker client was disposed"), false);
+    this.die(new Error("OPFS worker client was disposed"), false, false);
   }
 }

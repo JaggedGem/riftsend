@@ -6,9 +6,20 @@ import type {
   ReadRequest,
   WorkerRequest,
   WorkerResponse,
-  WorkerSinkState,
   WriteRequest,
 } from "./OpfsWorkerClient";
+
+type WorkerSinkState =
+  | { state: "uninitialized" }
+  | { state: "initializing" }
+  | {
+      state: "ready";
+      root: FileSystemDirectoryHandle;
+      fileHandle: FileSystemFileHandle;
+      accessHandle: FileSystemSyncAccessHandle;
+    }
+  | { state: "closing" }
+  | { state: "closed" };
 
 export enum OpfsSinkWorkerErrorCodes {
   WORKER_ALREADY_INITIALIZED = "opfs_sink_worker.worker_already_initialized",
