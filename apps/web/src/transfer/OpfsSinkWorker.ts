@@ -28,8 +28,10 @@ export enum OpfsSinkWorkerErrorCodes {
   SHORT_READ = "opfs_sink_worker.short_read",
   INVALID_READ_RANGE = "opfs_sink_worker.invalid_read_range",
   INITIALIZATION_FAILED = "opfs_sink_worker.initialization_failed",
-  DELETION_FAILED = "opfs_sink_worker.deletion_failed",
+  DELETE_FAILED = "opfs_sink_worker.delete_failed",
   WORKER_NOT_READY = "opfs_sink_worker.worker_not_ready",
+  WRITE_FAILED = "opfs_sink_worker.write_failed",
+  READ_FAILED = "opfs_sink_worker.read_failed",
 }
 
 let workerState: WorkerSinkState = { state: "uninitialized" };
@@ -60,6 +62,12 @@ const initializeFile = async (message: InitializeRequest) => {
 
     const accessHandle = await fileHandle.createSyncAccessHandle();
 
+    if (!message.isResume) {
+      accessHandle.truncate(message.fileSize);
+
+      accessHandle.flush();
+    }
+
     workerState = { state: "ready", root, fileHandle, accessHandle };
   } catch (error) {
     const response: WorkerResponse<undefined> = {
@@ -79,12 +87,6 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  if (!message.isResume) {
-    workerState.accessHandle.truncate(message.fileSize);
-
-    workerState.accessHandle.flush();
-  }
-
   const response: WorkerResponse<void> = {
     type: "success",
     requestId: message.requestId,
@@ -94,6 +96,7 @@ const initializeFile = async (message: InitializeRequest) => {
   self.postMessage(response);
 };
 
+// todo: implement written byte ranges persisting
 const writeToFile = (message: WriteRequest) => {
   if (workerState.state !== "ready") {
     const response: WorkerResponse<undefined> = {
@@ -111,15 +114,35 @@ const writeToFile = (message: WriteRequest) => {
     return;
   }
 
-  const written = workerState.accessHandle.write(message.data, { at: message.offset });
+  try {
+    const written = workerState.accessHandle.write(message.data, { at: message.offset });
 
-  if (written !== message.data.byteLength) {
-    const response: WorkerResponse<void> = {
+    if (written !== message.data.byteLength) {
+      const response: WorkerResponse<void> = {
+        type: "error",
+        requestId: message.requestId,
+        error: {
+          code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
+          message: `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
+        },
+      };
+
+      self.postMessage(response);
+
+      return;
+    }
+
+    workerState.accessHandle.flush();
+  } catch (error) {
+    const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
-        message: `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
+        code: OpfsSinkWorkerErrorCodes.WRITE_FAILED,
+        message:
+          error instanceof Error
+            ? `Failed to write to file: ${error.message}`
+            : "Failed to write to file",
       },
     };
 
@@ -127,8 +150,6 @@ const writeToFile = (message: WriteRequest) => {
 
     return;
   }
-
-  workerState.accessHandle.flush();
 
   const response: WorkerResponse<void> = {
     type: "success",
@@ -209,16 +230,31 @@ const readFile = (message: ReadRequest) => {
   }
 
   const buffer = new ArrayBuffer(bufferLength);
+  try {
+    const read = workerState.accessHandle.read(buffer, { at: fileOffset });
 
-  const read = workerState.accessHandle.read(buffer, { at: fileOffset });
+    if (read !== bufferLength) {
+      const response: WorkerResponse<void> = {
+        type: "error",
+        requestId: message.requestId,
+        error: {
+          code: OpfsSinkWorkerErrorCodes.SHORT_READ,
+          message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
+        },
+      };
 
-  if (read !== bufferLength) {
-    const response: WorkerResponse<void> = {
+      self.postMessage(response);
+
+      return;
+    }
+  } catch (error) {
+    const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.SHORT_READ,
-        message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
+        code: OpfsSinkWorkerErrorCodes.READ_FAILED,
+        message:
+          error instanceof Error ? `Failed to read file: ${error.message}` : "Failed to read file",
       },
     };
 
@@ -266,7 +302,7 @@ const deleteFile = async (message: DeleteRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.DELETION_FAILED,
+        code: OpfsSinkWorkerErrorCodes.DELETE_FAILED,
         message:
           error instanceof Error
             ? `Failed to delete file: ${error.message}`
