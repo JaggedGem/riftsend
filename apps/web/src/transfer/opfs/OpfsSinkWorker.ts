@@ -1,3 +1,4 @@
+import { OpfsSinkErrorCode } from "./OpfsSinkError";
 import type {
   CloseRequest,
   DeleteRequest,
@@ -21,19 +22,6 @@ type WorkerSinkState =
   | { state: "closing" }
   | { state: "closed" };
 
-export enum OpfsSinkWorkerErrorCodes {
-  WORKER_ALREADY_INITIALIZED = "opfs_sink_worker.worker_already_initialized",
-  WORKER_NOT_INITIALIZED = "opfs_sink_worker.worker_not_initialized",
-  SHORT_WRITE = "opfs_sink_worker.short_write",
-  SHORT_READ = "opfs_sink_worker.short_read",
-  INVALID_READ_RANGE = "opfs_sink_worker.invalid_read_range",
-  INITIALIZATION_FAILED = "opfs_sink_worker.initialization_failed",
-  DELETE_FAILED = "opfs_sink_worker.delete_failed",
-  WORKER_NOT_READY = "opfs_sink_worker.worker_not_ready",
-  WRITE_FAILED = "opfs_sink_worker.write_failed",
-  READ_FAILED = "opfs_sink_worker.read_failed",
-}
-
 let workerState: WorkerSinkState = { state: "uninitialized" };
 
 const initializeFile = async (message: InitializeRequest) => {
@@ -42,7 +30,7 @@ const initializeFile = async (message: InitializeRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_ALREADY_INITIALIZED,
+        code: OpfsSinkErrorCode.WORKER_ALREADY_INITIALIZED,
         message: "Cannot initialize file: worker has already been initialized",
         cause: `current state: ${workerState.state}`,
       },
@@ -74,11 +62,9 @@ const initializeFile = async (message: InitializeRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.INITIALIZATION_FAILED,
-        message:
-          error instanceof Error
-            ? `Failed to initialize file: ${error.message}`
-            : "Failed to initialize file",
+        code: OpfsSinkErrorCode.INITIALIZATION_FAILED,
+        message: "Failed to initialize file",
+        cause: error,
       },
     };
 
@@ -103,7 +89,7 @@ const writeToFile = (message: WriteRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
         message: "Cannot write to file: worker is not ready",
         cause: `current state: ${workerState.state}`,
       },
@@ -122,7 +108,7 @@ const writeToFile = (message: WriteRequest) => {
         type: "error",
         requestId: message.requestId,
         error: {
-          code: OpfsSinkWorkerErrorCodes.SHORT_WRITE,
+          code: OpfsSinkErrorCode.SHORT_WRITE,
           message: `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
         },
       };
@@ -138,11 +124,9 @@ const writeToFile = (message: WriteRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WRITE_FAILED,
-        message:
-          error instanceof Error
-            ? `Failed to write to file: ${error.message}`
-            : "Failed to write to file",
+        code: OpfsSinkErrorCode.WRITE_FAILED,
+        message: "Failed to write to file",
+        cause: error,
       },
     };
 
@@ -166,7 +150,7 @@ const getFileSize = (message: GetSizeRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
         message: "Cannot get file size: worker is not ready",
         cause: `current state: ${workerState.state}`,
       },
@@ -192,7 +176,7 @@ const readFile = (message: ReadRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
         message: "Cannot read file: worker is not ready",
         cause: `current state: ${workerState.state}`,
       },
@@ -219,7 +203,7 @@ const readFile = (message: ReadRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.INVALID_READ_RANGE,
+        code: OpfsSinkErrorCode.INVALID_READ_RANGE,
         message: `Invalid read range: offset ${fileOffset} exceeds file size ${fileSize}`,
       },
     };
@@ -238,7 +222,7 @@ const readFile = (message: ReadRequest) => {
         type: "error",
         requestId: message.requestId,
         error: {
-          code: OpfsSinkWorkerErrorCodes.SHORT_READ,
+          code: OpfsSinkErrorCode.SHORT_READ,
           message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
         },
       };
@@ -252,9 +236,9 @@ const readFile = (message: ReadRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.READ_FAILED,
-        message:
-          error instanceof Error ? `Failed to read file: ${error.message}` : "Failed to read file",
+        code: OpfsSinkErrorCode.READ_FAILED,
+        message: "Failed to read file",
+        cause: error,
       },
     };
 
@@ -278,7 +262,7 @@ const deleteFile = async (message: DeleteRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
         message: "Cannot delete file: worker is not ready",
         cause: `current state: ${workerState.state}`,
       },
@@ -302,11 +286,9 @@ const deleteFile = async (message: DeleteRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.DELETE_FAILED,
-        message:
-          error instanceof Error
-            ? `Failed to delete file: ${error.message}`
-            : "Failed to delete file",
+        code: OpfsSinkErrorCode.DELETE_FAILED,
+        message: "Failed to delete file",
+        cause: error,
       },
     };
 
@@ -332,7 +314,7 @@ const closeFile = (message: CloseRequest) => {
       type: "error",
       requestId: message.requestId,
       error: {
-        code: OpfsSinkWorkerErrorCodes.WORKER_NOT_READY,
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
         message: "Cannot close file: worker is not ready",
         cause: `current state: ${workerState.state}`,
       },
@@ -398,11 +380,6 @@ const handleMessage = async (event: MessageEvent) => {
       closeFile(message);
 
       break;
-    }
-
-    default: {
-      // todo: revisit this (might not even need to throw)
-      throw new Error("Invalid message received");
     }
   }
 };
