@@ -175,11 +175,16 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   private handleSuccessMessage(message: SuccessResponse<unknown>) {
     if (this.clientState.state === "initializing") {
       if (message.requestId !== this.clientState.initializeRequest.requestId) {
-        throw new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_INITIALIZATION_REQUEST_MISMATCH,
-          `Received response for request ${message.requestId}, but expected response for initialization request ${this.clientState.initializeRequest.requestId}`,
-          { requestId: message.requestId },
+        this.emit(
+          "error",
+          new OpfsSinkError(
+            OpfsSinkErrorCode.CLIENT_INITIALIZATION_REQUEST_MISMATCH,
+            `Received response for request ${message.requestId}, but expected response for initialization request ${this.clientState.initializeRequest.requestId}`,
+            { requestId: message.requestId },
+          ),
         );
+
+        return;
       }
 
       this.clientState.initializeRequest.pendingResponse.resolve();
@@ -193,28 +198,43 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     }
 
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_INVALID_STATE,
-        `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
+        ),
       );
+
+      return;
     }
 
     const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
-        `Received response for request ${message.requestId}, but no matching pending request was found`,
-        { requestId: message.requestId },
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
+          `Received response for request ${message.requestId}, but no matching pending request was found`,
+          { requestId: message.requestId },
+        ),
       );
+
+      return;
     }
 
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
-        `Failed to remove pending request ${message.requestId}`,
-        { requestId: message.requestId },
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
+          `Failed to remove pending request ${message.requestId}`,
+          { requestId: message.requestId },
+        ),
       );
+
+      return;
     }
 
     request.resolve(message.result);
@@ -222,28 +242,43 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
   private handleErrorMessage(message: ErrorResponse) {
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_INVALID_STATE,
-        `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
+        ),
       );
+
+      return;
     }
 
     const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
-        `Received error response for request ${message.requestId}, but no matching pending request was found`,
-        { requestId: message.requestId },
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
+          `Received error response for request ${message.requestId}, but no matching pending request was found`,
+          { requestId: message.requestId },
+        ),
       );
+
+      return;
     }
 
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
-        `Failed to remove pending request ${message.requestId}`,
-        { requestId: message.requestId },
+      this.emit(
+        "error",
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
+          `Failed to remove pending request ${message.requestId}`,
+          { requestId: message.requestId },
+        ),
       );
+
+      return;
     }
 
     request.reject(
