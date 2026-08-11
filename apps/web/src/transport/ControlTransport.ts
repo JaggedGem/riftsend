@@ -169,7 +169,10 @@ export class ControlTransport {
       await this.send(message);
     } catch (error) {
       if (error instanceof ControlTransportError) {
-        if (error.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED) {
+        if (
+          error.cause instanceof ControlTransportError &&
+          error.cause.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED
+        ) {
           return new Promise((resolve, reject) => {
             setTimeout(() => {
               this.sendWithRetry(message, operationDescription).then(resolve, reject);
