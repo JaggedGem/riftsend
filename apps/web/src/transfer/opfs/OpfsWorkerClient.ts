@@ -374,7 +374,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       data,
     };
 
-    this.worker.postMessage(message);
+    this.worker.postMessage(message, [data]);
 
     return promise;
   }

@@ -253,7 +253,7 @@ const readFile = (message: ReadRequest) => {
     result: buffer,
   };
 
-  self.postMessage(response);
+  self.postMessage(response, [buffer]);
 };
 
 const deleteFile = async (message: DeleteRequest) => {
