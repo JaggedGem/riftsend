@@ -32,6 +32,7 @@ export {
   WebRTCPeerErrorMessages,
   formatWebRTCPeerError,
   CONTROL_MESSAGE_TYPES,
+  OpfsSinkErrorCode,
 } from "./constants.js";
 export type {
   PeerId,
@@ -46,6 +47,7 @@ export type {
   BatchId,
   TransferId,
   MessageId,
+  RequestId,
 } from "./types.js";
 export { generateRoomId, generateJoinCode } from "./room.js";
 
@@ -60,3 +62,4 @@ export { getFileId } from "./fileId.js";
 export { getBatchId } from "./batchId.js";
 export { createTransferId } from "./transferId.js";
 export { createMessageId } from "./messageId.js";
+export { createRequestId } from "./requestId.js";

@@ -223,3 +223,28 @@ export const CONTROL_MESSAGE_TYPES = {
   recoveryResponse: "recovery-response",
   acknowledgement: "ack",
 } as const;
+
+export enum OpfsSinkErrorCode {
+  // Worker errors
+  WORKER_ALREADY_INITIALIZED = "opfs_sink.worker_already_initialized",
+  WORKER_NOT_INITIALIZED = "opfs_sink.worker_not_initialized",
+  SHORT_WRITE = "opfs_sink.short_write",
+  SHORT_READ = "opfs_sink.short_read",
+  INVALID_READ_RANGE = "opfs_sink.invalid_read_range",
+  INITIALIZATION_FAILED = "opfs_sink.initialization_failed",
+  DELETE_FAILED = "opfs_sink.delete_failed",
+  WORKER_NOT_READY = "opfs_sink.worker_not_ready",
+  WRITE_FAILED = "opfs_sink.write_failed",
+  READ_FAILED = "opfs_sink.read_failed",
+  TIMED_FLUSH_FAILED = "opfs_sink.timed_flush_failed",
+
+  // Client errors
+  CLIENT_NOT_READY = "opfs_sink.client_not_ready",
+  INVALID_WORKER_RESPONSE = "opfs_sink.invalid_worker_response",
+  CLIENT_INITIALIZATION_REQUEST_MISMATCH = "opfs_sink.initialization_request_mismatch",
+  CLIENT_INVALID_STATE = "opfs_sink.client_invalid_state",
+  CLIENT_REQUEST_NOT_FOUND = "opfs_sink.request_not_found",
+  CLIENT_REQUEST_DELETE_FAILED = "opfs_sink.request_delete_failed",
+  UNKNOWN_ERROR = "opfs_sink.unknown_error",
+  CLIENT_DISPOSED = "opfs_sink.client_disposed",
+}

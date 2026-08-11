@@ -35,3 +35,9 @@ export * from "./control-messages/negotiationMessages.js";
 export * from "./control-messages/transferMessages.js";
 export * from "./control-messages/recoveryMessages.js";
 export * from "./control-messages/reliabilityMessages.js";
+
+// Sink messages
+export * from "./sink-messages/sinkMessages.js";
+export * from "./sink-messages/fieldSchemas.js";
+export * from "./sink-messages/workerRequests.js";
+export * from "./sink-messages/workerResponses.js";

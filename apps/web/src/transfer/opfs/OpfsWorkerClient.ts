@@ -1,73 +1,14 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import type { FileId } from "@riftsend/shared";
-import { OpfsSinkError, OpfsSinkErrorCode } from "./OpfsSinkError";
+import { type FileId, type RequestId, createRequestId, OpfsSinkErrorCode } from "@riftsend/shared";
+import { OpfsSinkError } from "./OpfsSinkError";
 import { getOpfsSinkConfig, type OpfsSinkConfig } from "@/config/config";
-import { CHUNK_SIZE } from "@riftsend/protocol";
-
-export type RequestId = number & { readonly __brand: unique symbol };
-
-export const createRequestId = (requestId: number): RequestId => {
-  return requestId as RequestId;
-};
-
-export type InitializeRequest = {
-  type: "initialize";
-  requestId: RequestId;
-  fileId: FileId;
-  fileSize: number;
-  isResume: boolean;
-  flushByteThreshold: number;
-};
-
-export type WriteRequest = {
-  type: "write";
-  requestId: RequestId;
-  offset: number;
-  data: ArrayBuffer;
-};
-
-export type GetSizeRequest = {
-  type: "getSize";
-  requestId: RequestId;
-};
-
-export type ReadRequest = {
-  type: "read";
-  requestId: RequestId;
-  offset?: number;
-  length?: number;
-};
-
-export type DeleteRequest = {
-  type: "delete";
-  requestId: RequestId;
-};
-
-export type CloseRequest = {
-  type: "close";
-  requestId: RequestId;
-};
-
-export type WorkerRequest =
-  InitializeRequest | WriteRequest | GetSizeRequest | ReadRequest | DeleteRequest | CloseRequest;
-
-export type SuccessResponse<ResultType> = {
-  type: "success";
-  requestId: RequestId;
-  result: ResultType;
-};
-
-export type ErrorResponse = {
-  type: "error";
-  requestId: RequestId;
-  error: {
-    code: OpfsSinkErrorCode;
-    message: string;
-    cause?: unknown;
-  };
-};
-
-export type WorkerResponse<ResultType> = SuccessResponse<ResultType> | ErrorResponse;
+import {
+  CHUNK_SIZE,
+  type ErrorResponse,
+  type SuccessResponse,
+  type WorkerRequest,
+  type WorkerResponse,
+} from "@riftsend/protocol";
 
 type PendingResponse<T> = {
   resolve: (value: T) => void;
@@ -172,7 +113,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   private readonly handleWorkerMessage = (event: MessageEvent) => {
-    const message = event.data as WorkerResponse<unknown>;
+    const message = event.data as WorkerResponse;
 
     switch (message.type) {
       case "success": {
@@ -189,7 +130,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     }
   };
 
-  private handleSuccessMessage(message: SuccessResponse<unknown>) {
+  private handleSuccessMessage(message: SuccessResponse) {
     if (this.clientState.state === "initializing") {
       if (message.requestId !== this.clientState.initializeRequest.requestId) {
         this.emit(

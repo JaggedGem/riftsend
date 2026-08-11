@@ -1,15 +1,15 @@
-import { OpfsSinkErrorCode } from "./OpfsSinkError";
 import type {
   CloseRequest,
   DeleteRequest,
-  ErrorResponse,
   GetSizeRequest,
   InitializeRequest,
   ReadRequest,
   WorkerRequest,
-  WorkerResponse,
   WriteRequest,
-} from "./OpfsWorkerClient";
+  WorkerResponse,
+  ErrorResponse,
+} from "@riftsend/protocol";
+import { OpfsSinkErrorCode } from "@riftsend/shared";
 import { getOpfsSinkConfig } from "@/config/config";
 
 type WorkerSinkState =
@@ -94,7 +94,7 @@ const initializeFile = async (message: InitializeRequest) => {
     return;
   }
 
-  const response: WorkerResponse<void> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: undefined,
@@ -127,7 +127,7 @@ const writeToFile = (message: WriteRequest) => {
     const written = state.accessHandle.write(message.data, { at: message.offset });
 
     if (written !== message.data.byteLength) {
-      const response: WorkerResponse<void> = {
+      const response: WorkerResponse = {
         type: "error",
         requestId: message.requestId,
         error: {
@@ -199,7 +199,7 @@ const writeToFile = (message: WriteRequest) => {
     return;
   }
 
-  const response: WorkerResponse<void> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: undefined,
@@ -225,7 +225,7 @@ const getFileSize = (message: GetSizeRequest) => {
     return;
   }
 
-  const response: WorkerResponse<number> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: workerState.accessHandle.getSize(),
@@ -282,7 +282,7 @@ const readFile = (message: ReadRequest) => {
     const read = workerState.accessHandle.read(buffer, { at: fileOffset });
 
     if (read !== bufferLength) {
-      const response: WorkerResponse<void> = {
+      const response: WorkerResponse = {
         type: "error",
         requestId: message.requestId,
         error: {
@@ -311,7 +311,7 @@ const readFile = (message: ReadRequest) => {
     return;
   }
 
-  const response: WorkerResponse<ArrayBuffer> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: buffer,
@@ -369,7 +369,7 @@ const deleteFile = async (message: DeleteRequest) => {
 
   workerState = { state: "closed" };
 
-  const response: WorkerResponse<void> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: undefined,
@@ -407,7 +407,7 @@ const closeFile = (message: CloseRequest) => {
 
   workerState = { state: "closed" };
 
-  const response: WorkerResponse<void> = {
+  const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
     result: undefined,
