@@ -2,6 +2,7 @@ import { OpfsSinkErrorCode } from "./OpfsSinkError";
 import type {
   CloseRequest,
   DeleteRequest,
+  ErrorResponse,
   GetSizeRequest,
   InitializeRequest,
   ReadRequest,
@@ -32,7 +33,7 @@ const config = getOpfsSinkConfig();
 
 const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -78,7 +79,7 @@ const initializeFile = async (message: InitializeRequest) => {
 
     workerState = { state: "uninitialized" };
 
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -107,7 +108,7 @@ const writeToFile = (message: WriteRequest) => {
   const state = workerState;
 
   if (state.state !== "ready") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -166,7 +167,7 @@ const writeToFile = (message: WriteRequest) => {
 
           state.writtenBytesSinceLastFlush = 0;
         } catch (error) {
-          const response: WorkerResponse<undefined> = {
+          const response: ErrorResponse = {
             type: "error",
             requestId: message.requestId,
             error: {
@@ -183,7 +184,7 @@ const writeToFile = (message: WriteRequest) => {
       }, timeThreshold);
     }
   } catch (error) {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -209,7 +210,7 @@ const writeToFile = (message: WriteRequest) => {
 
 const getFileSize = (message: GetSizeRequest) => {
   if (workerState.state !== "ready") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -235,7 +236,7 @@ const getFileSize = (message: GetSizeRequest) => {
 
 const readFile = (message: ReadRequest) => {
   if (workerState.state !== "ready") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -262,7 +263,7 @@ const readFile = (message: ReadRequest) => {
     fileOffset > fileSize ||
     fileOffset + bufferLength > fileSize
   ) {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -295,7 +296,7 @@ const readFile = (message: ReadRequest) => {
       return;
     }
   } catch (error) {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -321,7 +322,7 @@ const readFile = (message: ReadRequest) => {
 
 const deleteFile = async (message: DeleteRequest) => {
   if (workerState.state !== "ready") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -351,7 +352,7 @@ const deleteFile = async (message: DeleteRequest) => {
   } catch (error) {
     workerState = { state: "closed" };
 
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
@@ -379,7 +380,7 @@ const deleteFile = async (message: DeleteRequest) => {
 
 const closeFile = (message: CloseRequest) => {
   if (workerState.state !== "ready") {
-    const response: WorkerResponse<undefined> = {
+    const response: ErrorResponse = {
       type: "error",
       requestId: message.requestId,
       error: {
