@@ -7,12 +7,21 @@ import {
   type ErrorResponse,
   type SuccessResponse,
   type WorkerRequest,
-  type WorkerResponse,
+  type OpfsResult,
+  type OpfsMessageTypes,
+  WorkerResponseSchema,
+  OpfsResultSchemas,
 } from "@riftsend/protocol";
 
-type PendingResponse<T> = {
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
+type PendingResponse<T extends OpfsMessageTypes> = {
+  resolve: (value: OpfsResult<T>) => void;
+  reject: (reason: unknown) => void;
+};
+
+type PendingRequestEntry = {
+  operation: OpfsMessageTypes;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
 };
 
 type WorkerClientState =
@@ -23,13 +32,13 @@ type WorkerClientState =
       state: "initializing";
       initializeRequest: {
         requestId: RequestId;
-        pendingResponse: PendingResponse<void>;
+        pendingResponse: PendingResponse<"initialize">;
       };
       flushByteThreshold: number;
     }
   | {
       state: "ready";
-      pendingRequests: Map<RequestId, PendingResponse<unknown>>;
+      pendingRequests: Map<RequestId, PendingRequestEntry>;
       flushByteThreshold: number;
       capacityWaiters: Array<{
         resolve: () => void;
@@ -38,7 +47,7 @@ type WorkerClientState =
     }
   | {
       state: "closing";
-      pendingRequests: Map<RequestId, PendingResponse<unknown>>;
+      pendingRequests: Map<RequestId, PendingRequestEntry>;
       capacityWaiters: Array<{
         resolve: () => void;
         reject: (reason: unknown) => void;
@@ -87,10 +96,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     }
   }
 
-  private createRequest<T>(): {
+  private createRequest<T extends OpfsMessageTypes>(
+    _type: T,
+  ): {
     requestId: RequestId;
     pendingResponse: PendingResponse<T>;
-    promise: Promise<T>;
+    promise: Promise<OpfsResult<T>>;
   } {
     const requestId = this.nextRequestId;
 
@@ -98,7 +109,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     let pendingResponse!: PendingResponse<T>;
 
-    const promise = new Promise<T>((resolve, reject) => {
+    const promise = new Promise<OpfsResult<T>>((resolve, reject) => {
       pendingResponse = {
         resolve,
         reject,
@@ -113,7 +124,15 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   }
 
   private readonly handleWorkerMessage = (event: MessageEvent) => {
-    const message = event.data as WorkerResponse;
+    const { data: message, success } = WorkerResponseSchema.safeParse(event.data);
+
+    if (!success) {
+      throw new OpfsSinkError(
+        OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+        "Received an unknown worker response message",
+        { cause: event.data },
+      );
+    }
 
     switch (message.type) {
       case "success": {
@@ -126,6 +145,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
         this.handleErrorMessage(message);
 
         break;
+      }
+
+      case "fatal-notice": {
+        throw new OpfsSinkError(message.error.code, message.error.message, {
+          cause: message.error.cause,
+        });
       }
     }
   };
@@ -145,11 +170,11 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
         return;
       }
 
-      this.clientState.initializeRequest.pendingResponse.resolve();
+      this.clientState.initializeRequest.pendingResponse.resolve(undefined);
 
       this.clientState = {
         state: "ready",
-        pendingRequests: new Map<RequestId, PendingResponse<unknown>>(),
+        pendingRequests: new Map<RequestId, PendingRequestEntry>(),
         flushByteThreshold: this.clientState.flushByteThreshold,
         capacityWaiters: new Array<{
           resolve: () => void;
@@ -202,7 +227,21 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.notifyCapacityAvailable(this.clientState);
 
-    request.resolve(message.result);
+    const parseResult = OpfsResultSchemas[request.operation].safeParse(message.result);
+
+    if (!parseResult.success) {
+      request.reject(
+        new OpfsSinkError(
+          OpfsSinkErrorCode.INVALID_WORKER_RESPONSE,
+          "Received a response with the incorrect 'result' for the current operation",
+          { cause: parseResult.error },
+        ),
+      );
+
+      return;
+    }
+
+    request.resolve(parseResult.data);
   }
 
   private handleErrorMessage(message: ErrorResponse) {
@@ -317,7 +356,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       );
     }
 
-    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+    const { requestId, promise, pendingResponse } = this.createRequest("initialize");
 
     const flushByteThreshold = Math.min(
       Math.max(fileSize * 0.001, this.config.bufferThresholdMinBytes),
@@ -356,9 +395,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.assertReady(currentState);
 
-    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+    const { requestId, promise, pendingResponse } = this.createRequest("write");
 
-    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
+    currentState.pendingRequests.set(requestId, {
+      operation: "write",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
 
     const message: WorkerRequest = {
       type: "write",
@@ -381,9 +424,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.assertReady(currentState);
 
-    const { requestId, promise, pendingResponse } = this.createRequest<number>();
+    const { requestId, promise, pendingResponse } = this.createRequest("getSize");
 
-    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
+    currentState.pendingRequests.set(requestId, {
+      operation: "getSize",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
 
     const message: WorkerRequest = {
       type: "getSize",
@@ -404,9 +451,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.assertReady(currentState);
 
-    const { requestId, promise, pendingResponse } = this.createRequest<ArrayBuffer>();
+    const { requestId, promise, pendingResponse } = this.createRequest("read");
 
-    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
+    currentState.pendingRequests.set(requestId, {
+      operation: "read",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
 
     const message: WorkerRequest = {
       type: "read",
@@ -429,9 +480,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.assertReady(currentState);
 
-    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+    const { requestId, promise, pendingResponse } = this.createRequest("delete");
 
-    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
+    currentState.pendingRequests.set(requestId, {
+      operation: "delete",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
 
     const message: WorkerRequest = {
       type: "delete",
@@ -452,9 +507,13 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     this.assertReady(currentState);
 
-    const { requestId, promise, pendingResponse } = this.createRequest<void>();
+    const { requestId, promise, pendingResponse } = this.createRequest("close");
 
-    currentState.pendingRequests.set(requestId, pendingResponse as PendingResponse<unknown>);
+    currentState.pendingRequests.set(requestId, {
+      operation: "close",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
 
     const message: WorkerRequest = {
       type: "close",

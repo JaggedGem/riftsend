@@ -1,13 +1,15 @@
-import type {
-  CloseRequest,
-  DeleteRequest,
-  GetSizeRequest,
-  InitializeRequest,
-  ReadRequest,
-  WorkerRequest,
-  WriteRequest,
-  WorkerResponse,
-  ErrorResponse,
+import {
+  type CloseRequest,
+  type DeleteRequest,
+  type GetSizeRequest,
+  type InitializeRequest,
+  type ReadRequest,
+  type FatalNotice,
+  type WriteRequest,
+  type WorkerResponse,
+  type ErrorResponse,
+  WorkerRequestSchema,
+  WithRequestIdSchema,
 } from "@riftsend/protocol";
 import { OpfsSinkErrorCode } from "@riftsend/shared";
 import { getOpfsSinkConfig } from "@/config/config";
@@ -417,41 +419,74 @@ const closeFile = (message: CloseRequest) => {
 };
 
 const handleMessage = async (event: MessageEvent) => {
-  const message = event.data as WorkerRequest;
+  const parseResult = WorkerRequestSchema.safeParse(event.data);
 
-  switch (message.type) {
+  if (!parseResult.success) {
+    const looseParseResult = WithRequestIdSchema.safeParse(parseResult.data);
+
+    if (!looseParseResult.success) {
+      const response: FatalNotice = {
+        type: "fatal-notice",
+        error: {
+          code: OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+          message: "Received unknown request type from client without any request id",
+          cause: parseResult.error,
+        },
+      };
+
+      self.postMessage(response);
+
+      return;
+    }
+
+    const response: ErrorResponse = {
+      type: "error",
+      requestId: looseParseResult.data.requestId,
+      error: {
+        code: OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+        message: "Received unknown request type from client",
+        cause: parseResult.error,
+      },
+    };
+
+    self.postMessage(response);
+
+    return;
+  }
+
+  switch (parseResult.data.type) {
     case "initialize": {
-      await initializeFile(message);
+      await initializeFile(parseResult.data);
 
       break;
     }
 
     case "write": {
-      writeToFile(message);
+      writeToFile(parseResult.data);
 
       break;
     }
 
     case "getSize": {
-      getFileSize(message);
+      getFileSize(parseResult.data);
 
       break;
     }
 
     case "read": {
-      readFile(message);
+      readFile(parseResult.data);
 
       break;
     }
 
     case "delete": {
-      await deleteFile(message);
+      await deleteFile(parseResult.data);
 
       break;
     }
 
     case "close": {
-      closeFile(message);
+      closeFile(parseResult.data);
 
       break;
     }

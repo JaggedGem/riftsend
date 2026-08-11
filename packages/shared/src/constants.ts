@@ -247,4 +247,5 @@ export enum OpfsSinkErrorCode {
   CLIENT_REQUEST_DELETE_FAILED = "opfs_sink.request_delete_failed",
   UNKNOWN_ERROR = "opfs_sink.unknown_error",
   CLIENT_DISPOSED = "opfs_sink.client_disposed",
+  UNKNOWN_MESSAGE_TYPE = "opfs_sink.unknown_message_type",
 }
