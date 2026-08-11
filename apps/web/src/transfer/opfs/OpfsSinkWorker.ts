@@ -48,12 +48,14 @@ const initializeFile = async (message: InitializeRequest) => {
 
   workerState = { state: "initializing" };
 
+  let accessHandle: FileSystemSyncAccessHandle | undefined;
+
   try {
     const root = await navigator.storage.getDirectory();
 
     const fileHandle = await root.getFileHandle(message.fileId, { create: true });
 
-    const accessHandle = await fileHandle.createSyncAccessHandle();
+    accessHandle = await fileHandle.createSyncAccessHandle();
 
     if (!message.isResume) {
       accessHandle.truncate(message.fileSize);
@@ -70,6 +72,10 @@ const initializeFile = async (message: InitializeRequest) => {
       flushTimeout: undefined,
     };
   } catch (error) {
+    accessHandle?.close();
+
+    workerState = { state: "uninitialized" };
+
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
@@ -332,6 +338,10 @@ const deleteFile = async (message: DeleteRequest) => {
 
   const { root, fileHandle, accessHandle } = workerState;
 
+  if (workerState.flushTimeout) {
+    clearTimeout(workerState.flushTimeout);
+  }
+
   workerState = { state: "closing" };
 
   accessHandle.close();
@@ -339,6 +349,8 @@ const deleteFile = async (message: DeleteRequest) => {
   try {
     await root.removeEntry(fileHandle.name);
   } catch (error) {
+    workerState = { state: "closed" };
+
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
@@ -383,6 +395,10 @@ const closeFile = (message: CloseRequest) => {
   }
 
   const { accessHandle } = workerState;
+
+  if (workerState.flushTimeout) {
+    clearTimeout(workerState.flushTimeout);
+  }
 
   workerState = { state: "closing" };
 
