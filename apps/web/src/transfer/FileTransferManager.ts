@@ -108,7 +108,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const batchOffer = this.buildBatchOffer(files, pendingBatch);
 
-    await this.controlTransport.sendWithRetry(batchOffer, "sending the batch offer");
+    await this.controlTransport.send(batchOffer);
 
     this.pendingOutgoingBatches.set(batchOffer.batchId, pendingBatch);
   }
@@ -238,10 +238,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
 
     const transferMappingsMessage = this.createTransferMappingsMessage(batchId, mappings);
 
-    await this.controlTransport.sendWithRetry(
-      transferMappingsMessage,
-      "sending the transfer mappings",
-    );
+    await this.controlTransport.send(transferMappingsMessage);
 
     const transfers = this.createTransfers(acceptedFiles, mappings);
 
@@ -371,7 +368,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
       };
 
       try {
-        await this.controlTransport.sendWithRetry(fileStartMessage, "sending transfer start");
+        await this.controlTransport.send(fileStartMessage);
       } catch (error) {
         transfer.fail(error);
 
@@ -386,7 +383,7 @@ export class FileTransferManager extends TypedEventEmitter<FileTransferManagerEv
   public async acceptFiles(batchId: BatchId, acceptedFileIds: FileId[]) {
     const batchResponse = this.buildOfferResponse(batchId, acceptedFileIds);
 
-    await this.controlTransport.sendWithRetry(batchResponse, "sending the batch response");
+    await this.controlTransport.send(batchResponse);
   }
 
   private buildOfferResponse(batchId: BatchId, acceptedFileIds: FileId[]) {

@@ -109,6 +109,11 @@ export class ControlTransport {
 
   private readonly protocolVersion: ProtocolVersion;
 
+  private readonly capacityWaiters: Array<{
+    resolve: () => void;
+    reject: (reason: unknown) => void;
+  }> = [];
+
   /**
    * Creates a new `ControlTransport` instance.
    *
@@ -145,51 +150,6 @@ export class ControlTransport {
       this.scheduleCheck();
     }, this.config.retryCheckInterval);
   };
-
-  /**
-   * Sends a control message with retry support for transient queue-full errors.
-   *
-   * If the send fails with a `QUEUE_LIMIT_REACHED` error, the message is
-   * retried after `sendRetryDelay` milliseconds. Other `ControlTransportError`
-   * errors are re-thrown immediately. Unknown errors are wrapped in a new
-   * `ControlTransportError` with code `UNKNOWN_ERROR`.
-   *
-   * @param message The control message to send.
-   * @param operationDescription A human-readable description of the operation
-   *   for use in error messages.
-   * @returns A promise that resolves when the message is successfully sent,
-   *   or rejects with a `ControlTransportError` if sending fails.
-   * @throws {ControlTransportError} With code `UNKNOWN_ERROR` if an unexpected
-   *   error occurs during sending.
-   * @throws {ControlTransportError} Re-throws any non-`QUEUE_LIMIT_REACHED`
-   *   `ControlTransportError` from the underlying send.
-   */
-  public async sendWithRetry(message: ControlMessage, operationDescription: string): Promise<void> {
-    try {
-      await this.send(message);
-    } catch (error) {
-      if (error instanceof ControlTransportError) {
-        if (
-          error.cause instanceof ControlTransportError &&
-          error.cause.code === ControlTransportErrorCode.QUEUE_LIMIT_REACHED
-        ) {
-          return new Promise((resolve, reject) => {
-            setTimeout(() => {
-              this.sendWithRetry(message, operationDescription).then(resolve, reject);
-            }, this.config.sendRetryDelay);
-          });
-        }
-
-        throw error;
-      }
-
-      throw new ControlTransportError(
-        ControlTransportErrorCode.UNKNOWN_ERROR,
-        "An unknown error occurred while sending a control message with retry",
-        { cause: error },
-      );
-    }
-  }
 
   /**
    * Sends a control message over the underlying channel.
@@ -240,69 +200,59 @@ export class ControlTransport {
    *   if sending fails, the message is discarded, or the transport is disposed.
    * @throws {ControlTransportError} With code `TRANSPORT_DISPOSED` if the transport
    *   has already been disposed.
-   * @throws {ControlTransportError} With code `QUEUE_LIMIT_REACHED` if the number
-   *   of pending messages has reached `maxPendingMessages`.
    * @throws {ControlTransportError} With code `INVALID_RELIABLE_MESSAGE` if the
    *   message fails `ReliableControlMessageSchema` validation.
    * @throws {ControlTransportError} With code `SEND_FAILED` (asynchronously, via
    *   promise rejection) if `sendRaw` rejects when sending the reliable message.
    */
-  private sendReliable(
+  private async sendReliable(
     message: Extract<ControlMessage, { type: ReliableTypeName }>,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.isDisposed) {
-        reject(
-          new ControlTransportError(
-            ControlTransportErrorCode.TRANSPORT_DISPOSED,
-            "Object is already disposed",
-          ),
-        );
+    if (this.isDisposed) {
+      throw new ControlTransportError(
+        ControlTransportErrorCode.TRANSPORT_DISPOSED,
+        "Object is already disposed",
+      );
+    }
 
-        return;
-      }
+    await this.waitForCapacity();
 
-      if (this.pendingMessages.size >= this.config.maxPendingMessages) {
-        reject(
-          new ControlTransportError(
-            ControlTransportErrorCode.QUEUE_LIMIT_REACHED,
-            `Cannot send message: ${this.pendingMessages.size} messages already pending (max ${this.config.maxPendingMessages}). Retry shortly`,
-          ),
-        );
+    // The transport could have been disposed while waiting.
+    if (this.isDisposed) {
+      throw new ControlTransportError(
+        ControlTransportErrorCode.TRANSPORT_DISPOSED,
+        "Object was disposed while waiting for capacity",
+      );
+    }
 
-        return;
-      }
+    const messageId = this.nextMessageId;
 
-      const messageId = this.nextMessageId;
+    let reliableMessage: ReliableControlMessage;
 
-      let reliableMessage: ReliableControlMessage;
-      try {
-        reliableMessage = ReliableControlMessageSchema.parse({
-          ...message,
-          messageId,
-        });
-      } catch (error) {
-        reject(
-          new ControlTransportError(
-            ControlTransportErrorCode.INVALID_RELIABLE_MESSAGE,
-            "The provided message is not a valid reliable control message",
-            {
-              cause:
-                error instanceof Error
-                  ? error
-                  : new ControlTransportError(
-                      ControlTransportErrorCode.UNKNOWN_ERROR,
-                      "An unknown error occurred",
-                    ),
-            },
-          ),
-        );
+    try {
+      reliableMessage = ReliableControlMessageSchema.parse({
+        ...message,
+        messageId,
+      });
+    } catch (error) {
+      throw new ControlTransportError(
+        ControlTransportErrorCode.INVALID_RELIABLE_MESSAGE,
+        "The provided message is not a valid reliable control message",
+        {
+          cause:
+            error instanceof Error
+              ? error
+              : new ControlTransportError(
+                  ControlTransportErrorCode.UNKNOWN_ERROR,
+                  "An unknown error occurred",
+                ),
+        },
+      );
+    }
 
-        return;
-      }
+    this.nextMessageId = createMessageId(messageId + 1);
 
-      this.nextMessageId = createMessageId(messageId + 1);
-
+    return new Promise<void>((resolve, reject) => {
       const pendingMessage: PendingMessage = {
         message: reliableMessage,
         firstSentAt: undefined,
@@ -333,6 +283,9 @@ export class ControlTransport {
               { messageId, cause: error },
             ),
           );
+
+          // A slot has become available.
+          this.notifyCapacityAvailable();
         });
     });
   }
@@ -357,6 +310,8 @@ export class ControlTransport {
     acknowledgedMessage.resolve();
 
     this.pendingMessages.delete(message.acknowledgedMessageId);
+
+    this.notifyCapacityAvailable();
   }
 
   /**
@@ -589,5 +544,37 @@ export class ControlTransport {
     });
 
     this.pendingMessages.clear();
+
+    let waiter:
+      | {
+          resolve: () => void;
+          reject: (reason: unknown) => void;
+        }
+      | undefined;
+
+    while ((waiter = this.capacityWaiters.shift()) !== undefined) {
+      waiter.reject(
+        new ControlTransportError(
+          ControlTransportErrorCode.TRANSPORT_DISPOSED,
+          "Transport disposed before a free space appeared",
+        ),
+      );
+    }
+  }
+
+  private async waitForCapacity(): Promise<void> {
+    if (this.pendingMessages.size < this.config.maxPendingMessages) {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      this.capacityWaiters.push({ resolve, reject });
+    });
+  }
+
+  private notifyCapacityAvailable(): void {
+    const waiter = this.capacityWaiters.shift();
+
+    waiter?.resolve();
   }
 }
