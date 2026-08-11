@@ -1,6 +1,8 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter";
 import type { FileId } from "@riftsend/shared";
 import { OpfsSinkError, OpfsSinkErrorCode } from "./OpfsSinkError";
+import { getOpfsSinkConfig, type OpfsSinkConfig } from "@/config/config";
+import { CHUNK_SIZE } from "@riftsend/protocol";
 
 export type RequestId = number & { readonly __brand: unique symbol };
 
@@ -14,6 +16,7 @@ export type InitializeRequest = {
   fileId: FileId;
   fileSize: number;
   isResume: boolean;
+  flushByteThreshold: number;
 };
 
 export type WriteRequest = {
@@ -81,14 +84,24 @@ type WorkerClientState =
         requestId: RequestId;
         pendingResponse: PendingResponse<void>;
       };
+      flushByteThreshold: number;
     }
   | {
       state: "ready";
       pendingRequests: Map<RequestId, PendingResponse<unknown>>;
+      flushByteThreshold: number;
+      capacityWaiters: Array<{
+        resolve: () => void;
+        reject: (reason: unknown) => void;
+      }>;
     }
   | {
       state: "closing";
       pendingRequests: Map<RequestId, PendingResponse<unknown>>;
+      capacityWaiters: Array<{
+        resolve: () => void;
+        reject: (reason: unknown) => void;
+      }>;
     }
   | {
       state: "closed";
@@ -107,8 +120,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
   private nextRequestId = createRequestId(0);
   private clientState: WorkerClientState = { state: "uninitialized" };
 
+  private readonly config: OpfsSinkConfig;
+
   constructor() {
     super();
+
+    this.config = getOpfsSinkConfig();
 
     this.worker.addEventListener("message", this.handleWorkerMessage);
     this.worker.addEventListener("error", this.handleError);
@@ -192,6 +209,11 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       this.clientState = {
         state: "ready",
         pendingRequests: new Map<RequestId, PendingResponse<unknown>>(),
+        flushByteThreshold: this.clientState.flushByteThreshold,
+        capacityWaiters: new Array<{
+          resolve: () => void;
+          reject: (reason: unknown) => void;
+        }>(),
       };
 
       return;
@@ -237,6 +259,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       return;
     }
 
+    this.notifyCapacityAvailable(this.clientState);
+
     request.resolve(message.result);
   }
 
@@ -281,6 +305,8 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       return;
     }
 
+    this.notifyCapacityAvailable(this.clientState);
+
     request.reject(
       new OpfsSinkError(message.error.code, message.error.message, {
         cause: message.error.cause,
@@ -294,13 +320,28 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       return;
     }
 
-    this.clientState = { state: "closing", pendingRequests: this.clientState.pendingRequests };
+    this.clientState = {
+      state: "closing",
+      pendingRequests: this.clientState.pendingRequests,
+      capacityWaiters: this.clientState.capacityWaiters,
+    };
 
     for (const pendingResponse of this.clientState.pendingRequests.values()) {
       pendingResponse.reject(error);
     }
 
     this.clientState.pendingRequests.clear();
+
+    let waiter:
+      | {
+          resolve: () => void;
+          reject: (reason: unknown) => void;
+        }
+      | undefined;
+
+    while ((waiter = this.clientState.capacityWaiters.shift()) !== undefined) {
+      waiter.reject(error);
+    }
 
     this.worker.removeEventListener("message", this.handleWorkerMessage);
     this.worker.removeEventListener("error", this.handleError);
@@ -337,12 +378,18 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
 
     const { requestId, promise, pendingResponse } = this.createRequest<void>();
 
+    const flushByteThreshold = Math.min(
+      Math.max(fileSize * 0.001, this.config.bufferThresholdMinBytes),
+      this.config.bufferThresholdMaxBytes,
+    );
+
     this.clientState = {
       state: "initializing",
       initializeRequest: {
         requestId,
         pendingResponse,
       },
+      flushByteThreshold,
     };
 
     const message: WorkerRequest = {
@@ -351,6 +398,7 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       fileId,
       fileSize,
       isResume,
+      flushByteThreshold,
     };
 
     this.worker.postMessage(message);
@@ -358,8 +406,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     return promise;
   }
 
-  public write(offset: number, data: ArrayBuffer): Promise<void> {
+  public async write(offset: number, data: ArrayBuffer): Promise<void> {
     const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    await this.waitForCapacity(currentState);
 
     this.assertReady(currentState);
 
@@ -379,8 +431,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     return promise;
   }
 
-  public getSize(): Promise<number> {
+  public async getSize(): Promise<number> {
     const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    await this.waitForCapacity(currentState);
 
     this.assertReady(currentState);
 
@@ -398,8 +454,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     return promise;
   }
 
-  public read(offset?: number, length?: number): Promise<ArrayBuffer> {
+  public async read(offset?: number, length?: number): Promise<ArrayBuffer> {
     const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    await this.waitForCapacity(currentState);
 
     this.assertReady(currentState);
 
@@ -419,8 +479,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     return promise;
   }
 
-  public delete(): Promise<void> {
+  public async delete(): Promise<void> {
     const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    await this.waitForCapacity(currentState);
 
     this.assertReady(currentState);
 
@@ -438,8 +502,12 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
     return promise;
   }
 
-  public close(): Promise<void> {
+  public async close(): Promise<void> {
     const currentState = this.clientState;
+
+    this.assertReady(currentState);
+
+    await this.waitForCapacity(currentState);
 
     this.assertReady(currentState);
 
@@ -463,5 +531,25 @@ export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> 
       false,
       false,
     );
+  }
+
+  private async waitForCapacity(
+    currentState: Extract<WorkerClientState, { state: "ready" }>,
+  ): Promise<void> {
+    if (currentState.pendingRequests.size < (currentState.flushByteThreshold / CHUNK_SIZE) * 2) {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      currentState.capacityWaiters.push({ resolve, reject });
+    });
+  }
+
+  private notifyCapacityAvailable(
+    currentState: Extract<WorkerClientState, { state: "ready" } | { state: "closing" }>,
+  ): void {
+    const waiter = currentState.capacityWaiters.shift();
+
+    waiter?.resolve();
   }
 }

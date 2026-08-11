@@ -21,6 +21,7 @@ type WorkerSinkState =
       accessHandle: FileSystemSyncAccessHandle;
       writtenBytesSinceLastFlush: number;
       flushTimeout: number | undefined;
+      flushByteThreshold: number;
     }
   | { state: "closing" }
   | { state: "closed" };
@@ -70,6 +71,7 @@ const initializeFile = async (message: InitializeRequest) => {
       accessHandle,
       writtenBytesSinceLastFlush: 0,
       flushTimeout: undefined,
+      flushByteThreshold: message.flushByteThreshold,
     };
   } catch (error) {
     accessHandle?.close();
@@ -140,12 +142,7 @@ const writeToFile = (message: WriteRequest) => {
 
     state.writtenBytesSinceLastFlush += written;
 
-    const byteThreshold = Math.min(
-      Math.max(state.accessHandle.getSize() * 0.001, config.bufferThresholdMinBytes),
-      config.bufferThresholdMaxBytes,
-    );
-
-    if (state.writtenBytesSinceLastFlush >= byteThreshold) {
+    if (state.writtenBytesSinceLastFlush >= state.flushByteThreshold) {
       state.accessHandle.flush();
 
       clearTimeout(state.flushTimeout);
@@ -154,7 +151,10 @@ const writeToFile = (message: WriteRequest) => {
       state.writtenBytesSinceLastFlush = 0;
     } else if (!state.flushTimeout) {
       const timeThreshold = Math.min(
-        Math.max(byteThreshold / config.assumedMinThroughput, config.bufferThresholdMinTimeMs),
+        Math.max(
+          state.flushByteThreshold / config.assumedMinThroughput,
+          config.bufferThresholdMinTimeMs,
+        ),
         config.bufferThresholdMaxTimeMs,
       );
 
