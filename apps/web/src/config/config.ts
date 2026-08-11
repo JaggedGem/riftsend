@@ -84,11 +84,20 @@ export type WebRTCTransportConfig = {
   readonly dataChannelHighWatermark: number;
 };
 
+export type OpfsSinkConfig = {
+  readonly bufferThresholdMinBytes: number;
+  readonly bufferThresholdMaxBytes: number;
+  readonly bufferThresholdMinTimeMs: number;
+  readonly bufferThresholdMaxTimeMs: number;
+  readonly assumedMinThroughput: number;
+};
+
 let _signalingConfig: SignalingConfig | null = null;
 let _clientInfoConfig: ClientInfoConfig | null = null;
 let _protocolConfig: ProtocolConfig | null = null;
 let _reliableTransportConfig: ReliableTransportConfig | null = null;
 let _webRTCTransportConfig: WebRTCTransportConfig | null = null;
+let _opfsSinkConfig: OpfsSinkConfig | null = null;
 
 /**
  * Returns the signaling configuration, populated from Vite environment variables.
@@ -174,4 +183,23 @@ export const getWebRTCTransportConfig = (): WebRTCTransportConfig => {
   }
 
   return _webRTCTransportConfig;
+};
+
+/**
+ * Returns WebRTC transport configuration, populated from Vite environment variables.
+ *
+ * Reads `VITE_*` vars on first call and caches the result for subsequent calls.
+ */
+export const getOpfsSinkConfig = (): OpfsSinkConfig => {
+  if (!_opfsSinkConfig) {
+    _opfsSinkConfig = Object.freeze({
+      bufferThresholdMinBytes: requireIntEnv("BUFFER_THRESHOLD_MIN_BYTES"),
+      bufferThresholdMaxBytes: requireIntEnv("BUFFER_THRESHOLD_MAX_BYTES"),
+      bufferThresholdMinTimeMs: requireIntEnv("BUFFER_THRESHOLD_MIN_TIME_MS"),
+      bufferThresholdMaxTimeMs: requireIntEnv("BUFFER_THRESHOLD_MAX_TIME_MS"),
+      assumedMinThroughput: requireIntEnv("ASSUMED_MIN_THROUGHPUT"),
+    });
+  }
+
+  return _opfsSinkConfig;
 };

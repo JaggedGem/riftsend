@@ -9,6 +9,7 @@ import type {
   WorkerResponse,
   WriteRequest,
 } from "./OpfsWorkerClient";
+import { getOpfsSinkConfig } from "@/config/config";
 
 type WorkerSinkState =
   | { state: "uninitialized" }
@@ -18,11 +19,15 @@ type WorkerSinkState =
       root: FileSystemDirectoryHandle;
       fileHandle: FileSystemFileHandle;
       accessHandle: FileSystemSyncAccessHandle;
+      writtenBytesSinceLastFlush: number;
+      flushTimeout: number | undefined;
     }
   | { state: "closing" }
   | { state: "closed" };
 
 let workerState: WorkerSinkState = { state: "uninitialized" };
+
+const config = getOpfsSinkConfig();
 
 const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
@@ -56,7 +61,14 @@ const initializeFile = async (message: InitializeRequest) => {
       accessHandle.flush();
     }
 
-    workerState = { state: "ready", root, fileHandle, accessHandle };
+    workerState = {
+      state: "ready",
+      root,
+      fileHandle,
+      accessHandle,
+      writtenBytesSinceLastFlush: 0,
+      flushTimeout: undefined,
+    };
   } catch (error) {
     const response: WorkerResponse<undefined> = {
       type: "error",
@@ -84,7 +96,9 @@ const initializeFile = async (message: InitializeRequest) => {
 
 // todo: implement written byte ranges persisting
 const writeToFile = (message: WriteRequest) => {
-  if (workerState.state !== "ready") {
+  const state = workerState;
+
+  if (state.state !== "ready") {
     const response: WorkerResponse<undefined> = {
       type: "error",
       requestId: message.requestId,
@@ -101,7 +115,7 @@ const writeToFile = (message: WriteRequest) => {
   }
 
   try {
-    const written = workerState.accessHandle.write(message.data, { at: message.offset });
+    const written = state.accessHandle.write(message.data, { at: message.offset });
 
     if (written !== message.data.byteLength) {
       const response: WorkerResponse<void> = {
@@ -118,7 +132,50 @@ const writeToFile = (message: WriteRequest) => {
       return;
     }
 
-    workerState.accessHandle.flush();
+    state.writtenBytesSinceLastFlush += written;
+
+    const byteThreshold = Math.min(
+      Math.max(state.accessHandle.getSize() * 0.001, config.bufferThresholdMinBytes),
+      config.bufferThresholdMaxBytes,
+    );
+
+    if (state.writtenBytesSinceLastFlush >= byteThreshold) {
+      state.accessHandle.flush();
+
+      clearTimeout(state.flushTimeout);
+
+      state.flushTimeout = undefined;
+      state.writtenBytesSinceLastFlush = 0;
+    } else if (!state.flushTimeout) {
+      const timeThreshold = Math.min(
+        Math.max(byteThreshold / config.assumedMinThroughput, config.bufferThresholdMinTimeMs),
+        config.bufferThresholdMaxTimeMs,
+      );
+
+      state.flushTimeout = setTimeout(() => {
+        state.flushTimeout = undefined;
+
+        try {
+          state.accessHandle.flush();
+
+          state.writtenBytesSinceLastFlush = 0;
+        } catch (error) {
+          const response: WorkerResponse<undefined> = {
+            type: "error",
+            requestId: message.requestId,
+            error: {
+              code: OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
+              message: "Failed to flush the file after the timeout was hit",
+              cause: error,
+            },
+          };
+
+          self.postMessage(response);
+
+          return;
+        }
+      }, timeThreshold);
+    }
   } catch (error) {
     const response: WorkerResponse<undefined> = {
       type: "error",
