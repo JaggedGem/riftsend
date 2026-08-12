@@ -11,6 +11,7 @@ import {
   type OpfsMessageTypes,
   WorkerResponseSchema,
   OpfsResultSchemas,
+  FileIdSchema,
 } from "@riftsend/protocol";
 
 type PendingResponse<T extends OpfsMessageTypes> = {
@@ -549,6 +550,17 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
         "Cannot initialize: client must be in the 'uninitialized' state",
       );
     }
+
+    const parseResult = FileIdSchema.safeParse(fileId);
+
+    if (!parseResult.success) {
+      throw new OpfsSinkError(
+        OpfsSinkErrorCode.INVALID_FILE_ID,
+        `Cannot initialize: invalid fileId "${fileId}"`,
+      );
+    }
+
+    fileId = parseResult.data;
 
     const { requestId, promise, pendingResponse } = this.createRequest("initialize");
 
