@@ -28,10 +28,23 @@ type WorkerSinkState =
   | { state: "closing" }
   | { state: "closed" };
 
+/**
+ * Global worker state machine for the single OPFS file managed by this worker.
+ */
 let workerState: WorkerSinkState = { state: "uninitialized" };
 
+/**
+ * Runtime configuration used when deciding flush timing and request throughput.
+ */
 const config = getOpfsSinkConfig();
 
+/**
+ * Posts a successful operation payload back to the client.
+ *
+ * @param requestId - Request that was completed successfully.
+ * @param result - Structured payload to return to the caller.
+ * @param transfer - Optional transfer list for large binary results.
+ */
 const postSuccess = (requestId: RequestId, result: unknown, transfer?: Transferable[]) => {
   const response: WorkerResponse = {
     type: "success",
@@ -46,6 +59,14 @@ const postSuccess = (requestId: RequestId, result: unknown, transfer?: Transfera
   }
 };
 
+/**
+ * Posts a typed worker error back to the client for a recoverable operation.
+ *
+ * @param requestId - Request that failed.
+ * @param code - Error category from the shared OPFS error enum.
+ * @param message - Human-readable summary for debugging.
+ * @param cause - Optional underlying error or diagnostic value.
+ */
 const postError = (
   requestId: RequestId,
   code: OpfsSinkErrorCode,
@@ -65,6 +86,12 @@ const postError = (
   self.postMessage(response);
 };
 
+/**
+ * Posts a fatal worker notice that forces the client to tear down.
+ *
+ * Fatal notices represent protocol mismatches or unrecoverable worker state
+ * corruption that must not be ignored by the caller.
+ */
 const postFatalNotice = (code: OpfsSinkErrorCode, message: string, cause?: unknown) => {
   const response: WorkerResponse = {
     type: "fatal-notice",
@@ -78,6 +105,14 @@ const postFatalNotice = (code: OpfsSinkErrorCode, message: string, cause?: unkno
   self.postMessage(response);
 };
 
+/**
+ * Validates the current worker state before accepting an operation.
+ *
+ * @param requestId - Request being processed.
+ * @param operation - Human-readable operation name for the error message.
+ * @returns The ready worker state when valid, otherwise `undefined` after posting
+ * an error to the client.
+ */
 const assertReady = (
   requestId: RequestId,
   operation: string,
@@ -96,6 +131,12 @@ const assertReady = (
   return workerState;
 };
 
+/**
+ * Initializes the OPFS file backing store and transitions the worker to ready.
+ *
+ * This is the only place that creates the root directory handle and file access
+ * handle for the managed file.
+ */
 const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
     postError(
@@ -152,7 +193,10 @@ const initializeFile = async (message: InitializeRequest) => {
   postSuccess(message.requestId, undefined);
 };
 
-// todo: implement written byte ranges persisting
+/**
+ * TODO: persist written byte ranges so flush scheduling can be resumed more
+ * accurately after an interrupted upload.
+ */
 const writeFile = (message: WriteRequest) => {
   const state = assertReady(message.requestId, "write to file");
 
@@ -219,6 +263,9 @@ const writeFile = (message: WriteRequest) => {
   postSuccess(message.requestId, undefined);
 };
 
+/**
+ * Returns the current file size for the managed OPFS file.
+ */
 const getFileSize = (message: GetSizeRequest) => {
   const state = assertReady(message.requestId, "get file size");
 
@@ -229,6 +276,9 @@ const getFileSize = (message: GetSizeRequest) => {
   postSuccess(message.requestId, state.accessHandle.getSize());
 };
 
+/**
+ * Reads the requested range from the worker-owned file and returns the raw bytes.
+ */
 const readFile = (message: ReadRequest) => {
   const state = assertReady(message.requestId, "read file");
 
@@ -279,6 +329,9 @@ const readFile = (message: ReadRequest) => {
   postSuccess(message.requestId, buffer, [buffer]);
 };
 
+/**
+ * Removes the OPFS file and closes its access handle at the end of the transfer.
+ */
 const deleteFile = async (message: DeleteRequest) => {
   const state = assertReady(message.requestId, "delete file");
 
@@ -311,6 +364,9 @@ const deleteFile = async (message: DeleteRequest) => {
   postSuccess(message.requestId, undefined);
 };
 
+/**
+ * Closes the file handle cleanly without deleting the file contents.
+ */
 const closeFile = (message: CloseRequest) => {
   const state = assertReady(message.requestId, "close file");
 
@@ -333,6 +389,12 @@ const closeFile = (message: CloseRequest) => {
   postSuccess(message.requestId, undefined);
 };
 
+/**
+ * Dispatches incoming client requests to the correct operation handler.
+ *
+ * Unsupported requests are reported with either a fatal notice or an operation
+ * error, depending on whether the protocol shape was recognizable.
+ */
 const handleMessage = async (event: MessageEvent) => {
   const parseResult = WorkerRequestSchema.safeParse(event.data);
 
