@@ -399,7 +399,7 @@ const handleMessage = async (event: MessageEvent) => {
   const parseResult = WorkerRequestSchema.safeParse(event.data);
 
   if (!parseResult.success) {
-    const looseParseResult = WithRequestIdSchema.safeParse(parseResult.data);
+    const looseParseResult = WithRequestIdSchema.safeParse(event.data);
 
     if (!looseParseResult.success) {
       postFatalNotice(
