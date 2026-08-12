@@ -29,6 +29,13 @@ type WorkerSinkState =
   | { state: "closing" }
   | { state: "closed" };
 
+export type SerializedCause = {
+  name: string;
+  message: string;
+  stack?: string;
+  errors?: SerializedCause[];
+};
+
 /**
  * Global worker state machine for the single OPFS file managed by this worker.
  */
@@ -38,6 +45,46 @@ let workerState: WorkerSinkState = { state: "uninitialized" };
  * Runtime configuration used when deciding flush timing and request throughput.
  */
 const config = getOpfsSinkConfig();
+
+function safeStringify(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Normalizes a caught `unknown` value (typically from a `catch` block around a
+ * browser API call) into a plain, guaranteed structured-clone-safe object.
+ */
+const toSerializableCause = (value: unknown): SerializedCause => {
+  if (value instanceof AggregateError) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      errors: Array.from(value.errors, toSerializableCause),
+    };
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+    };
+  }
+
+  return {
+    name: "UnknownCause",
+    message: safeStringify(value),
+  };
+};
 
 /**
  * Posts a successful operation payload back to the client.
@@ -80,7 +127,7 @@ const postError = (
     error: {
       code,
       message,
-      cause,
+      cause: toSerializableCause(cause),
     },
   };
 
@@ -105,7 +152,7 @@ const postFatalNotice = (
     error: {
       code,
       message,
-      cause,
+      cause: toSerializableCause(cause),
     },
   };
 
@@ -129,7 +176,10 @@ const postFlushComplete = () => {
 const postFlushFailed = (error: { code: OpfsSinkErrorCode; message: string; cause?: unknown }) => {
   const response: WorkerResponse = {
     type: "flush-failed",
-    error,
+    error: {
+      ...error,
+      cause: toSerializableCause(error.cause),
+    },
   };
 
   self.postMessage(response);
