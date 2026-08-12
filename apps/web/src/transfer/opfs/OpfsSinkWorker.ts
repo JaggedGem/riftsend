@@ -284,7 +284,7 @@ const initializeFile = async (message: InitializeRequest) => {
  * TODO: persist written byte ranges so flush scheduling can be resumed more
  * accurately after an interrupted upload.
  */
-const writeFile = (message: WriteRequest) => {
+const writeToFile = (message: WriteRequest) => {
   const state = assertReady(message.requestId, "write to file");
 
   if (!state) {
@@ -383,7 +383,7 @@ const getFileSize = (message: GetSizeRequest) => {
 /**
  * Reads the requested range from the worker-owned file and returns the raw bytes.
  */
-const readFile = (message: ReadRequest) => {
+const readFromFile = (message: ReadRequest) => {
   const state = assertReady(message.requestId, "read file");
 
   if (!state) {
@@ -536,7 +536,7 @@ const handleMessage = async (event: MessageEvent) => {
     }
 
     case "write": {
-      writeFile(parseResult.data);
+      writeToFile(parseResult.data);
 
       break;
     }
@@ -548,7 +548,7 @@ const handleMessage = async (event: MessageEvent) => {
     }
 
     case "read": {
-      readFile(parseResult.data);
+      readFromFile(parseResult.data);
 
       break;
     }
@@ -568,6 +568,3 @@ const handleMessage = async (event: MessageEvent) => {
 };
 
 self.addEventListener("message", handleMessage);
-self.addEventListener("error", (event) => {
-  console.error(event.error);
-});
