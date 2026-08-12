@@ -13,6 +13,7 @@ import {
 } from "@riftsend/protocol";
 import { OpfsSinkErrorCode } from "@riftsend/shared";
 import { getOpfsSinkConfig } from "@/config/config";
+import type { RequestId } from "@riftsend/shared";
 
 type WorkerSinkState =
   | { state: "uninitialized" }
@@ -32,6 +33,29 @@ type WorkerSinkState =
 let workerState: WorkerSinkState = { state: "uninitialized" };
 
 const config = getOpfsSinkConfig();
+
+const assertReady = (
+  requestId: RequestId,
+  operation: string,
+): Extract<WorkerSinkState, { state: "ready" }> | undefined => {
+  if (workerState.state !== "ready") {
+    const response: ErrorResponse = {
+      type: "error",
+      requestId,
+      error: {
+        code: OpfsSinkErrorCode.WORKER_NOT_READY,
+        message: `Cannot ${operation}: worker is not ready`,
+        cause: `current state: ${workerState.state}`,
+      },
+    };
+
+    self.postMessage(response);
+
+    return undefined;
+  }
+
+  return workerState;
+};
 
 const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
@@ -107,21 +131,9 @@ const initializeFile = async (message: InitializeRequest) => {
 
 // todo: implement written byte ranges persisting
 const writeToFile = (message: WriteRequest) => {
-  const state = workerState;
+  const state = assertReady(message.requestId, "write to file");
 
-  if (state.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: "Cannot write to file: worker is not ready",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
-
-    self.postMessage(response);
-
+  if (!state) {
     return;
   }
 
@@ -211,49 +223,29 @@ const writeToFile = (message: WriteRequest) => {
 };
 
 const getFileSize = (message: GetSizeRequest) => {
-  if (workerState.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: "Cannot get file size: worker is not ready",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
+  const state = assertReady(message.requestId, "get file size");
 
-    self.postMessage(response);
-
+  if (!state) {
     return;
   }
 
   const response: WorkerResponse = {
     type: "success",
     requestId: message.requestId,
-    result: workerState.accessHandle.getSize(),
+    result: state.accessHandle.getSize(),
   };
 
   self.postMessage(response);
 };
 
 const readFile = (message: ReadRequest) => {
-  if (workerState.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: "Cannot read file: worker is not ready",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
+  const state = assertReady(message.requestId, "read file");
 
-    self.postMessage(response);
-
+  if (!state) {
     return;
   }
 
-  const fileSize = workerState.accessHandle.getSize();
+  const fileSize = state.accessHandle.getSize();
 
   const fileOffset = message.offset ?? 0;
 
@@ -281,7 +273,7 @@ const readFile = (message: ReadRequest) => {
 
   const buffer = new ArrayBuffer(bufferLength);
   try {
-    const read = workerState.accessHandle.read(buffer, { at: fileOffset });
+    const read = state.accessHandle.read(buffer, { at: fileOffset });
 
     if (read !== bufferLength) {
       const response: WorkerResponse = {
@@ -323,26 +315,16 @@ const readFile = (message: ReadRequest) => {
 };
 
 const deleteFile = async (message: DeleteRequest) => {
-  if (workerState.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: "Cannot delete file: worker is not ready",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
+  const state = assertReady(message.requestId, "delete file");
 
-    self.postMessage(response);
-
+  if (!state) {
     return;
   }
 
-  const { root, fileHandle, accessHandle } = workerState;
+  const { root, fileHandle, accessHandle } = state;
 
-  if (workerState.flushTimeout) {
-    clearTimeout(workerState.flushTimeout);
+  if (state.flushTimeout) {
+    clearTimeout(state.flushTimeout);
   }
 
   workerState = { state: "closing" };
@@ -381,26 +363,16 @@ const deleteFile = async (message: DeleteRequest) => {
 };
 
 const closeFile = (message: CloseRequest) => {
-  if (workerState.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: "Cannot close file: worker is not ready",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
+  const state = assertReady(message.requestId, "close file");
 
-    self.postMessage(response);
-
+  if (!state) {
     return;
   }
 
-  const { accessHandle } = workerState;
+  const { accessHandle } = state;
 
-  if (workerState.flushTimeout) {
-    clearTimeout(workerState.flushTimeout);
+  if (state.flushTimeout) {
+    clearTimeout(state.flushTimeout);
   }
 
   workerState = { state: "closing" };
