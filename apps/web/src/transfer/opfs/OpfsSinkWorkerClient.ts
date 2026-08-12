@@ -73,7 +73,7 @@ type OfpsSinkWorkerClientEvents = {
 };
 
 export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClientEvents> {
-  private readonly worker = new Worker("./OpfsSinkWorker.ts");
+  private readonly worker: Worker;
 
   private nextRequestId = createRequestId(0);
   private clientState: WorkerClientState = { state: "uninitialized" };
@@ -84,6 +84,8 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     super();
 
     this.config = getOpfsSinkConfig();
+
+    this.worker = new Worker(new URL("./OpfsSinkWorker.ts", import.meta.url), { type: "module" });
 
     this.worker.addEventListener("message", this.handleWorkerMessage);
     this.worker.addEventListener("error", this.handleError);
