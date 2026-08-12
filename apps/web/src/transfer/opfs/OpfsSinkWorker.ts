@@ -153,7 +153,7 @@ const initializeFile = async (message: InitializeRequest) => {
 };
 
 // todo: implement written byte ranges persisting
-const writeToFile = (message: WriteRequest) => {
+const writeFile = (message: WriteRequest) => {
   const state = assertReady(message.requestId, "write to file");
 
   if (!state) {
@@ -367,7 +367,7 @@ const handleMessage = async (event: MessageEvent) => {
     }
 
     case "write": {
-      writeToFile(parseResult.data);
+      writeFile(parseResult.data);
 
       break;
     }
