@@ -304,26 +304,58 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   private die(error: OpfsSinkError, emitWorkerDead: boolean, isError: boolean): void {
-    if (this.clientState.state !== "ready") {
-      return;
-    }
+    switch (this.clientState.state) {
+      case "uninitialized": {
+        this.clientState = {
+          state: "closing",
+          pendingRequests: new Map(),
+          capacityWaiters: [],
+        };
 
-    this.clientState = {
-      state: "closing",
-      pendingRequests: this.clientState.pendingRequests,
-      capacityWaiters: this.clientState.capacityWaiters,
-    };
+        break;
+      }
 
-    for (const pendingResponse of this.clientState.pendingRequests.values()) {
-      pendingResponse.reject(error);
-    }
+      case "initializing": {
+        const pendingResponse = this.clientState.initializeRequest.pendingResponse;
 
-    this.clientState.pendingRequests.clear();
+        this.clientState = {
+          state: "closing",
+          pendingRequests: new Map(),
+          capacityWaiters: [],
+        };
 
-    let waiter: (typeof this.clientState.capacityWaiters)[number] | undefined;
+        pendingResponse.reject(error);
 
-    while ((waiter = this.clientState.capacityWaiters.shift()) !== undefined) {
-      waiter.reject(error);
+        break;
+      }
+
+      case "ready":
+      case "closing": {
+        this.clientState = {
+          state: "closing",
+          pendingRequests: this.clientState.pendingRequests,
+          capacityWaiters: this.clientState.capacityWaiters,
+        };
+
+        for (const pendingResponse of this.clientState.pendingRequests.values()) {
+          pendingResponse.reject(error);
+        }
+
+        this.clientState.pendingRequests.clear();
+
+        let waiter: (typeof this.clientState.capacityWaiters)[number] | undefined;
+
+        while ((waiter = this.clientState.capacityWaiters.shift()) !== undefined) {
+          waiter.reject(error);
+        }
+
+        break;
+      }
+
+      case "errored":
+      case "closed": {
+        return;
+      }
     }
 
     this.worker.removeEventListener("message", this.handleWorkerMessage);
