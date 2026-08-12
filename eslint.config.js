@@ -34,7 +34,10 @@ export default defineConfig([
 
     rules: {
       "react-refresh/only-export-components": "off",
-      "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { ignoreRestSiblings: true, varsIgnorePattern: "^_", argsIgnorePattern: "^_" },
+      ],
     },
   },
 ]);
