@@ -24,6 +24,7 @@ type WorkerSinkState =
       writtenBytesSinceLastFlush: number;
       flushTimeout: number | undefined;
       flushByteThreshold: number;
+      flushEpoch: number;
     }
   | { state: "closing" }
   | { state: "closed" };
@@ -106,6 +107,29 @@ const postFatalNotice = (code: OpfsSinkErrorCode, message: string, cause?: unkno
 };
 
 /**
+ * Posts a flush complete message to signal that the epoch was flushed on disk
+ */
+const postFlushComplete = () => {
+  const response: WorkerResponse = {
+    type: "flush-complete",
+  };
+
+  self.postMessage(response);
+};
+
+/**
+ * Posts a flush failed message to signal that the epoch was not flushed on disk
+ */
+const postFlushFailed = (error: { code: OpfsSinkErrorCode; message: string; cause?: unknown }) => {
+  const response: WorkerResponse = {
+    type: "flush-failed",
+    error,
+  };
+
+  self.postMessage(response);
+};
+
+/**
  * Validates the current worker state before accepting an operation.
  *
  * @param requestId - Request being processed.
@@ -174,6 +198,7 @@ const initializeFile = async (message: InitializeRequest) => {
       writtenBytesSinceLastFlush: 0,
       flushTimeout: undefined,
       flushByteThreshold: message.flushByteThreshold,
+      flushEpoch: 0,
     };
   } catch (error) {
     accessHandle?.close();
@@ -220,12 +245,26 @@ const writeFile = (message: WriteRequest) => {
     state.writtenBytesSinceLastFlush += written;
 
     if (state.writtenBytesSinceLastFlush >= state.flushByteThreshold) {
-      state.accessHandle.flush();
+      try {
+        state.accessHandle.flush();
 
-      clearTimeout(state.flushTimeout);
+        postFlushComplete();
 
-      state.flushTimeout = undefined;
-      state.writtenBytesSinceLastFlush = 0;
+        clearTimeout(state.flushTimeout);
+
+        state.flushTimeout = undefined;
+        state.writtenBytesSinceLastFlush = 0;
+
+        state.flushEpoch++;
+      } catch (error) {
+        postFlushFailed({
+          code: OpfsSinkErrorCode.FLUSH_FAILED,
+          message: "Failed to flush the file after the byte threshold was hit",
+          cause: error,
+        });
+
+        return;
+      }
     } else if (!state.flushTimeout) {
       const timeThreshold = Math.min(
         Math.max(
@@ -241,14 +280,17 @@ const writeFile = (message: WriteRequest) => {
         try {
           state.accessHandle.flush();
 
+          postFlushComplete();
+
           state.writtenBytesSinceLastFlush = 0;
+
+          state.flushEpoch++;
         } catch (error) {
-          postError(
-            message.requestId,
-            OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
-            "Failed to flush the file after the timeout was hit",
-            error,
-          );
+          postFlushFailed({
+            code: OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
+            message: "Failed to flush the file after the timeout was hit",
+            cause: error,
+          });
 
           return;
         }
@@ -260,7 +302,7 @@ const writeFile = (message: WriteRequest) => {
     return;
   }
 
-  postSuccess(message.requestId, undefined);
+  postSuccess(message.requestId, state.flushEpoch);
 };
 
 /**

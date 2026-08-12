@@ -60,6 +60,11 @@ type WorkerClientState =
         ) => void;
         reject: (reason: unknown) => void;
       }>;
+      pendingFlush: {
+        promise: Promise<void>;
+        resolve: () => void;
+        reject: (reason?: unknown) => void;
+      };
     }
   | {
       state: "closing";
@@ -72,6 +77,11 @@ type WorkerClientState =
         ) => void;
         reject: (reason: unknown) => void;
       }>;
+      pendingFlush: {
+        promise: Promise<void>;
+        resolve: () => void;
+        reject: (reason?: unknown) => void;
+      };
     }
   | {
       state: "closed";
@@ -213,6 +223,23 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
 
         return;
       }
+
+      case "flush-complete": {
+        this.handleFlushComplete();
+
+        break;
+      }
+
+      case "flush-failed": {
+        // todo: maybe handle flush fails differently (i.e. retry)
+        this.terminateWithError(
+          new OpfsSinkError(message.error.code, message.error.message, {
+            cause: message.error.cause,
+          }),
+        );
+
+        break;
+      }
     }
   };
 
@@ -236,6 +263,17 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
 
       this.clientState.initializeRequest.pendingResponse.resolve(undefined);
 
+      const pendingFlush = {} as {
+        promise: Promise<void>;
+        resolve: () => void;
+        reject: (reason?: unknown) => void;
+      };
+
+      pendingFlush.promise = new Promise<void>((resolve, reject) => {
+        pendingFlush.resolve = resolve;
+        pendingFlush.reject = reject;
+      });
+
       this.clientState = {
         state: "ready",
         pendingRequests: new Map<RequestId, PendingRequestEntry>(),
@@ -244,6 +282,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
           resolve: () => void;
           reject: (reason: unknown) => void;
         }>(),
+        pendingFlush,
       };
 
       return;
@@ -305,14 +344,41 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     request.resolve(parseResult.data);
   }
 
+  private handleFlushComplete() {
+    if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
+      this.terminateWithError(
+        new OpfsSinkError(
+          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
+        ),
+      );
+
+      return;
+    }
+
+    this.clientState.pendingFlush.resolve();
+
+    const pendingFlush = {} as {
+      promise: Promise<void>;
+      resolve: () => void;
+      reject: (reason?: unknown) => void;
+    };
+
+    pendingFlush.promise = new Promise<void>((resolve, reject) => {
+      pendingFlush.resolve = resolve;
+      pendingFlush.reject = reject;
+    });
+
+    this.clientState.pendingFlush = pendingFlush;
+  }
+
   /**
    * Rejects the matching pending request when the worker returns an operation
    * error instead of a result payload.
    */
   private handleErrorMessage(message: ErrorResponse) {
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
-      this.emit(
-        "error",
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_INVALID_STATE,
           `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
@@ -325,8 +391,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
-      this.emit(
-        "error",
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
           `Received error response for request ${message.requestId}, but no matching pending request was found`,
@@ -338,8 +403,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     }
 
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
-      this.emit(
-        "error",
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
           `Failed to remove pending request ${message.requestId}`,
@@ -377,6 +441,11 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
           state: "closing",
           pendingRequests: new Map(),
           capacityWaiters: [],
+          pendingFlush: {
+            promise: new Promise<void>(() => {}),
+            resolve: () => {},
+            reject: () => {},
+          },
         };
 
         break;
@@ -389,6 +458,11 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
           state: "closing",
           pendingRequests: new Map(),
           capacityWaiters: [],
+          pendingFlush: {
+            promise: new Promise<void>(() => {}),
+            resolve: () => {},
+            reject: () => {},
+          },
         };
 
         pendingResponse.reject(error);
@@ -402,6 +476,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
           state: "closing",
           pendingRequests: this.clientState.pendingRequests,
           capacityWaiters: this.clientState.capacityWaiters,
+          pendingFlush: this.clientState.pendingFlush,
         };
 
         for (const pendingResponse of this.clientState.pendingRequests.values()) {
@@ -415,6 +490,8 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
         while ((waiter = this.clientState.capacityWaiters.shift()) !== undefined) {
           waiter.reject(error);
         }
+
+        this.clientState.pendingFlush.reject(error);
 
         break;
       }
@@ -511,7 +588,10 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    * @param data - Buffer to append at that offset.
    * @returns A promise that resolves when the write completes.
    */
-  public async write(offset: number, data: ArrayBuffer): Promise<void> {
+  public async write(
+    offset: number,
+    data: ArrayBuffer,
+  ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
     const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("write");
@@ -531,7 +611,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
 
     this.worker.postMessage(message, [data]);
 
-    return promise;
+    return { buffered: promise, flushed: currentState.pendingFlush.promise };
   }
 
   /**

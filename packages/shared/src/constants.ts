@@ -237,6 +237,7 @@ export enum OpfsSinkErrorCode {
   WRITE_FAILED = "opfs_sink.write_failed",
   READ_FAILED = "opfs_sink.read_failed",
   TIMED_FLUSH_FAILED = "opfs_sink.timed_flush_failed",
+  FLUSH_FAILED = "opfs_sink.flush_failed",
 
   // Client errors
   CLIENT_NOT_READY = "opfs_sink.client_not_ready",

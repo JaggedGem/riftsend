@@ -33,3 +33,18 @@ export type FatalNotice = z.infer<typeof FatalNoticeSchema>;
 export const WithRequestIdSchema = z.object({
   requestId: RequestIdSchema,
 });
+
+export const FlushCompleteSchema = z.strictObject({
+  type: z.literal("flush-complete"),
+});
+export type FlushComplete = z.infer<typeof FlushCompleteSchema>;
+
+export const FlushFailedSchema = z.strictObject({
+  type: z.literal("flush-failed"),
+  error: z.strictObject({
+    code: z.enum(OpfsSinkErrorCode),
+    message: z.string(),
+    cause: z.unknown().optional(),
+  }),
+});
+export type FlushFailed = z.infer<typeof FlushFailedSchema>;

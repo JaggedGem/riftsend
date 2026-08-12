@@ -10,6 +10,8 @@ import {
 import {
   ErrorResponseSchema,
   FatalNoticeSchema,
+  FlushCompleteSchema,
+  FlushFailedSchema,
   SuccessResponseSchema,
 } from "./workerResponses.js";
 
@@ -27,5 +29,7 @@ export const WorkerResponseSchema = z.discriminatedUnion("type", [
   SuccessResponseSchema,
   ErrorResponseSchema,
   FatalNoticeSchema,
+  FlushCompleteSchema,
+  FlushFailedSchema,
 ]);
 export type WorkerResponse = z.infer<typeof WorkerResponseSchema>;
