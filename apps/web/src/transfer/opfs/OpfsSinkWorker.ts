@@ -4,10 +4,8 @@ import {
   type GetSizeRequest,
   type InitializeRequest,
   type ReadRequest,
-  type FatalNotice,
   type WriteRequest,
   type WorkerResponse,
-  type ErrorResponse,
   WorkerRequestSchema,
   WithRequestIdSchema,
 } from "@riftsend/protocol";
@@ -34,22 +32,63 @@ let workerState: WorkerSinkState = { state: "uninitialized" };
 
 const config = getOpfsSinkConfig();
 
+const postSuccess = (requestId: RequestId, result: unknown, transfer?: Transferable[]) => {
+  const response: WorkerResponse = {
+    type: "success",
+    requestId,
+    result,
+  };
+
+  if (transfer) {
+    self.postMessage(response, transfer);
+  } else {
+    self.postMessage(response);
+  }
+};
+
+const postError = (
+  requestId: RequestId,
+  code: OpfsSinkErrorCode,
+  message: string,
+  cause?: unknown,
+) => {
+  const response: WorkerResponse = {
+    type: "error",
+    requestId,
+    error: {
+      code,
+      message,
+      cause,
+    },
+  };
+
+  self.postMessage(response);
+};
+
+const postFatalNotice = (code: OpfsSinkErrorCode, message: string, cause?: unknown) => {
+  const response: WorkerResponse = {
+    type: "fatal-notice",
+    error: {
+      code,
+      message,
+      cause,
+    },
+  };
+
+  self.postMessage(response);
+};
+
 const assertReady = (
   requestId: RequestId,
   operation: string,
 ): Extract<WorkerSinkState, { state: "ready" }> | undefined => {
   if (workerState.state !== "ready") {
-    const response: ErrorResponse = {
-      type: "error",
+    postError(
       requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_NOT_READY,
-        message: `Cannot ${operation}: worker is not ready`,
-        cause: `current state: ${workerState.state}`,
-      },
-    };
-
-    self.postMessage(response);
+      OpfsSinkErrorCode.WORKER_NOT_READY,
+      `Cannot ${operation}: worker is not ready`,
+      `current state: ${workerState.state}`,
+    );
 
     return undefined;
   }
@@ -59,17 +98,12 @@ const assertReady = (
 
 const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WORKER_ALREADY_INITIALIZED,
-        message: "Cannot initialize file: worker has already been initialized",
-        cause: `current state: ${workerState.state}`,
-      },
-    };
-
-    self.postMessage(response);
+    postError(
+      message.requestId,
+      OpfsSinkErrorCode.WORKER_ALREADY_INITIALIZED,
+      "Cannot initialize file: worker has already been initialized",
+      `current state: ${workerState.state}`,
+    );
 
     return;
   }
@@ -105,28 +139,17 @@ const initializeFile = async (message: InitializeRequest) => {
 
     workerState = { state: "uninitialized" };
 
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.INITIALIZATION_FAILED,
-        message: "Failed to initialize file",
-        cause: error,
-      },
-    };
-
-    self.postMessage(response);
+    postError(
+      message.requestId,
+      OpfsSinkErrorCode.INITIALIZATION_FAILED,
+      "Failed to initialize file",
+      error,
+    );
 
     return;
   }
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: undefined,
-  };
-
-  self.postMessage(response);
+  postSuccess(message.requestId, undefined);
 };
 
 // todo: implement written byte ranges persisting
@@ -141,16 +164,11 @@ const writeToFile = (message: WriteRequest) => {
     const written = state.accessHandle.write(message.data, { at: message.offset });
 
     if (written !== message.data.byteLength) {
-      const response: WorkerResponse = {
-        type: "error",
-        requestId: message.requestId,
-        error: {
-          code: OpfsSinkErrorCode.SHORT_WRITE,
-          message: `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
-        },
-      };
-
-      self.postMessage(response);
+      postError(
+        message.requestId,
+        OpfsSinkErrorCode.SHORT_WRITE,
+        `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
+      );
 
       return;
     }
@@ -181,45 +199,24 @@ const writeToFile = (message: WriteRequest) => {
 
           state.writtenBytesSinceLastFlush = 0;
         } catch (error) {
-          const response: ErrorResponse = {
-            type: "error",
-            requestId: message.requestId,
-            error: {
-              code: OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
-              message: "Failed to flush the file after the timeout was hit",
-              cause: error,
-            },
-          };
-
-          self.postMessage(response);
+          postError(
+            message.requestId,
+            OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
+            "Failed to flush the file after the timeout was hit",
+            error,
+          );
 
           return;
         }
       }, timeThreshold);
     }
   } catch (error) {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.WRITE_FAILED,
-        message: "Failed to write to file",
-        cause: error,
-      },
-    };
-
-    self.postMessage(response);
+    postError(message.requestId, OpfsSinkErrorCode.WRITE_FAILED, "Failed to write to file", error);
 
     return;
   }
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: undefined,
-  };
-
-  self.postMessage(response);
+  postSuccess(message.requestId, undefined);
 };
 
 const getFileSize = (message: GetSizeRequest) => {
@@ -229,13 +226,7 @@ const getFileSize = (message: GetSizeRequest) => {
     return;
   }
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: state.accessHandle.getSize(),
-  };
-
-  self.postMessage(response);
+  postSuccess(message.requestId, state.accessHandle.getSize());
 };
 
 const readFile = (message: ReadRequest) => {
@@ -257,16 +248,11 @@ const readFile = (message: ReadRequest) => {
     fileOffset > fileSize ||
     fileOffset + bufferLength > fileSize
   ) {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.INVALID_READ_RANGE,
-        message: `Invalid read range: offset ${fileOffset} exceeds file size ${fileSize}`,
-      },
-    };
-
-    self.postMessage(response);
+    postError(
+      message.requestId,
+      OpfsSinkErrorCode.INVALID_READ_RANGE,
+      `Invalid read range: offset ${fileOffset} exceeds file size ${fileSize}`,
+    );
 
     return;
   }
@@ -276,42 +262,21 @@ const readFile = (message: ReadRequest) => {
     const read = state.accessHandle.read(buffer, { at: fileOffset });
 
     if (read !== bufferLength) {
-      const response: WorkerResponse = {
-        type: "error",
-        requestId: message.requestId,
-        error: {
-          code: OpfsSinkErrorCode.SHORT_READ,
-          message: `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
-        },
-      };
-
-      self.postMessage(response);
+      postError(
+        message.requestId,
+        OpfsSinkErrorCode.SHORT_READ,
+        `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
+      );
 
       return;
     }
   } catch (error) {
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.READ_FAILED,
-        message: "Failed to read file",
-        cause: error,
-      },
-    };
-
-    self.postMessage(response);
+    postError(message.requestId, OpfsSinkErrorCode.READ_FAILED, "Failed to read file", error);
 
     return;
   }
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: buffer,
-  };
-
-  self.postMessage(response, [buffer]);
+  postSuccess(message.requestId, buffer, [buffer]);
 };
 
 const deleteFile = async (message: DeleteRequest) => {
@@ -336,30 +301,14 @@ const deleteFile = async (message: DeleteRequest) => {
   } catch (error) {
     workerState = { state: "closed" };
 
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: message.requestId,
-      error: {
-        code: OpfsSinkErrorCode.DELETE_FAILED,
-        message: "Failed to delete file",
-        cause: error,
-      },
-    };
-
-    self.postMessage(response);
+    postError(message.requestId, OpfsSinkErrorCode.DELETE_FAILED, "Failed to delete file", error);
 
     return;
   }
 
   workerState = { state: "closed" };
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: undefined,
-  };
-
-  self.postMessage(response);
+  postSuccess(message.requestId, undefined);
 };
 
 const closeFile = (message: CloseRequest) => {
@@ -381,13 +330,7 @@ const closeFile = (message: CloseRequest) => {
 
   workerState = { state: "closed" };
 
-  const response: WorkerResponse = {
-    type: "success",
-    requestId: message.requestId,
-    result: undefined,
-  };
-
-  self.postMessage(response);
+  postSuccess(message.requestId, undefined);
 };
 
 const handleMessage = async (event: MessageEvent) => {
@@ -397,31 +340,21 @@ const handleMessage = async (event: MessageEvent) => {
     const looseParseResult = WithRequestIdSchema.safeParse(parseResult.data);
 
     if (!looseParseResult.success) {
-      const response: FatalNotice = {
-        type: "fatal-notice",
-        error: {
-          code: OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
-          message: "Received unknown request type from client without any request id",
-          cause: parseResult.error,
-        },
-      };
-
-      self.postMessage(response);
+      postFatalNotice(
+        OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+        "Received unknown request type from client without any request id",
+        new AggregateError([parseResult.error, looseParseResult.error]),
+      );
 
       return;
     }
 
-    const response: ErrorResponse = {
-      type: "error",
-      requestId: looseParseResult.data.requestId,
-      error: {
-        code: OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
-        message: "Received unknown request type from client",
-        cause: parseResult.error,
-      },
-    };
-
-    self.postMessage(response);
+    postError(
+      looseParseResult.data.requestId,
+      OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+      "Received unknown request type from client",
+      parseResult.error,
+    );
 
     return;
   }
