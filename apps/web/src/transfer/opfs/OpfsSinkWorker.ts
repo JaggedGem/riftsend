@@ -176,11 +176,13 @@ const initializeFile = async (message: InitializeRequest) => {
   workerState = { state: "initializing" };
 
   let accessHandle: FileSystemSyncAccessHandle | undefined;
+  let fileHandle: FileSystemFileHandle | undefined;
+  let root: FileSystemDirectoryHandle | undefined;
 
   try {
-    const root = await navigator.storage.getDirectory();
+    root = await navigator.storage.getDirectory();
 
-    const fileHandle = await root.getFileHandle(message.fileId, { create: true });
+    fileHandle = await root.getFileHandle(message.fileId, { create: true });
 
     accessHandle = await fileHandle.createSyncAccessHandle();
 
@@ -202,6 +204,10 @@ const initializeFile = async (message: InitializeRequest) => {
     };
   } catch (error) {
     accessHandle?.close();
+
+    if (root && fileHandle && !message.isResume) {
+      root.removeEntry(fileHandle.name);
+    }
 
     workerState = { state: "uninitialized" };
 
