@@ -60,11 +60,11 @@ type WorkerClientState =
       state: "errored";
     };
 
-type OfpsWorkerClientEvents = {
+type OfpsSinkWorkerClientEvents = {
   workerDead: void;
 };
 
-export class OpfsWorkerClient extends TypedEventEmitter<OfpsWorkerClientEvents> {
+export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClientEvents> {
   private readonly worker = new Worker("./OpfsSinkWorker.ts");
 
   private nextRequestId = createRequestId(0);
