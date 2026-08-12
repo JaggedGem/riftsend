@@ -22,6 +22,7 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 
 export const FatalNoticeSchema = z.strictObject({
   type: z.literal("fatal-notice"),
+  requestId: RequestIdSchema.optional(),
   error: z.strictObject({
     code: z.enum(OpfsSinkErrorCode),
     message: z.string(),

@@ -88,6 +88,7 @@ type WorkerClientState =
     }
   | {
       state: "errored";
+      error: OpfsSinkError;
     };
 
 /**
@@ -218,6 +219,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
         this.terminateWithError(
           new OpfsSinkError(message.error.code, message.error.message, {
             cause: message.error.cause,
+            requestId: message.requestId,
           }),
         );
 
@@ -513,7 +515,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
         this.emit("workerDead");
       }
     } finally {
-      this.clientState = { state: options.isError ? "errored" : "closed" };
+      this.clientState = options.isError ? { state: "errored", error } : { state: "closed" };
     }
   }
 
@@ -771,5 +773,13 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     const waiter = currentState.capacityWaiters.shift();
 
     waiter?.resolve(currentState);
+  }
+
+  public get lastError(): OpfsSinkError | undefined {
+    if (this.clientState.state !== "errored") {
+      return undefined;
+    }
+
+    return this.clientState.error;
   }
 }

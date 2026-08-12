@@ -93,9 +93,15 @@ const postError = (
  * Fatal notices represent protocol mismatches or unrecoverable worker state
  * corruption that must not be ignored by the caller.
  */
-const postFatalNotice = (code: OpfsSinkErrorCode, message: string, cause?: unknown) => {
+const postFatalNotice = (
+  code: OpfsSinkErrorCode,
+  message: string,
+  cause?: unknown,
+  requestId?: RequestId,
+) => {
   const response: WorkerResponse = {
     type: "fatal-notice",
+    requestId,
     error: {
       code,
       message,
@@ -400,9 +406,12 @@ const deleteFile = async (message: DeleteRequest) => {
   try {
     await root.removeEntry(fileHandle.name);
   } catch (error) {
-    workerState = { state: "closed" };
-
-    postError(message.requestId, OpfsSinkErrorCode.DELETE_FAILED, "Failed to delete file", error);
+    postFatalNotice(
+      OpfsSinkErrorCode.DELETE_FAILED,
+      "Failed to delete file",
+      error,
+      message.requestId,
+    );
 
     return;
   }
