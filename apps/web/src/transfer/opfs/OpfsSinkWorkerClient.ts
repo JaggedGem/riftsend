@@ -68,11 +68,11 @@ type WorkerClientState =
       state: "errored";
     };
 
-type OfpsSinkWorkerClientEvents = {
+type OpfsSinkWorkerClientEvents = {
   workerDead: void;
 };
 
-export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClientEvents> {
+export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClientEvents> {
   private readonly worker: Worker;
 
   private nextRequestId = createRequestId(0);
@@ -137,13 +137,12 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     const { data: message, success } = WorkerResponseSchema.safeParse(event.data);
 
     if (!success) {
-      this.die(
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
           "Received an unknown worker response message",
           { cause: event.data },
         ),
-        { emitWorkerDead: true, isError: true },
       );
 
       return;
@@ -163,11 +162,10 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
       }
 
       case "fatal-notice": {
-        this.die(
+        this.terminateWithError(
           new OpfsSinkError(message.error.code, message.error.message, {
             cause: message.error.cause,
           }),
-          { emitWorkerDead: true, isError: true },
         );
 
         return;
@@ -178,13 +176,12 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   private handleSuccessMessage(message: SuccessResponse) {
     if (this.clientState.state === "initializing") {
       if (message.requestId !== this.clientState.initializeRequest.requestId) {
-        this.die(
+        this.terminateWithError(
           new OpfsSinkError(
             OpfsSinkErrorCode.CLIENT_INITIALIZATION_REQUEST_MISMATCH,
             `Received response for request ${message.requestId}, but expected response for initialization request ${this.clientState.initializeRequest.requestId}`,
             { requestId: message.requestId },
           ),
-          { emitWorkerDead: true, isError: true },
         );
 
         return;
@@ -206,12 +203,11 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     }
 
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
-      this.die(
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_INVALID_STATE,
           `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
         ),
-        { emitWorkerDead: true, isError: true },
       );
 
       return;
@@ -220,26 +216,24 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     const request = this.clientState.pendingRequests.get(message.requestId);
 
     if (!request) {
-      this.die(
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
           `Received response for request ${message.requestId}, but no matching pending request was found`,
           { requestId: message.requestId },
         ),
-        { emitWorkerDead: true, isError: true },
       );
 
       return;
     }
 
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
-      this.die(
+      this.terminateWithError(
         new OpfsSinkError(
           OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
           `Failed to remove pending request ${message.requestId}`,
           { requestId: message.requestId },
         ),
-        { emitWorkerDead: true, isError: true },
       );
 
       return;
@@ -315,7 +309,10 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     );
   }
 
-  private die(error: OpfsSinkError, options: { emitWorkerDead: boolean; isError: boolean }): void {
+  private terminate(
+    error: OpfsSinkError,
+    options: { emitWorkerDead: boolean; isError: boolean },
+  ): void {
     switch (this.clientState.state) {
       case "uninitialized": {
         this.clientState = {
@@ -394,7 +391,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
       },
     );
 
-    this.die(error, { emitWorkerDead: true, isError: true });
+    this.terminateWithError(error);
   };
 
   public initialize(fileId: FileId, fileSize: number, isResume: boolean): Promise<void> {
@@ -408,7 +405,10 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     const { requestId, promise, pendingResponse } = this.createRequest("initialize");
 
     const flushByteThreshold = Math.min(
-      Math.max(fileSize * 0.001, this.config.bufferThresholdMinBytes),
+      Math.max(
+        fileSize * (this.config.flushThresholdPercentageOfFileSize / 100),
+        this.config.bufferThresholdMinBytes,
+      ),
       this.config.bufferThresholdMaxBytes,
     );
 
@@ -545,16 +545,23 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public dispose(): void {
-    this.die(
+    this.terminate(
       new OpfsSinkError(OpfsSinkErrorCode.CLIENT_DISPOSED, "OPFS sink client was disposed"),
       { emitWorkerDead: false, isError: false },
     );
   }
 
+  private terminateWithError(error: OpfsSinkError) {
+    this.terminate(error, { emitWorkerDead: true, isError: true });
+  }
+
   private async acquireReadyState(): Promise<Extract<WorkerClientState, { state: "ready" }>> {
     const currentState = this.assertReady();
 
-    if (currentState.pendingRequests.size < (currentState.flushByteThreshold / CHUNK_SIZE) * 2) {
+    const maxInFlightRequests =
+      (currentState.flushByteThreshold / CHUNK_SIZE) * this.config.flushCyclesOfBacklog;
+
+    if (currentState.pendingRequests.size < maxInFlightRequests) {
       return currentState;
     }
 

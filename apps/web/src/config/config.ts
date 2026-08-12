@@ -53,6 +53,21 @@ const requireIntEnv = (key: string): number => {
   return parsedInt;
 };
 
+/**
+ * Reads a required float `import.meta.env` variable.
+ *
+ * @throws If the variable is missing or not a float.
+ */
+const requireFloatEnv = (key: string): number => {
+  const parsedFloat = Number(requireEnv(key));
+
+  if (!Number.isFinite(parsedFloat)) {
+    throw new BadEnvTypeError(key);
+  }
+
+  return parsedFloat;
+};
+
 export type SignalingConfig = {
   readonly signalingUrl: string;
 };
@@ -90,6 +105,8 @@ export type OpfsSinkConfig = {
   readonly bufferThresholdMinTimeMs: number;
   readonly bufferThresholdMaxTimeMs: number;
   readonly assumedMinThroughput: number;
+  readonly flushThresholdPercentageOfFileSize: number;
+  readonly flushCyclesOfBacklog: number;
 };
 
 let _signalingConfig: SignalingConfig | null = null;
@@ -198,6 +215,10 @@ export const getOpfsSinkConfig = (): OpfsSinkConfig => {
       bufferThresholdMinTimeMs: requireIntEnv("BUFFER_THRESHOLD_MIN_TIME_MS"),
       bufferThresholdMaxTimeMs: requireIntEnv("BUFFER_THRESHOLD_MAX_TIME_MS"),
       assumedMinThroughput: requireIntEnv("ASSUMED_MIN_THROUGHPUT"),
+      flushThresholdPercentageOfFileSize: requireFloatEnv(
+        "FLUSH_THRESHOLD_PERCENTAGE_OF_FILE_SIZE",
+      ),
+      flushCyclesOfBacklog: requireIntEnv("FLUSH_CYCLES_OF_BACKLOG"),
     });
   }
 
