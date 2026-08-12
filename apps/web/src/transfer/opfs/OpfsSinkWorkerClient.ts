@@ -41,7 +41,11 @@ type WorkerClientState =
       pendingRequests: Map<RequestId, PendingRequestEntry>;
       flushByteThreshold: number;
       capacityWaiters: Array<{
-        resolve: () => void;
+        resolve: (
+          value:
+            | Extract<WorkerClientState, { state: "ready" }>
+            | PromiseLike<Extract<WorkerClientState, { state: "ready" }>>,
+        ) => void;
         reject: (reason: unknown) => void;
       }>;
     }
@@ -49,7 +53,11 @@ type WorkerClientState =
       state: "closing";
       pendingRequests: Map<RequestId, PendingRequestEntry>;
       capacityWaiters: Array<{
-        resolve: () => void;
+        resolve: (
+          value:
+            | Extract<WorkerClientState, { state: "ready" }>
+            | PromiseLike<Extract<WorkerClientState, { state: "ready" }>>,
+        ) => void;
         reject: (reason: unknown) => void;
       }>;
     }
@@ -82,18 +90,18 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     this.worker.addEventListener("messageerror", this.handleError);
   }
 
-  private assertReady(
-    state: WorkerClientState,
-  ): asserts state is Extract<WorkerClientState, { state: "ready" }> {
-    if (state.state !== "ready") {
+  private assertReady(): Extract<WorkerClientState, { state: "ready" }> {
+    if (this.clientState.state !== "ready") {
       throw new OpfsSinkError(
         OpfsSinkErrorCode.CLIENT_NOT_READY,
         "OPFS worker client is not ready",
         {
-          cause: `current state: ${state.state}`,
+          cause: `current state: ${this.clientState.state}`,
         },
       );
     }
+
+    return this.clientState;
   }
 
   private createRequest<T extends OpfsMessageTypes>(
@@ -225,7 +233,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
       return;
     }
 
-    this.notifyCapacityAvailable(this.clientState);
+    this.notifyCapacityAvailable();
 
     const parseResult = OpfsResultSchemas[request.operation].safeParse(message.result);
 
@@ -285,7 +293,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
       return;
     }
 
-    this.notifyCapacityAvailable(this.clientState);
+    this.notifyCapacityAvailable();
 
     request.reject(
       new OpfsSinkError(message.error.code, message.error.message, {
@@ -312,12 +320,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
 
     this.clientState.pendingRequests.clear();
 
-    let waiter:
-      | {
-          resolve: () => void;
-          reject: (reason: unknown) => void;
-        }
-      | undefined;
+    let waiter: (typeof this.clientState.capacityWaiters)[number] | undefined;
 
     while ((waiter = this.clientState.capacityWaiters.shift()) !== undefined) {
       waiter.reject(error);
@@ -387,13 +390,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public async write(offset: number, data: ArrayBuffer): Promise<void> {
-    const currentState = this.clientState;
-
-    this.assertReady(currentState);
-
-    await this.waitForCapacity(currentState);
-
-    this.assertReady(currentState);
+    const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("write");
 
@@ -416,13 +413,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public async getSize(): Promise<number> {
-    const currentState = this.clientState;
-
-    this.assertReady(currentState);
-
-    await this.waitForCapacity(currentState);
-
-    this.assertReady(currentState);
+    const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("getSize");
 
@@ -443,13 +434,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public async read(offset?: number, length?: number): Promise<ArrayBuffer> {
-    const currentState = this.clientState;
-
-    this.assertReady(currentState);
-
-    await this.waitForCapacity(currentState);
-
-    this.assertReady(currentState);
+    const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("read");
 
@@ -472,13 +457,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public async delete(): Promise<void> {
-    const currentState = this.clientState;
-
-    this.assertReady(currentState);
-
-    await this.waitForCapacity(currentState);
-
-    this.assertReady(currentState);
+    const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("delete");
 
@@ -499,13 +478,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
   }
 
   public async close(): Promise<void> {
-    const currentState = this.clientState;
-
-    this.assertReady(currentState);
-
-    await this.waitForCapacity(currentState);
-
-    this.assertReady(currentState);
+    const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("close");
 
@@ -533,11 +506,11 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     );
   }
 
-  private async waitForCapacity(
-    currentState: Extract<WorkerClientState, { state: "ready" }>,
-  ): Promise<void> {
+  private async acquireReadyState(): Promise<Extract<WorkerClientState, { state: "ready" }>> {
+    const currentState = this.assertReady();
+
     if (currentState.pendingRequests.size < (currentState.flushByteThreshold / CHUNK_SIZE) * 2) {
-      return;
+      return currentState;
     }
 
     return new Promise((resolve, reject) => {
@@ -545,11 +518,11 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     });
   }
 
-  private notifyCapacityAvailable(
-    currentState: Extract<WorkerClientState, { state: "ready" } | { state: "closing" }>,
-  ): void {
+  private notifyCapacityAvailable(): void {
+    const currentState = this.assertReady();
+
     const waiter = currentState.capacityWaiters.shift();
 
-    waiter?.resolve();
+    waiter?.resolve(currentState);
   }
 }
