@@ -135,11 +135,17 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
     const { data: message, success } = WorkerResponseSchema.safeParse(event.data);
 
     if (!success) {
-      throw new OpfsSinkError(
-        OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
-        "Received an unknown worker response message",
-        { cause: event.data },
+      this.die(
+        new OpfsSinkError(
+          OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+          "Received an unknown worker response message",
+          { cause: event.data },
+        ),
+        true,
+        true,
       );
+
+      return;
     }
 
     switch (message.type) {
@@ -156,9 +162,15 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OfpsSinkWorkerClient
       }
 
       case "fatal-notice": {
-        throw new OpfsSinkError(message.error.code, message.error.message, {
-          cause: message.error.cause,
-        });
+        this.die(
+          new OpfsSinkError(message.error.code, message.error.message, {
+            cause: message.error.cause,
+          }),
+          true,
+          true,
+        );
+
+        return;
       }
     }
   };
