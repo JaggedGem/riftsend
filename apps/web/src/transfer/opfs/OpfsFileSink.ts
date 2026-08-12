@@ -1,14 +1,19 @@
-import type { FileOffer } from "@riftsend/protocol";
 import type { FileSink } from "../FileSink";
+import { OpfsSinkWorkerClient } from "./OpfsSinkWorkerClient";
+import type { FileId } from "@riftsend/shared";
 
 export class OpfsFileSink implements FileSink<Blob> {
   static originRootDir = navigator.storage.getDirectory();
 
-  constructor(fileMetadata: FileOffer) {
-    this.worker.postMessage("initiate");
+  private readonly sinkClient = new OpfsSinkWorkerClient();
+
+  constructor(fileId: FileId, fileSize: number, isResume: boolean) {
+    this.sinkClient.initialize(fileId, fileSize, isResume);
   }
 
-  async writeChunk(index: number, data: ArrayBuffer): Promise<void> {}
+  async writeChunk(_index: number, _data: ArrayBuffer): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
 
   complete(): Promise<Blob> {
     throw new Error("Method not implemented.");
