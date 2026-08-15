@@ -26,4 +26,34 @@ export class OpfsSinkError extends Error {
     this.name = "OpfsSinkError";
     this.requestId = options?.requestId;
   }
+
+  public override toString(): string {
+    const parts = [`${this.name}: ${this.code}`, this.message];
+
+    if (this.requestId !== undefined) {
+      parts.push(`requestId: ${this.requestId}`);
+    }
+
+    if (this.cause !== undefined) {
+      parts.push(`cause: ${String(this.cause)}`);
+    }
+
+    return parts.join("\n");
+  }
+
+  public toJSON(): {
+    name: string;
+    code: OpfsSinkErrorCode;
+    message: string;
+    requestId?: RequestId;
+    cause?: unknown;
+  } {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      ...(this.requestId !== undefined && { requestId: this.requestId }),
+      ...(this.cause !== undefined && { cause: this.cause }),
+    };
+  }
 }
