@@ -250,4 +250,7 @@ export enum OpfsSinkErrorCode {
   CLIENT_DISPOSED = "opfs_sink.client_disposed",
   UNKNOWN_MESSAGE_TYPE = "opfs_sink.unknown_message_type",
   INVALID_FILE_ID = "opfs_sink.invalid_file_id",
+
+  // File Sink errors
+  SINK_DISPOSED = "opfs_sink.sink_disposed",
 }
