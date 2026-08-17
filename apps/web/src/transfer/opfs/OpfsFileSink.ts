@@ -66,9 +66,11 @@ export class OpfsFileSink implements FileSink<Blob> {
       throw new OpfsSinkError(OpfsSinkErrorCode.SINK_DISPOSED, "OPFS sink was disposed");
     }
 
-    await this.sinkClient.delete();
-
-    this.sinkClient.dispose();
+    try {
+      await this.sinkClient.delete();
+    } finally {
+      this.dispose();
+    }
   }
 
   public dispose() {
