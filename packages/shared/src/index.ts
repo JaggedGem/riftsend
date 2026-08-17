@@ -32,7 +32,10 @@ export {
   WebRTCPeerErrorMessages,
   formatWebRTCPeerError,
   CONTROL_MESSAGE_TYPES,
-  OpfsSinkErrorCode,
+  OpfsFileSinkErrorCode,
+  OpfsSinkClientErrorCode,
+  OpfsSinkWorkerErrorCode,
+  type OpfsSinkErrorCode,
 } from "./constants.js";
 export type {
   PeerId,

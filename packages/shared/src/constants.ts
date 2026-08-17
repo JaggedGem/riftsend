@@ -224,35 +224,40 @@ export const CONTROL_MESSAGE_TYPES = {
   acknowledgement: "ack",
 } as const;
 
-export enum OpfsSinkErrorCode {
-  // Worker errors
-  WORKER_ALREADY_INITIALIZED = "opfs_sink.worker_already_initialized",
-  WORKER_NOT_INITIALIZED = "opfs_sink.worker_not_initialized",
+export enum OpfsSinkWorkerErrorCode {
+  ALREADY_INITIALIZED = "opfs_sink.worker_already_initialized",
+  NOT_INITIALIZED = "opfs_sink.worker_not_initialized",
+  NOT_READY = "opfs_sink.worker_not_ready",
   SHORT_WRITE = "opfs_sink.short_write",
   SHORT_READ = "opfs_sink.short_read",
   INVALID_READ_RANGE = "opfs_sink.invalid_read_range",
   INITIALIZATION_FAILED = "opfs_sink.initialization_failed",
   DELETE_FAILED = "opfs_sink.delete_failed",
-  WORKER_NOT_READY = "opfs_sink.worker_not_ready",
   WRITE_FAILED = "opfs_sink.write_failed",
   READ_FAILED = "opfs_sink.read_failed",
   TIMED_FLUSH_FAILED = "opfs_sink.timed_flush_failed",
   FLUSH_FAILED = "opfs_sink.flush_failed",
-
-  // Client errors
-  CLIENT_NOT_READY = "opfs_sink.client_not_ready",
-  INVALID_WORKER_RESPONSE = "opfs_sink.invalid_worker_response",
-  CLIENT_INITIALIZATION_REQUEST_MISMATCH = "opfs_sink.initialization_request_mismatch",
-  CLIENT_INVALID_STATE = "opfs_sink.client_invalid_state",
-  CLIENT_REQUEST_NOT_FOUND = "opfs_sink.request_not_found",
-  CLIENT_REQUEST_DELETE_FAILED = "opfs_sink.request_delete_failed",
-  UNKNOWN_ERROR = "opfs_sink.unknown_error",
-  CLIENT_DISPOSED = "opfs_sink.client_disposed",
-  UNKNOWN_MESSAGE_TYPE = "opfs_sink.unknown_message_type",
-  INVALID_FILE_ID = "opfs_sink.invalid_file_id",
-
-  // File Sink errors
-  SINK_NOT_READY = "opfs_sink.sink_not_ready",
-  INVALID_FILE_SIZE = "opfs_sink.invalid_file_size",
-  SINK_INITIALIZATION_FAILED = "opfs_sink.sink_initialization_failed",
+  UNKNOWN_MESSAGE_TYPE = "opfs_sink.worker_unknown_message_type",
 }
+
+export enum OpfsSinkClientErrorCode {
+  NOT_READY = "opfs_sink.client_not_ready",
+  INVALID_WORKER_RESPONSE = "opfs_sink.invalid_worker_response",
+  INITIALIZATION_REQUEST_MISMATCH = "opfs_sink.client_initialization_request_mismatch",
+  INVALID_STATE = "opfs_sink.client_invalid_state",
+  REQUEST_NOT_FOUND = "opfs_sink.client_request_not_found",
+  REQUEST_DELETE_FAILED = "opfs_sink.client_request_delete_failed",
+  DISPOSED = "opfs_sink.client_disposed",
+  UNKNOWN_ERROR = "opfs_sink.client_unknown_error",
+  UNKNOWN_MESSAGE_TYPE = "opfs_sink.client_unknown_message_type",
+  INVALID_FILE_ID = "opfs_sink.invalid_file_id",
+}
+
+export enum OpfsFileSinkErrorCode {
+  NOT_READY = "opfs_sink.sink_not_ready",
+  INVALID_FILE_SIZE = "opfs_sink.invalid_file_size",
+  INITIALIZATION_FAILED = "opfs_sink.sink_initialization_failed",
+}
+
+export type OpfsSinkErrorCode =
+  OpfsSinkWorkerErrorCode | OpfsSinkClientErrorCode | OpfsFileSinkErrorCode;

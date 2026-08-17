@@ -1,4 +1,4 @@
-import { type RequestId, OpfsSinkErrorCode } from "@riftsend/shared";
+import type { RequestId, OpfsSinkErrorCode } from "@riftsend/shared";
 
 export class OpfsSinkError extends Error {
   /** The request ID associated with the error, if applicable. */

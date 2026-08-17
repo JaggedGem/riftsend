@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { RequestId } from "@riftsend/shared";
+import {
+  OpfsFileSinkErrorCode,
+  OpfsSinkClientErrorCode,
+  OpfsSinkWorkerErrorCode,
+  type RequestId,
+} from "@riftsend/shared";
 import type { WorkerRequest } from "./sinkMessages.js";
 
 /**
@@ -23,3 +28,9 @@ export const OpfsResultSchemas = {
 } satisfies Record<OpfsMessageTypes, z.ZodType>;
 
 export type OpfsResult<T extends OpfsMessageTypes> = z.infer<(typeof OpfsResultSchemas)[T]>;
+
+export const OpfsSinkErrorCodeSchema = z.union([
+  z.enum(OpfsSinkWorkerErrorCode),
+  z.enum(OpfsSinkClientErrorCode),
+  z.enum(OpfsFileSinkErrorCode),
+]);

@@ -9,7 +9,7 @@ import {
   WorkerRequestSchema,
   WithRequestIdSchema,
 } from "@riftsend/protocol";
-import { OpfsSinkErrorCode } from "@riftsend/shared";
+import { OpfsSinkWorkerErrorCode } from "@riftsend/shared";
 import { getOpfsSinkConfig } from "@/config/config";
 import type { RequestId } from "@riftsend/shared";
 
@@ -117,7 +117,7 @@ const postSuccess = (requestId: RequestId, result: unknown, transfer?: Transfera
  */
 const postError = (
   requestId: RequestId,
-  code: OpfsSinkErrorCode,
+  code: OpfsSinkWorkerErrorCode,
   message: string,
   cause?: unknown,
 ) => {
@@ -141,7 +141,7 @@ const postError = (
  * corruption that must not be ignored by the caller.
  */
 const postFatalNotice = (
-  code: OpfsSinkErrorCode,
+  code: OpfsSinkWorkerErrorCode,
   message: string,
   cause?: unknown,
   requestId?: RequestId,
@@ -173,7 +173,11 @@ const postFlushComplete = () => {
 /**
  * Posts a flush failed message to signal that the epoch was not flushed on disk
  */
-const postFlushFailed = (error: { code: OpfsSinkErrorCode; message: string; cause?: unknown }) => {
+const postFlushFailed = (error: {
+  code: OpfsSinkWorkerErrorCode;
+  message: string;
+  cause?: unknown;
+}) => {
   const response: WorkerResponse = {
     type: "flush-failed",
     error: {
@@ -200,7 +204,7 @@ const assertReady = (
   if (workerState.state !== "ready") {
     postError(
       requestId,
-      OpfsSinkErrorCode.WORKER_NOT_READY,
+      OpfsSinkWorkerErrorCode.NOT_READY,
       `Cannot ${operation}: worker is not ready`,
       `current state: ${workerState.state}`,
     );
@@ -221,7 +225,7 @@ const initializeFile = async (message: InitializeRequest) => {
   if (workerState.state !== "uninitialized") {
     postError(
       message.requestId,
-      OpfsSinkErrorCode.WORKER_ALREADY_INITIALIZED,
+      OpfsSinkWorkerErrorCode.ALREADY_INITIALIZED,
       "Cannot initialize file: worker has already been initialized",
       `current state: ${workerState.state}`,
     );
@@ -269,7 +273,7 @@ const initializeFile = async (message: InitializeRequest) => {
 
     postError(
       message.requestId,
-      OpfsSinkErrorCode.INITIALIZATION_FAILED,
+      OpfsSinkWorkerErrorCode.INITIALIZATION_FAILED,
       "Failed to initialize file",
       error,
     );
@@ -297,7 +301,7 @@ const writeToFile = (message: WriteRequest) => {
     if (written !== message.data.byteLength) {
       postError(
         message.requestId,
-        OpfsSinkErrorCode.SHORT_WRITE,
+        OpfsSinkWorkerErrorCode.SHORT_WRITE,
         `Failed to write all bytes: expected ${message.data.byteLength}, wrote ${written}`,
       );
 
@@ -320,7 +324,7 @@ const writeToFile = (message: WriteRequest) => {
         state.flushEpoch++;
       } catch (error) {
         postFlushFailed({
-          code: OpfsSinkErrorCode.FLUSH_FAILED,
+          code: OpfsSinkWorkerErrorCode.FLUSH_FAILED,
           message: "Failed to flush the file after the byte threshold was hit",
           cause: error,
         });
@@ -349,7 +353,7 @@ const writeToFile = (message: WriteRequest) => {
           state.flushEpoch++;
         } catch (error) {
           postFlushFailed({
-            code: OpfsSinkErrorCode.TIMED_FLUSH_FAILED,
+            code: OpfsSinkWorkerErrorCode.TIMED_FLUSH_FAILED,
             message: "Failed to flush the file after the timeout was hit",
             cause: error,
           });
@@ -359,7 +363,12 @@ const writeToFile = (message: WriteRequest) => {
       }, timeThreshold);
     }
   } catch (error) {
-    postError(message.requestId, OpfsSinkErrorCode.WRITE_FAILED, "Failed to write to file", error);
+    postError(
+      message.requestId,
+      OpfsSinkWorkerErrorCode.WRITE_FAILED,
+      "Failed to write to file",
+      error,
+    );
 
     return;
   }
@@ -404,7 +413,7 @@ const readFromFile = (message: ReadRequest) => {
   ) {
     postError(
       message.requestId,
-      OpfsSinkErrorCode.INVALID_READ_RANGE,
+      OpfsSinkWorkerErrorCode.INVALID_READ_RANGE,
       `Invalid read range: offset ${fileOffset} exceeds file size ${fileSize}`,
     );
 
@@ -418,14 +427,14 @@ const readFromFile = (message: ReadRequest) => {
     if (read !== bufferLength) {
       postError(
         message.requestId,
-        OpfsSinkErrorCode.SHORT_READ,
+        OpfsSinkWorkerErrorCode.SHORT_READ,
         `Failed to read all requested bytes: expected ${bufferLength}, read ${read}`,
       );
 
       return;
     }
   } catch (error) {
-    postError(message.requestId, OpfsSinkErrorCode.READ_FAILED, "Failed to read file", error);
+    postError(message.requestId, OpfsSinkWorkerErrorCode.READ_FAILED, "Failed to read file", error);
 
     return;
   }
@@ -457,7 +466,7 @@ const deleteFile = async (message: DeleteRequest) => {
     await root.removeEntry(fileHandle.name);
   } catch (error) {
     postFatalNotice(
-      OpfsSinkErrorCode.DELETE_FAILED,
+      OpfsSinkWorkerErrorCode.DELETE_FAILED,
       "Failed to delete file",
       error,
       message.requestId,
@@ -510,7 +519,7 @@ const handleMessage = async (event: MessageEvent) => {
 
     if (!looseParseResult.success) {
       postFatalNotice(
-        OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+        OpfsSinkWorkerErrorCode.UNKNOWN_MESSAGE_TYPE,
         "Received unknown request type from client without any request id",
         new AggregateError([parseResult.error, looseParseResult.error]),
       );
@@ -520,7 +529,7 @@ const handleMessage = async (event: MessageEvent) => {
 
     postError(
       looseParseResult.data.requestId,
-      OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+      OpfsSinkWorkerErrorCode.UNKNOWN_MESSAGE_TYPE,
       "Received unknown request type from client",
       parseResult.error,
     );

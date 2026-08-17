@@ -1,5 +1,10 @@
 import { TypedEventEmitter } from "@/events/TypedEventEmitter";
-import { type FileId, type RequestId, createRequestId, OpfsSinkErrorCode } from "@riftsend/shared";
+import {
+  type FileId,
+  type RequestId,
+  createRequestId,
+  OpfsSinkClientErrorCode,
+} from "@riftsend/shared";
 import { OpfsSinkError } from "./OpfsSinkError";
 import { getOpfsSinkConfig, type OpfsSinkConfig } from "@/config/config";
 import {
@@ -13,6 +18,8 @@ import {
   OpfsResultSchemas,
   FileIdSchema,
 } from "@riftsend/protocol";
+
+export type WriteResult = Promise<{ buffered: Promise<void>; flushed: Promise<void> }>;
 
 type PendingResponse<T extends OpfsMessageTypes> = {
   resolve: (value: OpfsResult<T>) => void;
@@ -140,7 +147,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
   private assertReady(): Extract<WorkerClientState, { state: "ready" }> {
     if (this.clientState.state !== "ready") {
       throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_NOT_READY,
+        OpfsSinkClientErrorCode.NOT_READY,
         "OPFS worker client is not ready",
         {
           cause: `current state: ${this.clientState.state}`,
@@ -194,7 +201,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!success) {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.UNKNOWN_MESSAGE_TYPE,
+          OpfsSinkClientErrorCode.UNKNOWN_MESSAGE_TYPE,
           "Received an unknown worker response message",
           { cause: event.data },
         ),
@@ -255,7 +262,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
       if (message.requestId !== this.clientState.initializeRequest.requestId) {
         this.terminateWithError(
           new OpfsSinkError(
-            OpfsSinkErrorCode.CLIENT_INITIALIZATION_REQUEST_MISMATCH,
+            OpfsSinkClientErrorCode.INITIALIZATION_REQUEST_MISMATCH,
             `Received response for request ${message.requestId}, but expected response for initialization request ${this.clientState.initializeRequest.requestId}`,
             { requestId: message.requestId },
           ),
@@ -294,7 +301,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          OpfsSinkClientErrorCode.INVALID_STATE,
           `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
         ),
       );
@@ -307,7 +314,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!request) {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
+          OpfsSinkClientErrorCode.REQUEST_NOT_FOUND,
           `Received response for request ${message.requestId}, but no matching pending request was found`,
           { requestId: message.requestId },
         ),
@@ -319,7 +326,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
+          OpfsSinkClientErrorCode.REQUEST_DELETE_FAILED,
           `Failed to remove pending request ${message.requestId}`,
           { requestId: message.requestId },
         ),
@@ -335,7 +342,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!parseResult.success) {
       request.reject(
         new OpfsSinkError(
-          OpfsSinkErrorCode.INVALID_WORKER_RESPONSE,
+          OpfsSinkClientErrorCode.INVALID_WORKER_RESPONSE,
           "Received a response with the incorrect 'result' for the current operation",
           { cause: parseResult.error },
         ),
@@ -351,7 +358,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          OpfsSinkClientErrorCode.INVALID_STATE,
           `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
         ),
       );
@@ -383,7 +390,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+          OpfsSinkClientErrorCode.INVALID_STATE,
           `Cannot handle response while client is in "${this.clientState.state}" state; expected "ready" or "closing"`,
         ),
       );
@@ -396,7 +403,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!request) {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_REQUEST_NOT_FOUND,
+          OpfsSinkClientErrorCode.REQUEST_NOT_FOUND,
           `Received error response for request ${message.requestId}, but no matching pending request was found`,
           { requestId: message.requestId },
         ),
@@ -408,7 +415,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
     if (!this.clientState.pendingRequests.delete(message.requestId)) {
       this.terminateWithError(
         new OpfsSinkError(
-          OpfsSinkErrorCode.CLIENT_REQUEST_DELETE_FAILED,
+          OpfsSinkClientErrorCode.REQUEST_DELETE_FAILED,
           `Failed to remove pending request ${message.requestId}`,
           { requestId: message.requestId },
         ),
@@ -525,7 +532,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    */
   private handleError = (event: Event) => {
     const error = new OpfsSinkError(
-      OpfsSinkErrorCode.UNKNOWN_ERROR,
+      OpfsSinkClientErrorCode.UNKNOWN_ERROR,
       "An unhandled error occurred in the OPFS worker",
       {
         cause: event instanceof ErrorEvent ? event.error : undefined,
@@ -546,7 +553,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
   public initialize(fileId: FileId, fileSize: number, isResume: boolean): Promise<void> {
     if (this.clientState.state !== "uninitialized") {
       throw new OpfsSinkError(
-        OpfsSinkErrorCode.CLIENT_INVALID_STATE,
+        OpfsSinkClientErrorCode.INVALID_STATE,
         "Cannot initialize: client must be in the 'uninitialized' state",
       );
     }
@@ -555,7 +562,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
 
     if (!parseResult.success) {
       throw new OpfsSinkError(
-        OpfsSinkErrorCode.INVALID_FILE_ID,
+        OpfsSinkClientErrorCode.INVALID_FILE_ID,
         `Cannot initialize: invalid fileId "${fileId}"`,
       );
     }
@@ -600,12 +607,9 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    *
    * @param offset - Absolute file offset to begin writing.
    * @param data - Buffer to append at that offset.
-   * @returns A promise that resolves when the write completes.
+   * @returns An object containing 2 promises that resolve when the write completes and when the write is flushed respectively.
    */
-  public async write(
-    offset: number,
-    data: ArrayBuffer,
-  ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
+  public async write(offset: number, data: ArrayBuffer): WriteResult {
     const currentState = await this.acquireReadyState();
 
     const { requestId, promise, pendingResponse } = this.createRequest("write");
@@ -741,7 +745,7 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    */
   public dispose(): void {
     this.terminate(
-      new OpfsSinkError(OpfsSinkErrorCode.CLIENT_DISPOSED, "OPFS sink client was disposed"),
+      new OpfsSinkError(OpfsSinkClientErrorCode.DISPOSED, "OPFS sink client was disposed"),
       { emitWorkerDead: false, isError: false },
     );
   }

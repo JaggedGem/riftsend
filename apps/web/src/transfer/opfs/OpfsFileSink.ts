@@ -1,7 +1,7 @@
 import { CHUNK_SIZE } from "@riftsend/protocol";
 import type { FileSink } from "../FileSink";
-import { OpfsSinkWorkerClient } from "./OpfsSinkWorkerClient";
-import { OpfsSinkErrorCode, type FileId } from "@riftsend/shared";
+import { OpfsSinkWorkerClient, type WriteResult } from "./OpfsSinkWorkerClient";
+import { OpfsFileSinkErrorCode, type FileId } from "@riftsend/shared";
 import { OpfsSinkError } from "./OpfsSinkError";
 
 /**
@@ -20,7 +20,7 @@ export class OpfsFileSink implements FileSink<Blob> {
   ): Promise<OpfsFileSink> {
     if (!Number.isFinite(fileSize) || fileSize < 0) {
       throw new OpfsSinkError(
-        OpfsSinkErrorCode.INVALID_FILE_SIZE,
+        OpfsFileSinkErrorCode.INVALID_FILE_SIZE,
         `Invalid file size: ${fileSize}`,
       );
     }
@@ -33,7 +33,7 @@ export class OpfsFileSink implements FileSink<Blob> {
       sink.sinkClient.dispose();
 
       throw new OpfsSinkError(
-        OpfsSinkErrorCode.SINK_INITIALIZATION_FAILED,
+        OpfsFileSinkErrorCode.INITIALIZATION_FAILED,
         "Failed to initialize the OPFS sink worker client",
         { cause: error },
       );
@@ -46,28 +46,32 @@ export class OpfsFileSink implements FileSink<Blob> {
 
   private constructor() {}
 
-  public async writeChunk(
-    index: number,
-    data: ArrayBuffer,
-  ): Promise<{
-    buffered: Promise<void>;
-    flushed: Promise<void>;
-  }> {
+  /**
+   * Asserts that the client is ready to send operations to the worker.
+   *
+   * @returns The current ready-state snapshot.
+   * @throws {OpfsSinkError} When lifecycle state does not permit requests.
+   */
+  private assertReady(operation: string) {
     if (this.sinkState !== "ready") {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
-        cause: `current state: ${this.sinkState}`,
-      });
+      throw new OpfsSinkError(
+        OpfsFileSinkErrorCode.NOT_READY,
+        `OPFS sink is not ready to ${operation}`,
+        {
+          cause: `current state: ${this.sinkState}`,
+        },
+      );
     }
+  }
+
+  public async writeChunk(index: number, data: ArrayBuffer): WriteResult {
+    this.assertReady("write a chunk");
 
     return await this.sinkClient.write(index * CHUNK_SIZE, data);
   }
 
   public async complete(): Promise<Blob> {
-    if (this.sinkState !== "ready") {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
-        cause: `current state: ${this.sinkState}`,
-      });
-    }
+    this.assertReady("complete");
 
     this.sinkState = "completing";
 
@@ -76,11 +80,7 @@ export class OpfsFileSink implements FileSink<Blob> {
   }
 
   public async abort(): Promise<void> {
-    if (this.sinkState !== "ready") {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
-        cause: `current state: ${this.sinkState}`,
-      });
-    }
+    this.assertReady("abort");
 
     this.sinkState = "aborting";
 

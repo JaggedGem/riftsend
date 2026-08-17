@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { RequestIdSchema } from "./fieldSchemas.js";
-import { OpfsSinkErrorCode } from "@riftsend/shared";
+import { RequestIdSchema, OpfsSinkErrorCodeSchema } from "./fieldSchemas.js";
 
 export const SuccessResponseSchema = z.strictObject({
   type: z.literal("success"),
@@ -13,7 +12,7 @@ export const ErrorResponseSchema = z.strictObject({
   type: z.literal("error"),
   requestId: RequestIdSchema,
   error: z.strictObject({
-    code: z.enum(OpfsSinkErrorCode),
+    code: OpfsSinkErrorCodeSchema,
     message: z.string(),
     cause: z.unknown().optional(),
   }),
@@ -24,7 +23,7 @@ export const FatalNoticeSchema = z.strictObject({
   type: z.literal("fatal-notice"),
   requestId: RequestIdSchema.optional(),
   error: z.strictObject({
-    code: z.enum(OpfsSinkErrorCode),
+    code: OpfsSinkErrorCodeSchema,
     message: z.string(),
     cause: z.unknown().optional(),
   }),
@@ -43,7 +42,7 @@ export type FlushComplete = z.infer<typeof FlushCompleteSchema>;
 export const FlushFailedSchema = z.strictObject({
   type: z.literal("flush-failed"),
   error: z.strictObject({
-    code: z.enum(OpfsSinkErrorCode),
+    code: OpfsSinkErrorCodeSchema,
     message: z.string(),
     cause: z.unknown().optional(),
   }),
