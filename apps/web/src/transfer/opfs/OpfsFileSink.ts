@@ -8,9 +8,36 @@ export class OpfsFileSink implements FileSink<Blob> {
   private readonly sinkClient = new OpfsSinkWorkerClient();
   private isDisposed = false;
 
-  public constructor(fileId: FileId, fileSize: number, isResume: boolean) {
-    this.sinkClient.initialize(fileId, fileSize, isResume);
+  public static async create(
+    fileId: FileId,
+    fileSize: number,
+    isResume: boolean,
+  ): Promise<OpfsFileSink> {
+    if (!Number.isFinite(fileSize) || fileSize < 0) {
+      throw new OpfsSinkError(
+        OpfsSinkErrorCode.INVALID_FILE_SIZE,
+        `Invalid file size: ${fileSize}`,
+      );
+    }
+
+    const sink = new OpfsFileSink();
+
+    try {
+      await sink.sinkClient.initialize(fileId, fileSize, isResume);
+    } catch (error) {
+      sink.sinkClient.dispose();
+
+      throw new OpfsSinkError(
+        OpfsSinkErrorCode.SINK_INITIALIZATION_FAILED,
+        "Failed to initialize the OPFS sink worker client",
+        { cause: error },
+      );
+    }
+
+    return sink;
   }
+
+  private constructor() {}
 
   public async writeChunk(
     index: number,

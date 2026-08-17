@@ -253,4 +253,6 @@ export enum OpfsSinkErrorCode {
 
   // File Sink errors
   SINK_DISPOSED = "opfs_sink.sink_disposed",
+  INVALID_FILE_SIZE = "opfs_sink.invalid_file_size",
+  SINK_INITIALIZATION_FAILED = "opfs_sink.sink_initialization_failed",
 }
