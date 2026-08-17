@@ -4,9 +4,14 @@ import { OpfsSinkWorkerClient } from "./OpfsSinkWorkerClient";
 import { OpfsSinkErrorCode, type FileId } from "@riftsend/shared";
 import { OpfsSinkError } from "./OpfsSinkError";
 
+/**
+ * Stateful lifecycle model for the OPFS sink.
+ */
+type SinkState = "uninitialized" | "ready" | "completing" | "aborting" | "disposing" | "disposed";
+
 export class OpfsFileSink implements FileSink<Blob> {
   private readonly sinkClient = new OpfsSinkWorkerClient();
-  private isDisposed = false;
+  private sinkState: SinkState = "uninitialized";
 
   public static async create(
     fileId: FileId,
@@ -34,6 +39,8 @@ export class OpfsFileSink implements FileSink<Blob> {
       );
     }
 
+    sink.sinkState = "ready";
+
     return sink;
   }
 
@@ -46,25 +53,36 @@ export class OpfsFileSink implements FileSink<Blob> {
     buffered: Promise<void>;
     flushed: Promise<void>;
   }> {
-    if (this.isDisposed) {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_DISPOSED, "OPFS sink was disposed");
+    if (this.sinkState !== "ready") {
+      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
+        cause: `current state: ${this.sinkState}`,
+      });
     }
 
     return await this.sinkClient.write(index * CHUNK_SIZE, data);
   }
 
   public async complete(): Promise<Blob> {
-    if (this.isDisposed) {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_DISPOSED, "OPFS sink was disposed");
+    if (this.sinkState !== "ready") {
+      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
+        cause: `current state: ${this.sinkState}`,
+      });
     }
 
+    this.sinkState = "completing";
+
+    // todo: DONT DO THIS, this loads the whole file in memory (use streams instead)
     return new Blob([await this.sinkClient.read()], { type: "application/octet-stream" });
   }
 
   public async abort(): Promise<void> {
-    if (this.isDisposed) {
-      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_DISPOSED, "OPFS sink was disposed");
+    if (this.sinkState !== "ready") {
+      throw new OpfsSinkError(OpfsSinkErrorCode.SINK_NOT_READY, "OPFS sink is not ready", {
+        cause: `current state: ${this.sinkState}`,
+      });
     }
+
+    this.sinkState = "aborting";
 
     try {
       await this.sinkClient.delete();
@@ -74,12 +92,14 @@ export class OpfsFileSink implements FileSink<Blob> {
   }
 
   public dispose() {
-    if (this.isDisposed) {
+    if (this.sinkState === "disposed") {
       return;
     }
 
+    this.sinkState = "disposing";
+
     this.sinkClient.dispose();
 
-    this.isDisposed = true;
+    this.sinkState = "disposed";
   }
 }
