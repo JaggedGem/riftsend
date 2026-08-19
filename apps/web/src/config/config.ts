@@ -8,7 +8,7 @@ import { BadEnvTypeError, MissingEnvError } from "./envError.js";
  * @throws If the variable is missing or empty.
  */
 const requireEnv = (key: string): string => {
-  const value = import.meta.env[key];
+  const value = import.meta.env[`VITE_${key}`];
 
   if (!value) {
     throw new MissingEnvError(key);
@@ -203,7 +203,7 @@ export const getWebRTCTransportConfig = (): WebRTCTransportConfig => {
 };
 
 /**
- * Returns WebRTC transport configuration, populated from Vite environment variables.
+ * Returns OPFS sink configuration, populated from Vite environment variables.
  *
  * Reads `VITE_*` vars on first call and caches the result for subsequent calls.
  */
