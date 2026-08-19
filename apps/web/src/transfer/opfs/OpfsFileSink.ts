@@ -67,9 +67,25 @@ export class OpfsFileSink implements FileSink<Blob> {
   public async writeChunk(index: number, data: ArrayBuffer): WriteResult {
     this.assertReady("write a chunk");
 
-    return await this.sinkClient.write(index * CHUNK_SIZE, data);
+    if (index < 0 || data.byteLength < 0) {
+      throw new OpfsSinkError(
+        OpfsFileSinkErrorCode.WRITE_FAILED,
+        "Write offset and data length must be nonnegative",
+      );
+    }
+
+    try {
+      return await this.sinkClient.write(index * CHUNK_SIZE, data);
+    } catch (error) {
+      throw new OpfsSinkError(
+        OpfsFileSinkErrorCode.WRITE_FAILED,
+        "Failed to write data to the OPFS file",
+        { cause: error },
+      );
+    }
   }
 
+  // todo: add error wrapping for the .read() call
   public async complete(): Promise<Blob> {
     this.assertReady("complete");
 
@@ -86,6 +102,12 @@ export class OpfsFileSink implements FileSink<Blob> {
 
     try {
       await this.sinkClient.delete();
+    } catch (error) {
+      throw new OpfsSinkError(
+        OpfsFileSinkErrorCode.ABORT_FAILED,
+        "Failed to delete the OPFS file",
+        { cause: error },
+      );
     } finally {
       this.dispose();
     }

@@ -257,6 +257,8 @@ export enum OpfsFileSinkErrorCode {
   NOT_READY = "opfs_sink.sink_not_ready",
   INVALID_FILE_SIZE = "opfs_sink.invalid_file_size",
   INITIALIZATION_FAILED = "opfs_sink.sink_initialization_failed",
+  WRITE_FAILED = "opfs_sink.sink_write_failed",
+  ABORT_FAILED = "opfs_sink.sink_abort_failed",
 }
 
 export type OpfsSinkErrorCode =
