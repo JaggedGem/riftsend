@@ -36,6 +36,8 @@ export {
   OpfsSinkClientErrorCode,
   OpfsSinkWorkerErrorCode,
   type OpfsSinkErrorCode,
+  IndexedDbSinkErrorCode,
+  FileDatabaseErrorCode,
 } from "./constants.js";
 export type {
   PeerId,

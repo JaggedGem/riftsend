@@ -1,13 +1,8 @@
 import { CHUNK_SIZE } from "@riftsend/protocol";
-import type { FileSink } from "../FileSink";
+import type { FileSink, SinkState } from "../FileSink";
 import { OpfsSinkWorkerClient, type WriteResult } from "./OpfsSinkWorkerClient";
 import { OpfsFileSinkErrorCode, type FileId } from "@riftsend/shared";
 import { OpfsSinkError } from "./OpfsSinkError";
-
-/**
- * Stateful lifecycle model for the OPFS sink.
- */
-type SinkState = "uninitialized" | "ready" | "completing" | "aborting" | "disposing" | "disposed";
 
 export class OpfsFileSink implements FileSink<Blob> {
   private readonly sinkClient = new OpfsSinkWorkerClient();

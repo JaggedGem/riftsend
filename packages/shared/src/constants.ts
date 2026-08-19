@@ -263,3 +263,11 @@ export enum OpfsFileSinkErrorCode {
 
 export type OpfsSinkErrorCode =
   OpfsSinkWorkerErrorCode | OpfsSinkClientErrorCode | OpfsFileSinkErrorCode;
+
+export enum IndexedDbSinkErrorCode {
+  INITIALIZATION_FAILED = "indexed_db_sink.initialization_failed",
+}
+
+export enum FileDatabaseErrorCode {
+  INITIALIZATION_FAILED = "file_database.initialization_failed",
+}

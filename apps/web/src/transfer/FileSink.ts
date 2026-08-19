@@ -10,3 +10,9 @@ export interface FileSink<TResult> {
   abort(): Promise<void>;
   dispose(): void;
 }
+
+/**
+ * Stateful lifecycle model for a sink implementation.
+ */
+export type SinkState =
+  "uninitialized" | "ready" | "completing" | "aborting" | "disposing" | "disposed";
