@@ -167,12 +167,57 @@ export class FileDatabase {
     }
   }
 
-  public async writeChunk(index: number, data: Blob) {
+  public async writeChunk(index: number, data: Blob): Promise<void> {
     if (!this.hasChunksStore) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
         "Cannot write a chunk because this database does not include a chunks store",
       );
     }
+
+    if (!Number.isFinite(index) || index < 0) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
+        `Invalid chunk index: ${index}`,
+      );
+    }
+
+    const transaction = this.db.transaction("chunks", "readwrite");
+
+    return new Promise<void>((resolve, reject) => {
+      const request = transaction.objectStore("chunks").put(data, index);
+
+      request.onerror = (event) => {
+        reject(
+          new FileDatabaseError(
+            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
+            "Failed to write the chunk to the store",
+            { cause: event },
+          ),
+        );
+      };
+
+      transaction.oncomplete = () => resolve();
+
+      transaction.onerror = (event) => {
+        reject(
+          new FileDatabaseError(
+            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
+            "Failed to write the chunk to the store",
+            { cause: event },
+          ),
+        );
+      };
+
+      transaction.onabort = (event) => {
+        reject(
+          new FileDatabaseError(
+            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
+            "The chunk write transaction was aborted",
+            { cause: event },
+          ),
+        );
+      };
+    });
   }
 }

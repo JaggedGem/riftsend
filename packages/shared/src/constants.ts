@@ -275,4 +275,5 @@ export enum FileDatabaseErrorCode {
   FILE_METADATA_READ_FAILED = "file_database.file_metadata_read_failed",
   FILE_METADATA_WRITE_FAILED = "file_database.file_metadata_write_failed",
   CHUNKS_STORE_NOT_AVAILABLE = "file_database.chunks_store_not_available",
+  CHUNK_WRITE_FAILED = "file_database.chunk_write_failed",
 }
