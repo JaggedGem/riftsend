@@ -120,8 +120,10 @@ export class ChunkReceiptTracker {
         continue;
       }
 
-      for (let j = 31; j >= 0; j--) {
-        if (i * 32 + (31 - j) >= this.totalChunks) {
+      for (let j = 0; j < 32; j++) {
+        const chunkIndex = i * 32 + j;
+
+        if (chunkIndex >= this.totalChunks) {
           break;
         }
 
@@ -129,14 +131,14 @@ export class ChunkReceiptTracker {
 
         if (bit === 0) {
           if (typeof missingRange.start === "undefined") {
-            missingRange.start = i * 32 + (31 - j);
+            missingRange.start = chunkIndex;
           }
         } else {
           if (
             typeof missingRange.end === "undefined" &&
             typeof missingRange.start !== "undefined"
           ) {
-            missingRange.end = i * 32 + (31 - j);
+            missingRange.end = chunkIndex;
 
             missingRanges.push({ start: missingRange.start, end: missingRange.end });
 
