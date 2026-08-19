@@ -2,6 +2,8 @@ import { FileDatabaseError } from "./FileDatabaseError";
 import { FileDatabaseErrorCode, type FileId } from "@riftsend/shared";
 import { FileMetadataSchema, type FileMetadata } from "@riftsend/protocol";
 
+const METADATA_KEY = "metadata";
+
 export class FileDatabase {
   private db: IDBDatabase;
 
@@ -49,13 +51,12 @@ export class FileDatabase {
   }
 
   public async getMetadata(): Promise<FileMetadata> {
-    const transaction = this.db.transaction("meta");
-
-    const request = transaction.objectStore("meta").openCursor();
+    const transaction = this.db.transaction("meta", "readonly");
+    const request = transaction.objectStore("meta").get(METADATA_KEY);
 
     return new Promise<FileMetadata>((resolve, reject) => {
       request.onsuccess = () => {
-        if (typeof request.result?.value === "undefined") {
+        if (typeof request.result === "undefined") {
           return reject(
             new FileDatabaseError(
               FileDatabaseErrorCode.FILE_METADATA_NOT_FOUND,
@@ -64,7 +65,7 @@ export class FileDatabase {
           );
         }
 
-        const parseResult = FileMetadataSchema.safeParse(request.result.value);
+        const parseResult = FileMetadataSchema.safeParse(request.result);
 
         if (!parseResult.success) {
           return reject(
@@ -80,7 +81,7 @@ export class FileDatabase {
       };
 
       request.onerror = (event) => {
-        return reject(
+        reject(
           new FileDatabaseError(
             FileDatabaseErrorCode.FILE_METADATA_READ_FAILED,
             "Failed to read file metadata from the store",
@@ -89,5 +90,61 @@ export class FileDatabase {
         );
       };
     });
+  }
+
+  public async saveMetadata(record: Partial<Omit<FileMetadata, "fileId">>): Promise<void> {
+    try {
+      const current = await this.getMetadata();
+
+      const transaction = this.db.transaction("meta", "readwrite");
+
+      return new Promise<void>((resolve, reject) => {
+        const request = transaction.objectStore("meta").put(
+          {
+            ...current,
+            ...record,
+          },
+          METADATA_KEY,
+        );
+
+        request.onerror = (event) => {
+          reject(
+            new FileDatabaseError(
+              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+              "Failed to write file metadata to the store",
+              { cause: event },
+            ),
+          );
+        };
+
+        transaction.oncomplete = () => resolve();
+
+        transaction.onerror = (event) => {
+          reject(
+            new FileDatabaseError(
+              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+              "Failed to write file metadata to the store",
+              { cause: event },
+            ),
+          );
+        };
+
+        transaction.onabort = (event) => {
+          reject(
+            new FileDatabaseError(
+              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+              "The metadata transaction was aborted",
+              { cause: event },
+            ),
+          );
+        };
+      });
+    } catch (error) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+        "Failed to update file metadata",
+        { cause: error },
+      );
+    }
   }
 }
