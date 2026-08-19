@@ -91,7 +91,7 @@ describe("SignalingClient", () => {
 
   it("validates room join payloads and throws for invalid join code", async () => {
     const { socket, restore } = mockWebSocket();
-    const { SignalingClient, SignalingClientError } = await import("./SignalingClient.js");
+    const { SignalingClient } = await import("./SignalingClient.js");
     const { SignalingClientError: ClientError } = await import("./SignalingErrors.js");
     const client = new SignalingClient();
 
