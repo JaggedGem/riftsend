@@ -9,7 +9,8 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

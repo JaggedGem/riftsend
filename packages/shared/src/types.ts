@@ -56,6 +56,11 @@ export type TransferId = number & { readonly __brand: unique symbol };
 export type MessageId = number & { readonly __brand: unique symbol };
 
 /**
+ * Branded number representing a request id internally.
+ */
+export type RequestId = number & { readonly __brand: unique symbol };
+
+/**
  * Credentials needed to locate a room on the signaling server.
  */
 export interface RoomCredentials {

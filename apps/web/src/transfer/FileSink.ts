@@ -1,4 +1,12 @@
-export interface FileSink {
-  writeChunk(index: number, data: Uint8Array): Promise<void>;
-  complete(): Promise<File>;
+export interface FileSink<TResult> {
+  writeChunk(
+    index: number,
+    data: ArrayBuffer,
+  ): Promise<{
+    buffered: Promise<void>;
+    flushed: Promise<void>;
+  }>;
+  complete(): Promise<TResult>;
+  abort(): Promise<void>;
+  dispose(): void;
 }

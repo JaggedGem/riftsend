@@ -11,8 +11,6 @@ export enum ControlTransportErrorCode {
   TRANSPORT_DISPOSED = "control_transport.disposed",
   /** A message could not be sent because the underlying channel send failed. */
   SEND_FAILED = "control_transport.send_failed",
-  /** The pending message queue is full; the caller should retry shortly. */
-  QUEUE_LIMIT_REACHED = "control_transport.queue_limit",
   /** A resend attempt for a reliable message failed at the channel level. */
   SEND_FAILED_ON_RESEND = "control_transport.resend_failed",
   /** An ACK message could not be sent to acknowledge receipt of a reliable message. */
