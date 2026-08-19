@@ -69,46 +69,59 @@ export class FileDatabase {
     this.db = db;
   }
 
+  private promisifyRequest<T>(
+    request: IDBRequest<T>,
+    makeError: (cause: unknown) => FileDatabaseError,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (event) => reject(makeError(event));
+    });
+  }
+
+  private promisifyTransaction(
+    transaction: IDBTransaction,
+    makeError: (cause: unknown) => FileDatabaseError,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = (event) => reject(makeError(event));
+      transaction.onabort = (event) => reject(makeError(event));
+    });
+  }
+
   public async getMetadata(): Promise<FileMetadata> {
     const transaction = this.db.transaction("meta", "readonly");
     const request = transaction.objectStore("meta").get(METADATA_KEY);
 
-    return new Promise<FileMetadata>((resolve, reject) => {
-      request.onsuccess = () => {
-        if (typeof request.result === "undefined") {
-          return reject(
-            new FileDatabaseError(
-              FileDatabaseErrorCode.FILE_METADATA_NOT_FOUND,
-              "The file metadata is missing from the store",
-            ),
-          );
-        }
+    const result = await this.promisifyRequest(
+      request,
+      (cause) =>
+        new FileDatabaseError(
+          FileDatabaseErrorCode.FILE_METADATA_READ_FAILED,
+          "Failed to read file metadata from the store",
+          { cause },
+        ),
+    );
 
-        const parseResult = FileMetadataSchema.safeParse(request.result);
+    if (typeof result === "undefined") {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.FILE_METADATA_NOT_FOUND,
+        "The file metadata is missing from the store",
+      );
+    }
 
-        if (!parseResult.success) {
-          return reject(
-            new FileDatabaseError(
-              FileDatabaseErrorCode.INVALID_FILE_METADATA,
-              "The stored file metadata does not match the expected structure",
-              { cause: parseResult.error },
-            ),
-          );
-        }
+    const parseResult = FileMetadataSchema.safeParse(result);
 
-        resolve(parseResult.data);
-      };
+    if (!parseResult.success) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.INVALID_FILE_METADATA,
+        "The stored file metadata does not match the expected structure",
+        { cause: parseResult.error },
+      );
+    }
 
-      request.onerror = (event) => {
-        reject(
-          new FileDatabaseError(
-            FileDatabaseErrorCode.FILE_METADATA_READ_FAILED,
-            "Failed to read file metadata from the store",
-            { cause: event },
-          ),
-        );
-      };
-    });
+    return parseResult.data;
   }
 
   public async saveMetadata(record: Partial<Omit<FileMetadata, "fileId">>): Promise<void> {
@@ -116,48 +129,23 @@ export class FileDatabase {
       const current = await this.getMetadata();
 
       const transaction = this.db.transaction("meta", "readwrite");
-
-      return new Promise<void>((resolve, reject) => {
-        const request = transaction.objectStore("meta").put(
-          {
-            ...current,
-            ...record,
-          },
-          METADATA_KEY,
+      const done = this.promisifyTransaction(transaction, (cause) => {
+        return new FileDatabaseError(
+          FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+          "Failed to write file metadata to the store",
+          { cause },
         );
-
-        request.onerror = (event) => {
-          reject(
-            new FileDatabaseError(
-              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
-              "Failed to write file metadata to the store",
-              { cause: event },
-            ),
-          );
-        };
-
-        transaction.oncomplete = () => resolve();
-
-        transaction.onerror = (event) => {
-          reject(
-            new FileDatabaseError(
-              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
-              "Failed to write file metadata to the store",
-              { cause: event },
-            ),
-          );
-        };
-
-        transaction.onabort = (event) => {
-          reject(
-            new FileDatabaseError(
-              FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
-              "The metadata transaction was aborted",
-              { cause: event },
-            ),
-          );
-        };
       });
+
+      transaction.objectStore("meta").put(
+        {
+          ...current,
+          ...record,
+        },
+        METADATA_KEY,
+      );
+
+      return done;
     } catch (error) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
@@ -183,41 +171,48 @@ export class FileDatabase {
     }
 
     const transaction = this.db.transaction("chunks", "readwrite");
+    const done = this.promisifyTransaction(
+      transaction,
+      (cause) =>
+        new FileDatabaseError(
+          FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
+          "Failed to write the chunk to the store",
+          { cause },
+        ),
+    );
 
-    return new Promise<void>((resolve, reject) => {
-      const request = transaction.objectStore("chunks").put(data, index);
+    transaction.objectStore("chunks").put(data, index);
 
-      request.onerror = (event) => {
-        reject(
-          new FileDatabaseError(
-            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
-            "Failed to write the chunk to the store",
-            { cause: event },
-          ),
-        );
-      };
+    return done;
+  }
 
-      transaction.oncomplete = () => resolve();
+  public async getChunk(index: number): Promise<Blob | undefined> {
+    if (!this.hasChunksStore) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
+        "Cannot read a chunk because this database does not include a chunks store",
+      );
+    }
 
-      transaction.onerror = (event) => {
-        reject(
-          new FileDatabaseError(
-            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
-            "Failed to write the chunk to the store",
-            { cause: event },
-          ),
-        );
-      };
+    if (!Number.isFinite(index) || index < 0) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.CHUNK_READ_FAILED,
+        `Invalid chunk index: ${index}`,
+      );
+    }
 
-      transaction.onabort = (event) => {
-        reject(
-          new FileDatabaseError(
-            FileDatabaseErrorCode.CHUNK_WRITE_FAILED,
-            "The chunk write transaction was aborted",
-            { cause: event },
-          ),
-        );
-      };
-    });
+    const transaction = this.db.transaction("chunks", "readonly");
+
+    const request = transaction.objectStore("chunks").get(index);
+
+    return this.promisifyRequest(
+      request,
+      (cause) =>
+        new FileDatabaseError(
+          FileDatabaseErrorCode.CHUNK_READ_FAILED,
+          "Failed to read the chunk from the store",
+          { cause },
+        ),
+    );
   }
 }
