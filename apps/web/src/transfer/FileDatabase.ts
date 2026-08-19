@@ -1,6 +1,6 @@
-import type { FileId } from "@riftsend/shared";
 import { FileDatabaseError } from "./FileDatabaseError";
-import { FileDatabaseErrorCode } from "@riftsend/shared";
+import { FileDatabaseErrorCode, type FileId } from "@riftsend/shared";
+import { FileMetadataSchema, type FileMetadata } from "@riftsend/protocol";
 
 export class FileDatabase {
   private db: IDBDatabase;
@@ -46,5 +46,48 @@ export class FileDatabase {
 
   private constructor(db: IDBDatabase) {
     this.db = db;
+  }
+
+  public async getMetadata(): Promise<FileMetadata> {
+    const transaction = this.db.transaction("meta");
+
+    const request = transaction.objectStore("meta").openCursor();
+
+    return new Promise<FileMetadata>((resolve, reject) => {
+      request.onsuccess = () => {
+        if (typeof request.result?.value === "undefined") {
+          return reject(
+            new FileDatabaseError(
+              FileDatabaseErrorCode.FILE_METADATA_NOT_FOUND,
+              "The file metadata is missing from the store",
+            ),
+          );
+        }
+
+        const parseResult = FileMetadataSchema.safeParse(request.result.value);
+
+        if (!parseResult.success) {
+          return reject(
+            new FileDatabaseError(
+              FileDatabaseErrorCode.INVALID_FILE_METADATA,
+              "The stored file metadata does not match the expected structure",
+              { cause: parseResult.error },
+            ),
+          );
+        }
+
+        resolve(parseResult.data);
+      };
+
+      request.onerror = (event) => {
+        return reject(
+          new FileDatabaseError(
+            FileDatabaseErrorCode.FILE_METADATA_READ_FAILED,
+            "Failed to read file metadata from the store",
+            { cause: event },
+          ),
+        );
+      };
+    });
   }
 }

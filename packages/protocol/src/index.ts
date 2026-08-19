@@ -20,6 +20,7 @@ export type { PeerId, SessionToken } from "@riftsend/shared";
 export { CHUNK_SIZE, CHUNK_FORMAT } from "./constants.js";
 export { buildChunk } from "./frames.js";
 export { SerializedBitmapSchema, type SerializedBitmap } from "./serializedBitmap.js";
+export { FileMetadataSchema, type FileMetadata } from "./fileMetadata.js";
 
 // Signaling messages
 export * from "./signaling-messages/signalingMessages.js";

@@ -270,4 +270,7 @@ export enum IndexedDbSinkErrorCode {
 
 export enum FileDatabaseErrorCode {
   INITIALIZATION_FAILED = "file_database.initialization_failed",
+  FILE_METADATA_NOT_FOUND = "file_database.file_metadata_not_found",
+  INVALID_FILE_METADATA = "file_database.invalid_file_metadata",
+  FILE_METADATA_READ_FAILED = "file_database.file_metadata_read_failed",
 }
