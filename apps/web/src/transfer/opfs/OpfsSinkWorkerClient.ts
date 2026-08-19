@@ -718,6 +718,31 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
   }
 
   /**
+   * Returns a native file snapshot without copying its contents through an
+   * ArrayBuffer.
+   */
+  public async getFile(): Promise<Blob> {
+    const currentState = await this.acquireReadyState();
+
+    const { requestId, promise, pendingResponse } = this.createRequest("getFile");
+
+    currentState.pendingRequests.set(requestId, {
+      operation: "getFile",
+      resolve: pendingResponse.resolve as (value: unknown) => void,
+      reject: pendingResponse.reject,
+    });
+
+    const message: WorkerRequest = {
+      type: "getFile",
+      requestId,
+    };
+
+    this.worker.postMessage(message);
+
+    return promise as Promise<Blob>;
+  }
+
+  /**
    * Deletes the managed file from the OPFS root.
    *
    * @returns A promise that resolves when the file is removed.

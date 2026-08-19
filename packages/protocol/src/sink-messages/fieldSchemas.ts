@@ -23,6 +23,7 @@ export const OpfsResultSchemas = {
   write: z.undefined(),
   getSize: z.number().int().nonnegative(),
   read: z.instanceof(ArrayBuffer),
+  getFile: z.unknown(),
   delete: z.undefined(),
   close: z.undefined(),
 } satisfies Record<OpfsMessageTypes, z.ZodType>;

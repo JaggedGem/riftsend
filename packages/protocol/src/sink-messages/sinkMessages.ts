@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CloseRequestSchema,
   DeleteRequestSchema,
+  GetFileRequestSchema,
   GetSizeRequestSchema,
   InitializeRequestSchema,
   ReadRequestSchema,
@@ -20,6 +21,7 @@ export const WorkerRequestSchema = z.discriminatedUnion("type", [
   WriteRequestSchema,
   GetSizeRequestSchema,
   ReadRequestSchema,
+  GetFileRequestSchema,
   DeleteRequestSchema,
   CloseRequestSchema,
 ]);

@@ -2,6 +2,7 @@ import {
   type CloseRequest,
   type DeleteRequest,
   type GetSizeRequest,
+  type GetFileRequest,
   type InitializeRequest,
   type ReadRequest,
   type WriteRequest,
@@ -448,6 +449,25 @@ const readFromFile = (message: ReadRequest) => {
 };
 
 /**
+ * Returns a native file snapshot so callers do not receive the file as an
+ * ArrayBuffer through the worker boundary.
+ */
+const getFile = async (message: GetFileRequest) => {
+  const state = assertReady(message.requestId, "get file");
+
+  if (!state) {
+    return;
+  }
+
+  try {
+    state.accessHandle.flush();
+    postSuccess(message.requestId, await state.fileHandle.getFile());
+  } catch (error) {
+    postError(message.requestId, OpfsSinkWorkerErrorCode.READ_FAILED, "Failed to get file", error);
+  }
+};
+
+/**
  * Removes the OPFS file and closes its access handle at the end of the transfer.
  */
 const deleteFile = async (message: DeleteRequest) => {
@@ -563,6 +583,12 @@ const handleMessage = async (event: MessageEvent) => {
 
     case "read": {
       readFromFile(parseResult.data);
+
+      break;
+    }
+
+    case "getFile": {
+      await getFile(parseResult.data);
 
       break;
     }

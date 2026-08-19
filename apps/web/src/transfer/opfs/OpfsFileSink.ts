@@ -85,15 +85,15 @@ export class OpfsFileSink implements FileSink<Blob> {
     }
   }
 
-  // todo: add error wrapping for the .read() call
   public async complete(): Promise<Blob> {
     this.assertReady("complete");
 
     this.sinkState = "completing";
 
-    // todo: DONT DO THIS, this loads the whole file in memory (use streams instead)
     try {
-      return new Blob([await this.sinkClient.read()], { type: "application/octet-stream" });
+      const file = await this.sinkClient.getFile();
+
+      return new Blob([file], { type: "application/octet-stream" });
     } finally {
       this.sinkState = "ready";
     }

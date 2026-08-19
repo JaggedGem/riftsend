@@ -34,6 +34,12 @@ export const ReadRequestSchema = z.strictObject({
 });
 export type ReadRequest = z.infer<typeof ReadRequestSchema>;
 
+export const GetFileRequestSchema = z.strictObject({
+  type: z.literal("getFile"),
+  requestId: RequestIdSchema,
+});
+export type GetFileRequest = z.infer<typeof GetFileRequestSchema>;
+
 export const DeleteRequestSchema = z.strictObject({
   type: z.literal("delete"),
   requestId: RequestIdSchema,
