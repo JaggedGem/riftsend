@@ -9,44 +9,63 @@ export class FileDatabase {
 
   public static async create(
     fileId: FileId,
-    options?: { includeChunksStore?: boolean },
+    options: { includeChunksStore: boolean },
   ): Promise<FileDatabase> {
+    const dbName = `riftsend-file-${fileId}`;
+
     try {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const dbOpenRequest = indexedDB.open(`riftsend-file-${fileId}`);
+        const open = (version?: number) => {
+          const request =
+            version === undefined ? indexedDB.open(dbName) : indexedDB.open(dbName, version);
 
-        dbOpenRequest.onsuccess = () => {
-          resolve(dbOpenRequest.result);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+
+            if (!db.objectStoreNames.contains("meta")) {
+              db.createObjectStore("meta");
+            }
+
+            if (options.includeChunksStore && !db.objectStoreNames.contains("chunks")) {
+              db.createObjectStore("chunks", { keyPath: "index" });
+            }
+          };
+
+          request.onsuccess = () => {
+            const db = request.result;
+
+            if (options.includeChunksStore && !db.objectStoreNames.contains("chunks")) {
+              const version = db.version;
+              db.close();
+              open(version + 1);
+              return;
+            }
+
+            resolve(db);
+          };
+
+          request.onerror = () => {
+            reject(request.error);
+          };
         };
 
-        dbOpenRequest.onerror = (event) => {
-          reject(event);
-        };
-
-        dbOpenRequest.onupgradeneeded = () => {
-          const db = dbOpenRequest.result;
-
-          db.createObjectStore("meta");
-
-          if (options?.includeChunksStore) {
-            db.createObjectStore("chunks", { keyPath: "index" });
-          }
-        };
+        open();
       });
 
-      const store = new FileDatabase(db);
-
-      return store;
+      return new FileDatabase(db, db.objectStoreNames.contains("chunks"));
     } catch (error) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.INITIALIZATION_FAILED,
-        "An error occurred while trying to create a new file database",
+        "An error occurred while trying to create the file database",
         { cause: error },
       );
     }
   }
 
-  private constructor(db: IDBDatabase) {
+  private constructor(
+    db: IDBDatabase,
+    private readonly hasChunksStore: boolean,
+  ) {
     this.db = db;
   }
 
@@ -144,6 +163,15 @@ export class FileDatabase {
         FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
         "Failed to update file metadata",
         { cause: error },
+      );
+    }
+  }
+
+  public async writeChunk(index: number, data: Blob) {
+    if (!this.hasChunksStore) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
+        "Cannot write a chunk because this database does not include a chunks store",
       );
     }
   }
