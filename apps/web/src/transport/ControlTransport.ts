@@ -350,6 +350,8 @@ export class ControlTransport {
 
           pendingMessage.reject(error);
 
+          this.notifyCapacityAvailable();
+
           return;
         }
 
@@ -428,6 +430,8 @@ export class ControlTransport {
             { messageId, cause: error },
           ),
         );
+
+        this.notifyCapacityAvailable();
       });
   }
 
