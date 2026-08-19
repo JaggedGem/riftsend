@@ -265,8 +265,13 @@ const initializeFile = async (message: InitializeRequest) => {
   } catch (error) {
     accessHandle?.close();
 
+    let cleanupError: unknown;
     if (root && fileHandle && !message.isResume) {
-      root.removeEntry(fileHandle.name);
+      try {
+        await root.removeEntry(fileHandle.name);
+      } catch (error) {
+        cleanupError = error;
+      }
     }
 
     workerState = { state: "uninitialized" };
@@ -275,7 +280,7 @@ const initializeFile = async (message: InitializeRequest) => {
       message.requestId,
       OpfsSinkWorkerErrorCode.INITIALIZATION_FAILED,
       "Failed to initialize file",
-      error,
+      cleanupError !== undefined ? [error, cleanupError] : [error],
     );
 
     return;
@@ -373,7 +378,7 @@ const writeToFile = (message: WriteRequest) => {
     return;
   }
 
-  postSuccess(message.requestId, state.flushEpoch);
+  postSuccess(message.requestId, undefined);
 };
 
 /**

@@ -21,6 +21,7 @@ class FakeWorker {
     this.listeners.get(type)?.delete(listener);
   }
 
+  // todo: add cases for errors fatal-notice s and flush-failed s
   public postMessage(message: { requestId: number; type: string }) {
     queueMicrotask(() => {
       const response = {

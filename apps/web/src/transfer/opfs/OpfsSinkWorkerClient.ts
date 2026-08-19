@@ -379,6 +379,8 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
       pendingFlush.reject = reject;
     });
 
+    pendingFlush.promise.catch(() => {});
+
     this.clientState.pendingFlush = pendingFlush;
   }
 
@@ -387,6 +389,33 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    * error instead of a result payload.
    */
   private handleErrorMessage(message: ErrorResponse) {
+    if (this.clientState.state === "initializing") {
+      if (message.requestId !== this.clientState.initializeRequest.requestId) {
+        this.terminateWithError(
+          new OpfsSinkError(
+            OpfsSinkClientErrorCode.INITIALIZATION_REQUEST_MISMATCH,
+            `Received error response for request ${message.requestId}, but expected initialization request ${this.clientState.initializeRequest.requestId}`,
+            { requestId: message.requestId },
+          ),
+        );
+
+        return;
+      }
+
+      const pendingResponse = this.clientState.initializeRequest.pendingResponse;
+
+      this.clientState = { state: "uninitialized" };
+
+      pendingResponse.reject(
+        new OpfsSinkError(message.error.code, message.error.message, {
+          cause: message.error.cause,
+          requestId: message.requestId,
+        }),
+      );
+
+      return;
+    }
+
     if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
       this.terminateWithError(
         new OpfsSinkError(
@@ -784,11 +813,24 @@ export class OpfsSinkWorkerClient extends TypedEventEmitter<OpfsSinkWorkerClient
    * Resolves the next queued capacity waiter once a request has completed.
    */
   private notifyCapacityAvailable(): void {
-    const currentState = this.assertReady();
+    if (this.clientState.state !== "ready" && this.clientState.state !== "closing") {
+      return;
+    }
 
+    const currentState = this.clientState;
     const waiter = currentState.capacityWaiters.shift();
 
-    waiter?.resolve(currentState);
+    if (!waiter) {
+      return;
+    }
+
+    if (currentState.state === "ready") {
+      waiter.resolve(currentState);
+    } else {
+      waiter.reject(
+        new OpfsSinkError(OpfsSinkClientErrorCode.INVALID_STATE, "OPFS worker client is closing"),
+      );
+    }
   }
 
   public get lastError(): OpfsSinkError | undefined {

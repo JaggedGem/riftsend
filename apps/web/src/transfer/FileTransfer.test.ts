@@ -67,7 +67,7 @@ describe("IncomingFileTransfer", () => {
       writeChunk: vi.fn(),
       complete: vi.fn(),
       abort: vi.fn(),
-      getWrittenExtent: vi.fn(() => 0),
+      dispose: vi.fn(),
     };
 
     const metadata = {
