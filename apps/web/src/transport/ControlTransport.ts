@@ -114,6 +114,9 @@ export class ControlTransport {
     reject: (reason: unknown) => void;
   }> = [];
 
+  /** Reserved capacity for callers between `waitForCapacity` and adding to `pendingMessages`. */
+  private reservedCapacity = 0;
+
   /**
    * Creates a new `ControlTransport` instance.
    *
@@ -217,8 +220,8 @@ export class ControlTransport {
 
     await this.waitForCapacity();
 
-    // The transport could have been disposed while waiting.
     if (this.isDisposed) {
+      this.releaseReservation();
       throw new ControlTransportError(
         ControlTransportErrorCode.TRANSPORT_DISPOSED,
         "Object was disposed while waiting for capacity",
@@ -235,6 +238,7 @@ export class ControlTransport {
         messageId,
       });
     } catch (error) {
+      this.releaseReservation();
       throw new ControlTransportError(
         ControlTransportErrorCode.INVALID_RELIABLE_MESSAGE,
         "The provided message is not a valid reliable control message",
@@ -263,7 +267,9 @@ export class ControlTransport {
         reject,
       };
 
+      this.reservedCapacity--;
       this.pendingMessages.set(messageId, pendingMessage);
+      this.maybeNotifyWaiters();
 
       this.sendRaw(reliableMessage)
         .then(() => {
@@ -284,7 +290,6 @@ export class ControlTransport {
             ),
           );
 
-          // A slot has become available.
           this.notifyCapacityAvailable();
         });
     });
@@ -566,9 +571,10 @@ export class ControlTransport {
     }
   }
 
-  private async waitForCapacity(): Promise<void> {
-    if (this.pendingMessages.size < this.config.maxPendingMessages) {
-      return;
+  private waitForCapacity(): Promise<void> {
+    if (this.pendingMessages.size + this.reservedCapacity < this.config.maxPendingMessages) {
+      this.reservedCapacity++;
+      return Promise.resolve();
     }
 
     return new Promise((resolve, reject) => {
@@ -576,9 +582,23 @@ export class ControlTransport {
     });
   }
 
-  private notifyCapacityAvailable(): void {
-    const waiter = this.capacityWaiters.shift();
+  private releaseReservation(): void {
+    this.reservedCapacity--;
+    this.maybeNotifyWaiters();
+  }
 
-    waiter?.resolve();
+  private notifyCapacityAvailable(): void {
+    this.maybeNotifyWaiters();
+  }
+
+  private maybeNotifyWaiters(): void {
+    while (
+      this.pendingMessages.size + this.reservedCapacity < this.config.maxPendingMessages &&
+      this.capacityWaiters.length > 0
+    ) {
+      const waiter = this.capacityWaiters.shift()!;
+      waiter.resolve();
+      this.reservedCapacity++;
+    }
   }
 }

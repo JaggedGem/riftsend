@@ -118,4 +118,43 @@ describe("ControlTransport", () => {
 
     await expect(sendPromise).rejects.toBeDefined();
   });
+
+  it("does not exceed MAX_PENDING_MESSAGES when many sends are started before any ACK", async () => {
+    Object.assign(import.meta.env, {
+      VITE_MAX_PENDING_MESSAGES: "8",
+    });
+
+    const neverResolve = new Promise<void>(() => {});
+    const sendRaw = vi.fn().mockReturnValue(neverResolve);
+    const { ControlTransport } = await import("./ControlTransport.js");
+    const transport = new ControlTransport(sendRaw, vi.fn());
+
+    const promises = Array.from({ length: 10 }, (_, i) =>
+      transport.send({
+        type: "batch-offer",
+        protocolVersion: 1,
+        batchId: `123e4567-e89b-42d3-a456-42661417400${i}`,
+        files: [
+          {
+            fileId: "123e4567-e89b-42d3-a456-426614174001",
+            fileName: "demo.txt",
+            size: 16,
+            mimeType: "text/plain",
+            chunkSize: 16,
+            totalChunks: 1,
+          },
+        ],
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(sendRaw).toHaveBeenCalledTimes(8);
+
+    transport.dispose();
+
+    for (const promise of promises) {
+      await expect(promise).rejects.toBeDefined();
+    }
+  });
 });
