@@ -51,6 +51,13 @@ export class ChunkReceiptTracker {
   }
 
   public markReceived(chunkIndex: number): void {
+    if (!Number.isInteger(chunkIndex) || chunkIndex < 0 || chunkIndex >= this.totalChunks) {
+      throw new ChunkReceiptTrackerError(
+        ChunkReceiptTrackerErrorCode.INVALID_CHUNK_INDEX,
+        `Invalid chunk index: ${chunkIndex}`,
+      );
+    }
+
     const arrayIndex = Math.floor(chunkIndex / 32);
     const bitPosition = chunkIndex % 32;
 

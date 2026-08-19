@@ -1,5 +1,6 @@
 export enum ChunkReceiptTrackerErrorCode {
   INVALID_SERIALIZED_STATE = "chunk_receipt_tracker.invalid_serialized_state",
+  INVALID_CHUNK_INDEX = "chunk_receipt_tracker.invalid_chunk_index",
 }
 
 export class ChunkReceiptTrackerError extends Error {
