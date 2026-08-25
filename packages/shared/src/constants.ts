@@ -277,4 +277,6 @@ export enum FileDatabaseErrorCode {
   CHUNKS_STORE_NOT_AVAILABLE = "file_database.chunks_store_not_available",
   CHUNK_WRITE_FAILED = "file_database.chunk_write_failed",
   CHUNK_READ_FAILED = "file_database.chunk_read_failed",
+  MISSING_CHUNK = "file_database.missing_chunk",
+  READ_FAILED = "file_database.read_failed",
 }

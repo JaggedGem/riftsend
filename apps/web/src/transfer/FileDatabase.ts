@@ -215,4 +215,56 @@ export class FileDatabase {
         ),
     );
   }
+
+  public async readAllChunksOrdered(): Promise<Blob> {
+    if (!this.hasChunksStore) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
+        "Cannot read all of the chunks because this database does not include a chunks store",
+      );
+    }
+
+    const blobParts: Blob[] = [];
+    let expectedIndex = 0;
+    let cursorError: FileDatabaseError | undefined;
+
+    const transaction = this.db.transaction("chunks", "readonly");
+
+    const request = transaction.objectStore("chunks").openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+
+      if (!cursor) {
+        return;
+      }
+
+      if (cursor.key !== expectedIndex) {
+        cursorError = new FileDatabaseError(
+          FileDatabaseErrorCode.MISSING_CHUNK,
+          `Expected chunk ${expectedIndex}, found ${String(cursor.key)}`,
+        );
+
+        transaction.abort();
+
+        return;
+      }
+
+      blobParts.push(cursor.value);
+      expectedIndex++;
+
+      cursor.continue();
+    };
+
+    await this.promisifyTransaction(
+      transaction,
+      (cause) =>
+        cursorError ??
+        new FileDatabaseError(FileDatabaseErrorCode.READ_FAILED, "Failed to read chunks", {
+          cause,
+        }),
+    );
+
+    return new Blob(blobParts);
+  }
 }
