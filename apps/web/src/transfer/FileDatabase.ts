@@ -6,6 +6,7 @@ const METADATA_KEY = "metadata";
 
 export class FileDatabase {
   private db: IDBDatabase;
+  private isDisposed = false;
 
   public static async create(
     fileId: FileId,
@@ -91,6 +92,13 @@ export class FileDatabase {
   }
 
   public async getMetadata(): Promise<FileMetadata> {
+    if (this.isDisposed) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.DISPOSED,
+        "The database connection was already closed",
+      );
+    }
+
     const transaction = this.db.transaction("meta", "readonly");
     const request = transaction.objectStore("meta").get(METADATA_KEY);
 
@@ -125,6 +133,13 @@ export class FileDatabase {
   }
 
   public async saveMetadata(record: Partial<Omit<FileMetadata, "fileId">>): Promise<void> {
+    if (this.isDisposed) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.DISPOSED,
+        "The database connection was already closed",
+      );
+    }
+
     try {
       const current = await this.getMetadata();
 
@@ -156,6 +171,13 @@ export class FileDatabase {
   }
 
   public async writeChunk(index: number, data: Blob): Promise<void> {
+    if (this.isDisposed) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.DISPOSED,
+        "The database connection was already closed",
+      );
+    }
+
     if (!this.hasChunksStore) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
@@ -187,6 +209,13 @@ export class FileDatabase {
   }
 
   public async getChunk(index: number): Promise<Blob | undefined> {
+    if (this.isDisposed) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.DISPOSED,
+        "The database connection was already closed",
+      );
+    }
+
     if (!this.hasChunksStore) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
@@ -217,6 +246,13 @@ export class FileDatabase {
   }
 
   public async readAllChunksOrdered(): Promise<Blob> {
+    if (this.isDisposed) {
+      throw new FileDatabaseError(
+        FileDatabaseErrorCode.DISPOSED,
+        "The database connection was already closed",
+      );
+    }
+
     if (!this.hasChunksStore) {
       throw new FileDatabaseError(
         FileDatabaseErrorCode.CHUNKS_STORE_NOT_AVAILABLE,
@@ -266,5 +302,15 @@ export class FileDatabase {
     );
 
     return new Blob(blobParts);
+  }
+
+  public dispose(): void {
+    if (this.isDisposed) {
+      return;
+    }
+
+    this.db.close();
+
+    this.isDisposed = true;
   }
 }

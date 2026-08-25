@@ -279,4 +279,5 @@ export enum FileDatabaseErrorCode {
   CHUNK_READ_FAILED = "file_database.chunk_read_failed",
   MISSING_CHUNK = "file_database.missing_chunk",
   READ_FAILED = "file_database.read_failed",
+  DISPOSED = "file_database.db_disposed",
 }
