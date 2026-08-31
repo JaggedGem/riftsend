@@ -20,6 +20,7 @@ export type SinkState<T extends Error> =
   | { state: "completing" }
   | { state: "completed" }
   | { state: "aborting" }
+  | { state: "aborted" }
   | { state: "disposing" }
   | { state: "disposed" }
   | { state: "errored"; cause: T };

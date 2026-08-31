@@ -31,19 +31,23 @@ export class IndexedDbSink implements FileSink<Blob> {
     this.fileId = fileId;
   }
 
-  public async writeChunk(
-    index: number,
-    data: ArrayBuffer,
-  ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
+  private assertReady(operation: string) {
     if (this.sinkState.state !== "ready") {
       throw new IndexedDbSinkError(
         IndexedDbSinkErrorCode.NOT_READY,
-        `IndexedDB sink is not ready to write the chunk`,
+        `IndexedDB sink is not ready to ${operation}`,
         {
           cause: `current state: ${this.sinkState}`,
         },
       );
     }
+  }
+
+  public async writeChunk(
+    index: number,
+    data: ArrayBuffer,
+  ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
+    this.assertReady("write the chunk");
 
     const buffered = Promise.resolve();
 
@@ -55,6 +59,8 @@ export class IndexedDbSink implements FileSink<Blob> {
   }
 
   public async complete(): Promise<Blob> {
+    this.assertReady("complete the file blob");
+
     this.sinkState = { state: "completing" };
 
     try {
@@ -79,11 +85,47 @@ export class IndexedDbSink implements FileSink<Blob> {
     }
   }
 
-  abort(): Promise<void> {
-    throw new Error("Method not implemented.");
+  public async abort(): Promise<void> {
+    this.assertReady("abort the file transfer");
+
+    this.sinkState = { state: "aborting" };
+
+    this.fileDb.dispose();
+
+    try {
+      await FileDatabase.deleteForFile(this.fileId);
+
+      this.sinkState = { state: "aborted" };
+    } catch (error) {
+      const fatalError = new IndexedDbSinkError(
+        IndexedDbSinkErrorCode.ABORT_FAILED,
+        "An error occurred while trying to abort a transfer",
+        { cause: error },
+      );
+
+      this.sinkState = {
+        state: "errored",
+        cause: fatalError,
+      };
+
+      throw fatalError;
+    }
   }
-  dispose(): void {
-    throw new Error("Method not implemented.");
+
+  public dispose(): void {
+    if (
+      this.sinkState.state === "disposed" ||
+      this.sinkState.state === "aborted" ||
+      this.sinkState.state === "completed"
+    ) {
+      return;
+    }
+
+    this.sinkState = { state: "disposing" };
+
+    this.fileDb.dispose();
+
+    this.sinkState = { state: "disposed" };
   }
 
   public get lastError(): IndexedDbSinkError | undefined {
