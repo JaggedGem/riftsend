@@ -5,7 +5,7 @@ import { FileDatabase } from "../FileDatabase";
 
 export class IndexedDbSink implements FileSink<Blob> {
   private fileDb: FileDatabase;
-  private sinkState: SinkState = "uninitialized";
+  private sinkState: SinkState<IndexedDbSinkError> = { state: "uninitialized" };
   private fileId: FileId;
 
   public static async create(fileId: FileId) {
@@ -14,7 +14,7 @@ export class IndexedDbSink implements FileSink<Blob> {
 
       const sink = new IndexedDbSink(fileDatabase, fileId);
 
-      sink.sinkState = "ready";
+      sink.sinkState = { state: "ready" };
 
       return sink;
     } catch (error) {
@@ -35,7 +35,7 @@ export class IndexedDbSink implements FileSink<Blob> {
     index: number,
     data: ArrayBuffer,
   ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
-    if (this.sinkState !== "ready") {
+    if (this.sinkState.state !== "ready") {
       throw new IndexedDbSinkError(
         IndexedDbSinkErrorCode.NOT_READY,
         `IndexedDB sink is not ready to write the chunk`,
@@ -54,13 +54,43 @@ export class IndexedDbSink implements FileSink<Blob> {
     return { buffered, flushed };
   }
 
-  complete(): Promise<Blob> {
-    throw new Error("Method not implemented.");
+  public async complete(): Promise<Blob> {
+    this.sinkState = { state: "completing" };
+
+    try {
+      const fileBlob = await this.fileDb.readAllChunksOrdered();
+
+      this.sinkState = { state: "completed" };
+
+      return fileBlob;
+    } catch (error) {
+      const fatalError = new IndexedDbSinkError(
+        IndexedDbSinkErrorCode.COMPLETION_FAILED,
+        "An error occurred while trying to complete the file",
+        { cause: error },
+      );
+
+      this.sinkState = {
+        state: "errored",
+        cause: fatalError,
+      };
+
+      throw fatalError;
+    }
   }
+
   abort(): Promise<void> {
     throw new Error("Method not implemented.");
   }
   dispose(): void {
     throw new Error("Method not implemented.");
+  }
+
+  public get lastError(): IndexedDbSinkError | undefined {
+    if (this.sinkState.state !== "errored") {
+      return undefined;
+    }
+
+    return this.sinkState.cause;
   }
 }

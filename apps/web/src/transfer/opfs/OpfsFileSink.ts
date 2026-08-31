@@ -6,7 +6,7 @@ import { OpfsSinkError } from "./OpfsSinkError";
 
 export class OpfsFileSink implements FileSink<Blob> {
   private readonly sinkClient = new OpfsSinkWorkerClient();
-  private sinkState: SinkState = "uninitialized";
+  private sinkState: SinkState<OpfsSinkError> = { state: "uninitialized" };
 
   public static async create(
     fileId: FileId,
@@ -34,7 +34,7 @@ export class OpfsFileSink implements FileSink<Blob> {
       );
     }
 
-    sink.sinkState = "ready";
+    sink.sinkState = { state: "ready" };
 
     return sink;
   }
@@ -48,7 +48,7 @@ export class OpfsFileSink implements FileSink<Blob> {
    * @throws {OpfsSinkError} When lifecycle state does not permit requests.
    */
   private assertReady(operation: string) {
-    if (this.sinkState !== "ready") {
+    if (this.sinkState.state !== "ready") {
       throw new OpfsSinkError(
         OpfsFileSinkErrorCode.NOT_READY,
         `OPFS sink is not ready to ${operation}`,
@@ -83,21 +83,21 @@ export class OpfsFileSink implements FileSink<Blob> {
   public async complete(): Promise<Blob> {
     this.assertReady("complete");
 
-    this.sinkState = "completing";
+    this.sinkState = { state: "completing" };
 
     try {
       const file = await this.sinkClient.getFile();
 
       return new Blob([file], { type: "application/octet-stream" });
     } finally {
-      this.sinkState = "ready";
+      this.sinkState = { state: "ready" };
     }
   }
 
   public async abort(): Promise<void> {
     this.assertReady("abort");
 
-    this.sinkState = "aborting";
+    this.sinkState = { state: "aborting" };
 
     try {
       await this.sinkClient.delete();
@@ -113,14 +113,14 @@ export class OpfsFileSink implements FileSink<Blob> {
   }
 
   public dispose() {
-    if (this.sinkState === "disposed") {
+    if (this.sinkState.state === "disposed") {
       return;
     }
 
-    this.sinkState = "disposing";
+    this.sinkState = { state: "disposing" };
 
     this.sinkClient.dispose();
 
-    this.sinkState = "disposed";
+    this.sinkState = { state: "disposed" };
   }
 }
