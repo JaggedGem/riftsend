@@ -269,6 +269,7 @@ export enum IndexedDbSinkErrorCode {
   NOT_READY = "indexed_db_sink.sink_not_ready",
   COMPLETION_FAILED = "indexed_db_sink.completion_failed",
   ABORT_FAILED = "indexed_db_sink.abort_failed",
+  CHUNK_WRITE_FAILED = "indexed_db_sink.chunk_write_failed",
 }
 
 export enum FileDatabaseErrorCode {

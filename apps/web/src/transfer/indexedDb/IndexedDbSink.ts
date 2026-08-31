@@ -4,9 +4,9 @@ import { IndexedDbSinkError } from "./IndexedDbSinkError";
 import { FileDatabase } from "../FileDatabase";
 
 export class IndexedDbSink implements FileSink<Blob> {
-  private fileDb: FileDatabase;
+  private readonly fileDb: FileDatabase;
   private sinkState: SinkState<IndexedDbSinkError> = { state: "uninitialized" };
-  private fileId: FileId;
+  private readonly fileId: FileId;
 
   public static async create(fileId: FileId) {
     try {
@@ -31,35 +31,44 @@ export class IndexedDbSink implements FileSink<Blob> {
     this.fileId = fileId;
   }
 
-  private assertReady(operation: string) {
-    if (this.sinkState.state !== "ready") {
+  private assertState(operation: string, allowed: SinkState<IndexedDbSinkError>["state"][]) {
+    if (!allowed.includes(this.sinkState.state)) {
       throw new IndexedDbSinkError(
         IndexedDbSinkErrorCode.NOT_READY,
-        `IndexedDB sink is not ready to ${operation}`,
-        {
-          cause: `current state: ${this.sinkState}`,
-        },
+        `IndexedDB sink cannot ${operation} from state: ${this.sinkState.state}`,
       );
     }
   }
 
-  public async writeChunk(
+  public writeChunk(
     index: number,
     data: ArrayBuffer,
   ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
-    this.assertReady("write the chunk");
+    this.assertState("write the chunk", ["ready"]);
 
     const buffered = Promise.resolve();
 
     const flushed = (async () => {
-      await this.fileDb.writeChunk(index, new Blob([data]));
+      try {
+        await this.fileDb.writeChunk(index, new Blob([data]));
+      } catch (error) {
+        const fatalError = new IndexedDbSinkError(
+          IndexedDbSinkErrorCode.CHUNK_WRITE_FAILED,
+          "An error occurred while trying to write the chunk",
+          { cause: error },
+        );
+
+        this.sinkState = { state: "errored", cause: fatalError };
+
+        throw fatalError;
+      }
     })();
 
-    return { buffered, flushed };
+    return Promise.resolve({ buffered, flushed });
   }
 
   public async complete(): Promise<Blob> {
-    this.assertReady("complete the file blob");
+    this.assertState("complete the file blob", ["ready"]);
 
     this.sinkState = { state: "completing" };
 
@@ -86,7 +95,7 @@ export class IndexedDbSink implements FileSink<Blob> {
   }
 
   public async abort(): Promise<void> {
-    this.assertReady("abort the file transfer");
+    this.assertState("abort the file transfer", ["ready", "errored"]);
 
     this.sinkState = { state: "aborting" };
 
@@ -113,11 +122,7 @@ export class IndexedDbSink implements FileSink<Blob> {
   }
 
   public dispose(): void {
-    if (
-      this.sinkState.state === "disposed" ||
-      this.sinkState.state === "aborted" ||
-      this.sinkState.state === "completed"
-    ) {
+    if (this.sinkState.state === "disposed" || this.sinkState.state === "aborted") {
       return;
     }
 
