@@ -266,6 +266,7 @@ export type OpfsSinkErrorCode =
 
 export enum IndexedDbSinkErrorCode {
   INITIALIZATION_FAILED = "indexed_db_sink.initialization_failed",
+  NOT_READY = "indexed_db_sink.sink_not_ready",
 }
 
 export enum FileDatabaseErrorCode {

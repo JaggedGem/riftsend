@@ -6,12 +6,13 @@ import { FileDatabase } from "../FileDatabase";
 export class IndexedDbSink implements FileSink<Blob> {
   private fileDb: FileDatabase;
   private sinkState: SinkState = "uninitialized";
+  private fileId: FileId;
 
   public static async create(fileId: FileId) {
     try {
       const fileDatabase = await FileDatabase.create(fileId, { includeChunksStore: true });
 
-      const sink = new IndexedDbSink(fileDatabase);
+      const sink = new IndexedDbSink(fileDatabase, fileId);
 
       sink.sinkState = "ready";
 
@@ -25,16 +26,34 @@ export class IndexedDbSink implements FileSink<Blob> {
     }
   }
 
-  private constructor(fileDb: FileDatabase) {
+  private constructor(fileDb: FileDatabase, fileId: FileId) {
     this.fileDb = fileDb;
+    this.fileId = fileId;
   }
 
-  writeChunk(
-    _index: number,
-    _data: ArrayBuffer,
+  public async writeChunk(
+    index: number,
+    data: ArrayBuffer,
   ): Promise<{ buffered: Promise<void>; flushed: Promise<void> }> {
-    throw new Error("Method not implemented.");
+    if (this.sinkState !== "ready") {
+      throw new IndexedDbSinkError(
+        IndexedDbSinkErrorCode.NOT_READY,
+        `IndexedDB sink is not ready to write the chunk`,
+        {
+          cause: `current state: ${this.sinkState}`,
+        },
+      );
+    }
+
+    const buffered = Promise.resolve();
+
+    const flushed = (async () => {
+      await this.fileDb.writeChunk(index, new Blob([data]));
+    })();
+
+    return { buffered, flushed };
   }
+
   complete(): Promise<Blob> {
     throw new Error("Method not implemented.");
   }
