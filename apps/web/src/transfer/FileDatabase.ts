@@ -8,11 +8,15 @@ export class FileDatabase {
   private db: IDBDatabase;
   private isDisposed = false;
 
+  private static getDbName(fileId: FileId): string {
+    return `riftsend-file-${fileId}`;
+  }
+
   public static async create(
     fileId: FileId,
     options: { includeChunksStore: boolean },
   ): Promise<FileDatabase> {
-    const dbName = `riftsend-file-${fileId}`;
+    const dbName = this.getDbName(fileId);
 
     try {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -64,7 +68,7 @@ export class FileDatabase {
   }
 
   public static async deleteForFile(fileId: FileId): Promise<void> {
-    const dbName = `riftsend-file-${fileId}`;
+    const dbName = this.getDbName(fileId);
 
     const request = indexedDB.deleteDatabase(dbName);
 
