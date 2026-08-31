@@ -63,6 +63,32 @@ export class FileDatabase {
     }
   }
 
+  public static async deleteForFile(fileId: FileId): Promise<void> {
+    const dbName = `riftsend-file-${fileId}`;
+
+    const request = indexedDB.deleteDatabase(dbName);
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(
+          new FileDatabaseError(
+            FileDatabaseErrorCode.DELETION_FAILED,
+            "An error occurred while trying to delete the file database",
+            { cause: request.error },
+          ),
+        );
+      };
+
+      request.onblocked = () => {
+        console.log(`Delete for file with id: ${fileId} was blocked by another request`);
+      };
+    });
+  }
+
   private constructor(
     db: IDBDatabase,
     private readonly hasChunksStore: boolean,
@@ -76,7 +102,7 @@ export class FileDatabase {
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
-      request.onerror = (event) => reject(makeError(event));
+      request.onerror = () => reject(makeError(request.error));
     });
   }
 
@@ -86,8 +112,8 @@ export class FileDatabase {
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
-      transaction.onerror = (event) => reject(makeError(event));
-      transaction.onabort = (event) => reject(makeError(event));
+      transaction.onerror = () => reject(makeError(transaction.error));
+      transaction.onabort = () => reject(makeError(transaction.error));
     });
   }
 
