@@ -1,31 +1,43 @@
-import { CHUNK_SIZE } from "@riftsend/protocol";
+import { CHUNK_SIZE, type FileMetadata } from "@riftsend/protocol";
 import type { FileSink, SinkState } from "../FileSink";
 import { OpfsSinkWorkerClient, type WriteResult } from "./OpfsSinkWorkerClient";
-import { OpfsFileSinkErrorCode, type FileId } from "@riftsend/shared";
+import { OpfsFileSinkErrorCode } from "@riftsend/shared";
 import { OpfsSinkError } from "./OpfsSinkError";
+import { FileDatabase } from "../FileDatabase";
 
 export class OpfsFileSink implements FileSink<Blob> {
+  private readonly fileDb: FileDatabase;
   private readonly sinkClient = new OpfsSinkWorkerClient();
   private sinkState: SinkState<OpfsSinkError> = { state: "uninitialized" };
 
-  public static async create(
-    fileId: FileId,
-    fileSize: number,
-    isResume: boolean,
-  ): Promise<OpfsFileSink> {
-    if (!Number.isFinite(fileSize) || fileSize < 0) {
+  public static async create(metadata: FileMetadata, isResume: boolean): Promise<OpfsFileSink> {
+    if (!Number.isFinite(metadata.fileSize) || metadata.fileSize < 0) {
       throw new OpfsSinkError(
         OpfsFileSinkErrorCode.INVALID_FILE_SIZE,
-        `Invalid file size: ${fileSize}`,
+        `Invalid file size: ${metadata.fileSize}`,
       );
     }
 
-    const sink = new OpfsFileSink();
-
+    let sink: OpfsFileSink | undefined;
+    let fileDb: FileDatabase | undefined;
     try {
-      await sink.sinkClient.initialize(fileId, fileSize, isResume);
+      fileDb = await FileDatabase.create(metadata, { includeChunksStore: false });
+
+      sink = new OpfsFileSink(fileDb);
+
+      await sink.sinkClient.initialize(metadata.fileId, metadata.fileSize, isResume);
+
+      sink.sinkState = { state: "ready" };
+
+      return sink;
     } catch (error) {
-      sink.sinkClient.dispose();
+      if (fileDb) {
+        fileDb.dispose();
+      }
+
+      if (sink) {
+        sink.dispose();
+      }
 
       throw new OpfsSinkError(
         OpfsFileSinkErrorCode.INITIALIZATION_FAILED,
@@ -33,13 +45,11 @@ export class OpfsFileSink implements FileSink<Blob> {
         { cause: error },
       );
     }
-
-    sink.sinkState = { state: "ready" };
-
-    return sink;
   }
 
-  private constructor() {}
+  private constructor(fileDb: FileDatabase) {
+    this.fileDb = fileDb;
+  }
 
   /**
    * Asserts that the client is ready to send operations to the worker.
@@ -90,7 +100,9 @@ export class OpfsFileSink implements FileSink<Blob> {
 
       return new Blob([file], { type: "application/octet-stream" });
     } finally {
-      this.sinkState = { state: "ready" };
+      if (this.sinkState.state === "completing") {
+        this.sinkState = { state: "completed" };
+      }
     }
   }
 
@@ -120,6 +132,7 @@ export class OpfsFileSink implements FileSink<Blob> {
     this.sinkState = { state: "disposing" };
 
     this.sinkClient.dispose();
+    this.fileDb.dispose();
 
     this.sinkState = { state: "disposed" };
   }

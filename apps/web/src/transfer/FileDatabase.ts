@@ -13,10 +13,10 @@ export class FileDatabase {
   }
 
   public static async create(
-    fileId: FileId,
+    metadata: FileMetadata,
     options: { includeChunksStore: boolean },
   ): Promise<FileDatabase> {
-    const dbName = this.getDbName(fileId);
+    const dbName = this.getDbName(metadata.fileId);
 
     try {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -46,7 +46,33 @@ export class FileDatabase {
               return;
             }
 
-            resolve(db);
+            const transaction = db.transaction("meta", "readwrite");
+
+            transaction.objectStore("meta").put(metadata, METADATA_KEY);
+
+            transaction.oncomplete = () => resolve(db);
+
+            transaction.onerror = () => {
+              db.close();
+              reject(
+                new FileDatabaseError(
+                  FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+                  "Failed to write initial file metadata to the store",
+                  { cause: transaction.error },
+                ),
+              );
+            };
+
+            transaction.onabort = () => {
+              db.close();
+              reject(
+                new FileDatabaseError(
+                  FileDatabaseErrorCode.FILE_METADATA_WRITE_FAILED,
+                  "Failed to write initial file metadata to the store",
+                  { cause: transaction.error },
+                ),
+              );
+            };
           };
 
           request.onerror = () => {

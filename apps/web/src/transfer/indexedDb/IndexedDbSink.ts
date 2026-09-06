@@ -2,17 +2,18 @@ import { IndexedDbSinkErrorCode, type FileId } from "@riftsend/shared";
 import type { FileSink, SinkState } from "../FileSink";
 import { IndexedDbSinkError } from "./IndexedDbSinkError";
 import { FileDatabase } from "../FileDatabase";
+import type { FileMetadata } from "@riftsend/protocol";
 
 export class IndexedDbSink implements FileSink<Blob> {
   private readonly fileDb: FileDatabase;
   private sinkState: SinkState<IndexedDbSinkError> = { state: "uninitialized" };
   private readonly fileId: FileId;
 
-  public static async create(fileId: FileId) {
+  public static async create(metadata: FileMetadata) {
     try {
-      const fileDatabase = await FileDatabase.create(fileId, { includeChunksStore: true });
+      const fileDatabase = await FileDatabase.create(metadata, { includeChunksStore: true });
 
-      const sink = new IndexedDbSink(fileDatabase, fileId);
+      const sink = new IndexedDbSink(fileDatabase, metadata.fileId);
 
       sink.sinkState = { state: "ready" };
 
