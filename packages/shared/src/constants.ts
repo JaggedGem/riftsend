@@ -15,7 +15,7 @@
  */
 
 /** Number of random bytes generated for IDs (peer, room, etc.). */
-export const NR_RANDOM_BYTES = 12;
+export const NR_RANDOM_BYTES = 20;
 
 /** String prepended to every encoded peer ID. */
 export const PEER_ID_PREFIX = "peer_";
