@@ -4,13 +4,13 @@ import { BadEnvTypeError, MissingEnvError } from "./envError.js";
 /**
  * Reads a required `import.meta.env` variable.
  *
- * @param key - Env var name (without `VITE_` prefix — that is handled by Vite).
+ * @param key - Env var name.
  * @throws If the variable is missing or empty.
  */
 const requireEnv = (key: string): string => {
-  const value = import.meta.env[`VITE_${key}`];
+  const value = import.meta.env[key] ?? import.meta.env[`VITE_${key}`];
 
-  if (!value) {
+  if (!value || value === "") {
     throw new MissingEnvError(key);
   }
 
@@ -25,7 +25,7 @@ const requireEnv = (key: string): string => {
  * @throws If the variable is anything else.
  */
 const requireBooleanEnv = (key: string): boolean => {
-  const value = import.meta.env[key];
+  const value = import.meta.env[key] ?? import.meta.env[`VITE_${key}`];
 
   if (value === "true") {
     return true;

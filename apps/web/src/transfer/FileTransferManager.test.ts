@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BatchId, FileId } from "@riftsend/shared";
+import type { BatchId, FileId, TransferId } from "@riftsend/shared";
 import type { WebRTCConnection } from "@/webrtc/WebRTCConnection";
 import { FileTransferManager } from "./FileTransferManager.js";
 
@@ -70,7 +70,10 @@ describe("FileTransferManager", () => {
     await manager.offerFiles([file]);
 
     expect(connection.sendControl).toHaveBeenCalledTimes(1);
-    const payload = connection.sendControl.mock.calls[0][0];
+    const payload = connection.sendControl.mock.calls[0][0] as {
+      type: string;
+      files: { fileName: string }[];
+    };
     expect(payload.type).toBe("batch-offer");
     expect(payload.files).toHaveLength(1);
     expect(payload.files[0].fileName).toBe("hello.txt");
@@ -110,7 +113,7 @@ describe("FileTransferManager", () => {
 
     expect(manager.pendingIncomingOffers.has(batchId)).toBe(false);
     expect(manager.pendingIncomingFiles).toHaveLength(0);
-    expect(manager.activeTransfers.has(17)).toBe(true);
+    expect(manager.activeTransfers.has(17 as TransferId)).toBe(true);
 
     manager.dispose();
   });

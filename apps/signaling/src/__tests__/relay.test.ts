@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TestHarness } from "../test-utils/harness.js";
-import { SignalingErrorCode } from "@riftsend/shared";
+import { generatePeerId, SignalingErrorCode } from "@riftsend/shared";
 import type {
   AnswerMessage,
   IceCandidateMessage,
@@ -108,7 +108,7 @@ describe("relay messages (offer/answer/ice-candidate)", () => {
 
     alice.sendRaw({
       type: "offer",
-      from: "peer_AAAAAAAAAAAAAAAA",
+      from: generatePeerId(),
       to: bob.peerId,
       payload: {
         description: {
@@ -130,7 +130,7 @@ describe("relay messages (offer/answer/ice-candidate)", () => {
     alice.sendRaw({
       type: "offer",
       from: alice.peerId,
-      to: "peer_BBBBBBBBBBBBBBBB",
+      to: generatePeerId(),
       payload: {
         description: {
           type: "offer",

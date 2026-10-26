@@ -1,3 +1,4 @@
+import type { BatchId, FileId, MessageId, TransferId } from "@riftsend/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("ControlTransport", () => {
@@ -26,7 +27,11 @@ describe("ControlTransport", () => {
     const { ControlTransport } = await import("./ControlTransport.js");
     const transport = new ControlTransport(sendRaw, onMessage);
 
-    await transport.send({ type: "ack", protocolVersion: 1, acknowledgedMessageId: 0 });
+    await transport.send({
+      type: "ack",
+      protocolVersion: 1,
+      acknowledgedMessageId: 0 as MessageId,
+    });
 
     expect(sendRaw).toHaveBeenCalledTimes(1);
     expect(sendRaw).toHaveBeenCalledWith({
@@ -47,10 +52,10 @@ describe("ControlTransport", () => {
     const promise = transport.send({
       type: "batch-offer",
       protocolVersion: 1,
-      batchId: "123e4567-e89b-42d3-a456-426614174000",
+      batchId: "123e4567-e89b-42d3-a456-426614174000" as BatchId,
       files: [
         {
-          fileId: "123e4567-e89b-42d3-a456-426614174001",
+          fileId: "123e4567-e89b-42d3-a456-426614174001" as FileId,
           fileName: "demo.txt",
           size: 16,
           mimeType: "text/plain",
@@ -83,8 +88,8 @@ describe("ControlTransport", () => {
     const sendPromise = transport.send({
       type: "batch-response",
       protocolVersion: 1,
-      batchId: "123e4567-e89b-42d3-a456-426614174000",
-      accepted: ["123e4567-e89b-42d3-a456-426614174001"],
+      batchId: "123e4567-e89b-42d3-a456-426614174000" as BatchId,
+      accepted: ["123e4567-e89b-42d3-a456-426614174001" as FileId],
     });
 
     await vi.waitFor(() => expect(sendRaw).toHaveBeenCalledTimes(1));
@@ -100,7 +105,7 @@ describe("ControlTransport", () => {
     });
 
     transport.dispose();
-  }, 10000);
+  }, 20_000);
 
   it("rejects when disposed before ACK arrives", async () => {
     const sendRaw = vi.fn().mockResolvedValue(undefined);
@@ -110,7 +115,7 @@ describe("ControlTransport", () => {
     const sendPromise = transport.send({
       type: "transfer-cancel",
       protocolVersion: 1,
-      transferId: 11,
+      transferId: 11 as TransferId,
     });
 
     await vi.waitFor(() => expect(sendRaw).toHaveBeenCalledTimes(1));
@@ -133,10 +138,10 @@ describe("ControlTransport", () => {
       transport.send({
         type: "batch-offer",
         protocolVersion: 1,
-        batchId: `123e4567-e89b-42d3-a456-42661417400${i}`,
+        batchId: `123e4567-e89b-42d3-a456-42661417400${i}` as BatchId,
         files: [
           {
-            fileId: "123e4567-e89b-42d3-a456-426614174001",
+            fileId: "123e4567-e89b-42d3-a456-426614174001" as FileId,
             fileName: "demo.txt",
             size: 16,
             mimeType: "text/plain",

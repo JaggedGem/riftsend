@@ -1,3 +1,4 @@
+import { generatePeerId, generateSessionToken } from "@riftsend/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("SignalingClient", () => {
@@ -54,8 +55,8 @@ describe("SignalingClient", () => {
     vi.resetModules();
   });
 
-  const validPeerId = "peer_" + "a".repeat(16);
-  const validSessionToken = "a".repeat(27);
+  const validPeerId = generatePeerId();
+  const validSessionToken = generateSessionToken();
   const peerIdMessage = {
     type: "peer-id",
     from: "server",
@@ -72,7 +73,7 @@ describe("SignalingClient", () => {
     const connected = vi.fn();
 
     client.on("connected", connected);
-    client.connect();
+    client.connect(false);
     socket.onopen?.(new Event("open"));
 
     expect(socket.send).toHaveBeenCalledTimes(1);
@@ -95,15 +96,13 @@ describe("SignalingClient", () => {
     const { SignalingClientError: ClientError } = await import("./SignalingErrors.js");
     const client = new SignalingClient();
 
-    client.connect();
+    client.connect(false);
     socket.onopen?.(new Event("open"));
     socket.onmessage?.({ data: JSON.stringify(peerIdMessage) } as MessageEvent);
 
     expect(() => client.sendJoinRoom("sender")).not.toThrow();
     expect(() => client.sendJoinRoom("sender", undefined, "BAD")).toThrow(ClientError);
-    expect(() => client.sendJoinRoom("sender", undefined, "BAD")).toThrowError(
-      /Invalid join code/i,
-    );
+    expect(() => client.sendJoinRoom("sender", undefined, "BAD")).toThrow(/Invalid join code/i);
 
     restore();
   });
@@ -114,12 +113,12 @@ describe("SignalingClient", () => {
     const { SignalingClientError } = await import("./SignalingErrors.js");
     const client = new SignalingClient();
 
-    expect(() =>
-      client.sendOffer("peer_aaaaaaaaaaaaaaaaaaaaaaaa", { type: "offer", sdp: "sdp" }),
-    ).toThrow(SignalingClientError);
-    expect(() =>
-      client.sendOffer("peer_aaaaaaaaaaaaaaaaaaaaaaaa", { type: "offer", sdp: "sdp" }),
-    ).toThrowError(/WebSocket is not open/i);
+    expect(() => client.sendOffer(generatePeerId(), { type: "offer", sdp: "sdp" })).toThrow(
+      SignalingClientError,
+    );
+    expect(() => client.sendOffer(generatePeerId(), { type: "offer", sdp: "sdp" })).toThrow(
+      /WebSocket is not open/i,
+    );
 
     restore();
   });
@@ -130,21 +129,21 @@ describe("SignalingClient", () => {
     const { SignalingClientError } = await import("./SignalingErrors.js");
     const client = new SignalingClient();
 
-    client.connect();
+    client.connect(false);
     socket.onopen?.(new Event("open"));
     socket.onmessage?.({ data: JSON.stringify(peerIdMessage) } as MessageEvent);
 
     expect(() =>
-      client.sendIceCandidate("peer_" + "b".repeat(16), {
+      client.sendIceCandidate(generatePeerId(), {
         candidate: "candidate:1 1 udp 1 127.0.0.1 3478 typ host",
       }),
     ).not.toThrow();
     expect(socket.send).toHaveBeenLastCalledWith(expect.stringContaining('"type":"ice-candidate"'));
 
-    expect(() => client.sendIceCandidate("peer_" + "b".repeat(16), { candidate: "" })).toThrow(
+    expect(() => client.sendIceCandidate(generatePeerId(), { candidate: "" })).toThrow(
       SignalingClientError,
     );
-    expect(() => client.sendIceCandidate("peer_" + "b".repeat(16), { candidate: "" })).toThrowError(
+    expect(() => client.sendIceCandidate(generatePeerId(), { candidate: "" })).toThrow(
       /candidate string is missing/i,
     );
 
